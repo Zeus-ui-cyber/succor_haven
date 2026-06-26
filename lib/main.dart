@@ -1,0 +1,271 @@
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'features/auth/repositories/auth_repository.dart' show AuthRepository;
+
+// Auth screens
+import 'features/auth/screens/login_screen.dart' show LoginScreen;
+import 'features/auth/screens/register_screen.dart' show RegisterScreen;
+
+// Dashboards — each imported with `show` so class names never collide
+import 'features/dashboard/student_dashboard_screen.dart' show StudentDashboard;
+import 'features/dashboard/teacher_dashboard_screen.dart' show TeacherDashboard;
+import 'features/dashboard/admin_dashboard_screen.dart' show AdminDashboard;
+
+// Models
+import 'models/user_role.dart' show UserRole;
+
+// ─── Succor Haven global design tokens ───────────────────────────────────────
+class SHColors {
+  static const magenta = Color(0xFFD64577);
+  static const slateBlue = Color(0xFF3E678A);
+  static const blushPink = Color(0xFFF2C6D6);
+  static const softPink = Color(0xFFF9E1EA);
+  static const burgundy = Color(0xFF7D002B);
+  static const lightPink = Color(0xFFF7D6E2);
+  static const dustyBlue = Color(0xFFA7BCCB);
+  static const mauve = Color(0xFFE08AB2);
+  static const cream = Color(0xFFFFF5F7);
+  static const lightGray = Color(0xFFE6E6E6);
+  static const ink = Color(0xFF3B0A1F);
+  static const inkSoft = Color(0xFF8A6070);
+  static const line = Color(0xFFF0DCE5);
+  static const paper = Color(0xFFFFFFFF);
+  static const bg = Color(0xFFFFF5F7);
+  static const green = Color(0xFF00C48C);
+  static const greenPale = Color(0xFFDCF7EE);
+  static const gradientStart = burgundy;
+  static const gradientMid = blushPink;
+  static const gradientEnd = slateBlue;
+}
+
+class SHTheme {
+  static ThemeData get light {
+    final cs = ColorScheme.fromSeed(
+      seedColor: SHColors.magenta,
+      brightness: Brightness.light,
+      primary: SHColors.magenta,
+      onPrimary: Colors.white,
+      primaryContainer: SHColors.blushPink,
+      onPrimaryContainer: SHColors.burgundy,
+      secondary: SHColors.slateBlue,
+      onSecondary: Colors.white,
+      secondaryContainer: SHColors.dustyBlue.withOpacity(0.3),
+      onSecondaryContainer: SHColors.slateBlue,
+      tertiary: SHColors.mauve,
+      onTertiary: Colors.white,
+      error: const Color(0xFFB00020),
+      surface: SHColors.paper,
+      onSurface: SHColors.ink,
+      surfaceContainerHighest: SHColors.softPink,
+      outline: SHColors.line,
+      outlineVariant: SHColors.lightPink,
+    );
+
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: cs,
+      scaffoldBackgroundColor: SHColors.bg,
+      appBarTheme: AppBarTheme(
+        backgroundColor: SHColors.bg,
+        foregroundColor: SHColors.ink,
+        elevation: 0,
+        centerTitle: false,
+        surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
+        titleTextStyle: const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+          color: SHColors.ink,
+          letterSpacing: -0.4,
+        ),
+        iconTheme: const IconThemeData(color: SHColors.ink),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: SHColors.magenta,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: SHColors.lightPink,
+          disabledForegroundColor: SHColors.inkSoft,
+          elevation: 4,
+          shadowColor: SHColors.magenta.withOpacity(0.35),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          textStyle: const TextStyle(
+              fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 0.2),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: SHColors.magenta,
+          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: SHColors.magenta,
+          side: const BorderSide(color: SHColors.magenta, width: 1.5),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: SHColors.softPink,
+        labelStyle: const TextStyle(
+            color: SHColors.inkSoft, fontWeight: FontWeight.w600, fontSize: 14),
+        hintStyle: const TextStyle(
+            color: SHColors.inkSoft, fontWeight: FontWeight.w500, fontSize: 13),
+        prefixIconColor: SHColors.inkSoft,
+        suffixIconColor: SHColors.inkSoft,
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: SHColors.magenta, width: 1.8)),
+        errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFFB00020), width: 1.5)),
+        focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFFB00020), width: 1.8)),
+        errorStyle: const TextStyle(color: Color(0xFFB00020), fontSize: 11.5),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      cardTheme: CardThemeData(
+        color: SHColors.paper,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: SHColors.line),
+        ),
+        margin: EdgeInsets.zero,
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: SHColors.lightPink,
+        selectedColor: SHColors.magenta,
+        labelStyle: const TextStyle(
+            fontSize: 12, fontWeight: FontWeight.w700, color: SHColors.ink),
+        secondaryLabelStyle: const TextStyle(
+            fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white),
+        side: BorderSide.none,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: SHColors.bg,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        clipBehavior: Clip.antiAlias,
+      ),
+      tabBarTheme: const TabBarThemeData(
+        labelColor: Colors.white,
+        unselectedLabelColor: SHColors.inkSoft,
+        indicatorColor: SHColors.magenta,
+        labelStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        unselectedLabelStyle:
+            TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+      ),
+      dividerTheme:
+          const DividerThemeData(color: SHColors.line, thickness: 1, space: 1),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: SHColors.ink,
+        contentTextStyle: const TextStyle(
+            color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        behavior: SnackBarBehavior.floating,
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: SHColors.magenta,
+        linearTrackColor: SHColors.lightPink,
+      ),
+      listTileTheme: const ListTileThemeData(
+        iconColor: SHColors.inkSoft,
+        titleTextStyle: TextStyle(
+            fontSize: 14, fontWeight: FontWeight.w600, color: SHColors.ink),
+        subtitleTextStyle: TextStyle(
+            fontSize: 12, color: SHColors.inkSoft, fontWeight: FontWeight.w500),
+      ),
+      iconTheme: const IconThemeData(color: SHColors.inkSoft, size: 22),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: SHColors.magenta,
+        foregroundColor: Colors.white,
+        elevation: 6,
+        shape: CircleBorder(),
+      ),
+    );
+  }
+}
+
+// ─── Entry point ──────────────────────────────────────────────────────────────
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // ── Configure API base URL per platform ──────────────────────────────────
+  // Web browser → localhost (your dev machine)
+  // Android emulator → 10.0.2.2 (maps to host machine)
+  // iOS simulator → localhost
+  // Physical device → your machine's LAN IP, e.g. 192.168.1.x
+  // Production → your deployed Railway/Render URL
+  String apiUrl;
+  if (kIsWeb) {
+    apiUrl = 'http://localhost:3000/api/v1';
+  } else if (defaultTargetPlatform == TargetPlatform.android) {
+    apiUrl = 'http://10.0.2.2:3000/api/v1';
+  } else {
+    apiUrl = 'http://localhost:3000/api/v1'; // iOS simulator / desktop
+  }
+  AuthRepository.configure(url: apiUrl);
+  // ─────────────────────────────────────────────────────────────────────────
+
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      systemNavigationBarColor: SHColors.bg,
+      systemNavigationBarIconBrightness: Brightness.dark,
+    ),
+  );
+
+  runApp(const ProviderScope(child: SuccorHavenApp()));
+}
+
+// ─── Root app ─────────────────────────────────────────────────────────────────
+class SuccorHavenApp extends StatelessWidget {
+  const SuccorHavenApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Succor Haven',
+      debugShowCheckedModeBanner: false,
+      theme: SHTheme.light,
+      initialRoute: '/login',
+      routes: {
+        '/login': (_) => const LoginScreen(),
+
+        '/register': (context) {
+          final role =
+              ModalRoute.of(context)?.settings.arguments as UserRole? ??
+                  UserRole.student;
+          return RegisterScreen(initialRole: role);
+        },
+
+        // ── Dashboards ────────────────────────────────────────────────────
+        '/dashboard': (_) => const StudentDashboard(),
+        '/teacher-dashboard': (_) => const TeacherDashboard(),
+        '/admin-dashboard': (_) => const AdminDashboard(),
+      },
+    );
+  }
+}

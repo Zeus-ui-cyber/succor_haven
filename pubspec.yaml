@@ -1,0 +1,42 @@
+name: succor_haven
+description: Succor Haven — bilingual tutoring platform (EN/中文)
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.5.1
+
+  # HTTP client (API calls)
+  http: ^1.2.1
+
+  # Secure token storage (mobile)
+  flutter_secure_storage: ^9.2.2
+
+  # Web-compatible token storage
+  shared_preferences: ^2.2.2
+
+  # URL launching (social links, tel, mailto)
+  url_launcher: ^6.2.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/logo.png
+    # Uncomment after adding social icons to assets/icons/
+    # - assets/icons/facebook.png
+    # - assets/icons/instagram.png
+    # - assets/icons/youtube.png
+    # - assets/icons/tiktok.png
+    # - assets/icons/x.png
