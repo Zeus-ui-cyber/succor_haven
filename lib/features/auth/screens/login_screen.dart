@@ -8,6 +8,7 @@
 //   • Contact info footer (phone + email)
 // ─────────────────────────────────────────────────────────────────────────────
 
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -80,12 +81,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   final _formKey = GlobalKey<FormState>();
 
   bool _obscurePassword = true;
-  bool _zhMode = false; // translation toggle
+  bool _zhMode = false;
   UserRole _selectedRole = UserRole.student;
   _Tab _tab = _Tab.password;
 
   late AnimationController _roleAnim;
   late Animation<double> _roleScale;
+
+  // Matches the floating logo + sparkle treatment used on SplashScreen /
+  // WelcomeScreen so the whole auth flow feels like one continuous piece.
+  late AnimationController _floatController;
+  late AnimationController _sparkleController;
 
   @override
   void initState() {
@@ -97,6 +103,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     _roleScale = Tween<double>(begin: 1.0, end: 0.96).animate(
       CurvedAnimation(parent: _roleAnim, curve: Curves.easeOut),
     );
+
+    _floatController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2600),
+    )..repeat(reverse: true);
+
+    _sparkleController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 5),
+    )..repeat();
   }
 
   @override
@@ -105,6 +121,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     _passwordCtrl.dispose();
     _phoneCtrl.dispose();
     _roleAnim.dispose();
+    _floatController.dispose();
+    _sparkleController.dispose();
     super.dispose();
   }
 
@@ -117,14 +135,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     _roleAnim.forward().then((_) {
       setState(() {
         _selectedRole = role;
-        // Admin only uses built-in email+password — force tab back to password
         if (role == UserRole.admin) _tab = _Tab.password;
       });
       _roleAnim.reverse();
     });
   }
 
-  // ── Handle submit ──────────────────────────────────────────────────────────
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
     final ctrl = ref.read(authControllerProvider.notifier);
@@ -141,7 +157,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         break;
 
       case _Tab.phoneOtp:
-        // Prepend +63 if no country code given
         String phone = _phoneCtrl.text.trim();
         if (!phone.startsWith('+'))
           phone = '+63${phone.replaceFirst(RegExp(r'^0'), '')}';
@@ -195,7 +210,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
   }
 
-  // ── Social media launcher ──────────────────────────────────────────────────
   Future<void> _launch(String url) async {
     final uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
@@ -207,7 +221,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
@@ -217,10 +230,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top bar: translation toggle ──────────────────────────────
             _buildTopBar(),
-
-            // ── Scrollable body ──────────────────────────────────────────
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -234,12 +244,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         const SizedBox(height: 10),
-
-                        // Logo circle
                         _buildLogo(),
                         const SizedBox(height: 18),
-
-                        // Title
                         Text(
                           _l.welcomeBack,
                           textAlign: TextAlign.center,
@@ -263,30 +269,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                         ),
                         const SizedBox(height: 24),
 
-                        // Role selector
+                        // FIX 1: Role selector wrapped in horizontal scroll
                         _RoleSelector(
                           selected: _selectedRole,
                           onSelect: _selectRole,
                         ),
                         const SizedBox(height: 20),
 
-                        // Admin notice (shown only for admin role)
                         if (_selectedRole == UserRole.admin) ...[
                           _buildAdminNotice(),
                           const SizedBox(height: 16),
                         ],
 
-                        // Fields (animated switch)
                         AnimatedSwitcher(
                           duration: const Duration(milliseconds: 220),
                           child: _buildFields(key: ValueKey(_tab)),
                         ),
                         const SizedBox(height: 18),
 
-                        // Submit button
                         _buildSubmitButton(authState),
 
-                        // Method tabs — below submit, hidden for Admin
                         if (_selectedRole != UserRole.admin) ...[
                           const SizedBox(height: 16),
                           _buildMethodTabsLabel(),
@@ -294,7 +296,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           _buildMethodTabs(),
                         ],
 
-                        // Register link
                         if (_selectedRole != UserRole.admin) ...[
                           const SizedBox(height: 20),
                           _buildDivider(),
@@ -303,16 +304,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                         ],
 
                         const SizedBox(height: 28),
-
-                        // Social media icons
                         _buildSocialBar(),
                         const SizedBox(height: 12),
 
-                        // Contact footer
+                        // FIX 2 & 3: Contact footer with Flexible + overflow fix
                         _buildContactFooter(),
                         const SizedBox(height: 20),
 
-                        // Brand footer
                         Text(
                           _l.footer,
                           textAlign: TextAlign.center,
@@ -336,7 +334,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  // ─── Top bar ───────────────────────────────────────────────────────────────
   Widget _buildTopBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
@@ -353,49 +350,83 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  // ─── Logo ──────────────────────────────────────────────────────────────────
   Widget _buildLogo() {
-    return Center(
-      child: Container(
-        width: 110,
-        height: 110,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: _accent.withOpacity(0.28),
-              blurRadius: 24,
-              offset: const Offset(0, 10),
+    return SizedBox(
+      height: 150,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Twinkling sparkle field behind the logo
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _sparkleController,
+              builder: (_, __) => CustomPaint(
+                painter: _SparklePainter(_sparkleController.value, _accent),
+              ),
             ),
-          ],
-        ),
-        child: ClipOval(
-          child: Image.asset(
-            'assets/images/logo.png',
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
+          ),
+
+          // Soft glow blob
+          Container(
+            width: 132,
+            height: 132,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _accent.withOpacity(0.14),
+            ),
+          ),
+
+          // Gently floating logo
+          AnimatedBuilder(
+            animation: _floatController,
+            builder: (_, child) {
+              final dy = sin(_floatController.value * pi) * 7;
+              return Transform.translate(offset: Offset(0, -dy), child: child);
+            },
+            child: Container(
+              width: 110,
+              height: 110,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [_accent, _C.mauve],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                color: _C.paper,
+                boxShadow: [
+                  BoxShadow(
+                    color: _accent.withOpacity(0.28),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
               ),
-              child: Center(
-                child: Text(
-                  _selectedRole.emoji,
-                  style: const TextStyle(fontSize: 38),
+              padding: const EdgeInsets.all(6),
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [_accent, _C.mauve],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        _selectedRole.emoji,
+                        style: const TextStyle(fontSize: 38),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  // ─── Admin notice (replaces method tabs) ──────────────────────────────────
   Widget _buildAdminNotice() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
@@ -426,7 +457,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  // ─── Method tabs label ────────────────────────────────────────────────────
   Widget _buildMethodTabsLabel() {
     return Align(
       alignment: Alignment.centerLeft,
@@ -441,7 +471,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  // ─── Method tabs — compact inline pills ───────────────────────────────────
   Widget _buildMethodTabs() {
     final tabs = [
       (_Tab.password, _l.tabPassword, Icons.lock_outline),
@@ -449,59 +478,64 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       (_Tab.phoneOtp, _l.tabPhoneOtp, Icons.phone_outlined),
     ];
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.start,
-      children: tabs.map((t) {
-        final isActive = _tab == t.$1;
-        return Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: GestureDetector(
-            onTap: () => setState(() => _tab = t.$1),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                color: isActive ? _C.paper : _C.lightPink,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color:
-                      isActive ? _accent.withOpacity(0.35) : Colors.transparent,
-                  width: 1.5,
-                ),
-                boxShadow: isActive
-                    ? [
-                        BoxShadow(
-                          color: _accent.withOpacity(0.15),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(t.$3, size: 13, color: isActive ? _accent : _C.inkSoft),
-                  const SizedBox(width: 5),
-                  Text(
-                    t.$2,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: isActive ? _accent : _C.inkSoft,
-                    ),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: tabs.map((t) {
+          final isActive = _tab == t.$1;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+              onTap: () => setState(() => _tab = t.$1),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: isActive ? _C.paper : _C.lightPink,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isActive
+                        ? _accent.withOpacity(0.35)
+                        : Colors.transparent,
+                    width: 1.5,
                   ),
-                ],
+                  boxShadow: isActive
+                      ? [
+                          BoxShadow(
+                            color: _accent.withOpacity(0.15),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(t.$3,
+                        size: 13, color: isActive ? _accent : _C.inkSoft),
+                    const SizedBox(width: 5),
+                    Text(
+                      t.$2,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: isActive ? _accent : _C.inkSoft,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-      }).toList(),
+          );
+        }).toList(),
+      ),
     );
   }
 
-  // ─── Field sets per tab ────────────────────────────────────────────────────
   Widget _buildFields({required Key key}) {
     switch (_tab) {
       case _Tab.password:
@@ -625,14 +659,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           Expanded(
             child: Text(text,
                 style: TextStyle(
-                    fontSize: 12, color: _accent, fontWeight: FontWeight.w600)),
+                    fontSize: 12,
+                    color: _accent,
+                    fontWeight: FontWeight.w600)),
           ),
         ],
       ),
     );
   }
 
-  // ─── Submit button ─────────────────────────────────────────────────────────
   Widget _buildSubmitButton(AuthState authState) {
     final label = _tab == _Tab.password
         ? '${_l.signIn} ${_l.roleLabel(_selectedRole)}'
@@ -663,8 +698,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
             foregroundColor: Colors.white,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14)),
           ),
           child: authState.isLoading
               ? const SizedBox(
@@ -683,7 +718,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  // ─── Divider ───────────────────────────────────────────────────────────────
   Widget _buildDivider() {
     return Row(
       children: [
@@ -701,7 +735,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  // ─── Register button ───────────────────────────────────────────────────────
   Widget _buildRegisterButton() {
     return OutlinedButton(
       onPressed: () {
@@ -712,16 +745,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         side: BorderSide(color: _accentPale, width: 1.5),
         backgroundColor: _C.paper,
         padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       child: Text(
         _l.newAccount,
-        style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+        style:
+            const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
       ),
     );
   }
 
-  // ─── Social media bar ──────────────────────────────────────────────────────
   Widget _buildSocialBar() {
     final socials = [
       (
@@ -809,7 +843,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  // ─── Contact footer ────────────────────────────────────────────────────────
+  // ─── FIX: Contact footer with Flexible chips ──────────────────────────────
   Widget _buildContactFooter() {
     return Column(
       children: [
@@ -827,16 +861,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _contactChip(
-              icon: Icons.phone_outlined,
-              label: '0992 283 7173',
-              onTap: () => _launch('tel:09922837173'),
+            Flexible(
+              child: _contactChip(
+                icon: Icons.phone_outlined,
+                label: '0992 283 7173',
+                onTap: () => _launch('tel:09922837173'),
+              ),
             ),
             const SizedBox(width: 10),
-            _contactChip(
-              icon: Icons.email_outlined,
-              label: 'succorhaven@gmail.com',
-              onTap: () => _launch('mailto:succorhaven@gmail.com'),
+            Flexible(
+              child: _contactChip(
+                icon: Icons.email_outlined,
+                label: 'succorhaven@gmail.com',
+                onTap: () => _launch('mailto:succorhaven@gmail.com'),
+              ),
             ),
           ],
         ),
@@ -844,6 +882,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
+  // ─── FIX: contactChip with overflow ellipsis ──────────────────────────────
   Widget _contactChip({
     required IconData icon,
     required String label,
@@ -863,18 +902,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           children: [
             Icon(icon, size: 12, color: _accent),
             const SizedBox(width: 5),
-            Text(label,
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                     fontSize: 10.5,
                     color: _accent,
-                    fontWeight: FontWeight.w700)),
+                    fontWeight: FontWeight.w700),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // ─── Reusable input ────────────────────────────────────────────────────────
   Widget _inputField({
     required TextEditingController controller,
     required String label,
@@ -911,19 +954,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             borderSide: BorderSide(color: _accent, width: 1.8)),
         errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFFB00020), width: 1.5)),
+            borderSide:
+                const BorderSide(color: Color(0xFFB00020), width: 1.5)),
         focusedErrorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFFB00020), width: 1.8)),
-        errorStyle: const TextStyle(color: Color(0xFFB00020), fontSize: 11.5),
+            borderSide:
+                const BorderSide(color: Color(0xFFB00020), width: 1.8)),
+        errorStyle:
+            const TextStyle(color: Color(0xFFB00020), fontSize: 11.5),
       ),
       validator: validator,
     );
   }
 }
 
-// ─── Role selector ─────────────────────────────────────────────────────────────
-// Compact inline pills — naturally sized, not stretched
+// ─── FIX: Role selector with horizontal scroll ────────────────────────────────
 class _RoleSelector extends StatelessWidget {
   final UserRole selected;
   final void Function(UserRole) onSelect;
@@ -931,71 +976,103 @@ class _RoleSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.start,
-      children: UserRole.values.map((role) {
-        final isActive = role == selected;
-        return Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: GestureDetector(
-            onTap: () => onSelect(role),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                color: isActive ? Colors.white : const Color(0xFFF7D6E2),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isActive
-                      ? role.accent.withOpacity(0.35)
-                      : Colors.transparent,
-                  width: 1.5,
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: UserRole.values.map((role) {
+          final isActive = role == selected;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+              onTap: () => onSelect(role),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: isActive ? Colors.white : const Color(0xFFF7D6E2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isActive
+                        ? role.accent.withOpacity(0.35)
+                        : Colors.transparent,
+                    width: 1.5,
+                  ),
+                  boxShadow: isActive
+                      ? [
+                          BoxShadow(
+                            color: role.accent.withOpacity(0.15),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : null,
                 ),
-                boxShadow: isActive
-                    ? [
-                        BoxShadow(
-                          color: role.accent.withOpacity(0.15),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(role.emoji, style: const TextStyle(fontSize: 14)),
-                  const SizedBox(width: 5),
-                  AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 200),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: isActive ? role.accent : const Color(0xFF8A6070),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(role.emoji, style: const TextStyle(fontSize: 14)),
+                    const SizedBox(width: 5),
+                    AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 200),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: isActive
+                            ? role.accent
+                            : const Color(0xFF8A6070),
+                      ),
+                      child: Text(role.label),
                     ),
-                    child: Text(role.label),
-                  ),
-                  const SizedBox(width: 3),
-                  AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 200),
-                    style: TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w500,
-                      color: isActive
-                          ? role.accent.withOpacity(0.55)
-                          : const Color(0xFF8A6070).withOpacity(0.45),
+                    const SizedBox(width: 3),
+                    AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 200),
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w500,
+                        color: isActive
+                            ? role.accent.withOpacity(0.55)
+                            : const Color(0xFF8A6070).withOpacity(0.45),
+                      ),
+                      child: Text('· ${role.labelCn}'),
                     ),
-                    child: Text('· ${role.labelCn}'),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-      }).toList(),
+          );
+        }).toList(),
+      ),
     );
   }
+}
+
+// ─── Sparkle particle painter (mirrors SplashScreen / WelcomeScreen) ──────────
+class _SparklePainter extends CustomPainter {
+  final double progress;
+  final Color color;
+  _SparklePainter(this.progress, this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rnd = Random(3);
+    final paint = Paint();
+    for (int i = 0; i < 14; i++) {
+      final dx = rnd.nextDouble() * size.width;
+      final baseY = rnd.nextDouble() * size.height;
+      final dy = (baseY - progress * size.height * 0.5) % size.height;
+      final r = 1.0 + rnd.nextDouble() * 1.6;
+      final twinkle = (sin((progress * 2 * pi) + i * 1.15) + 1) / 2;
+      paint.color = color.withOpacity(0.08 + twinkle * 0.22);
+      canvas.drawCircle(Offset(dx, dy), r, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SparklePainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.color != color;
 }
 
 // ─── Translation toggle ────────────────────────────────────────────────────────

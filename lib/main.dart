@@ -1,3 +1,4 @@
+// lib/main.dart  (replace your existing main.dart with this)
 import 'package:flutter/foundation.dart'
     show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
@@ -9,9 +10,10 @@ import 'features/auth/repositories/auth_repository.dart' show AuthRepository;
 import 'features/auth/screens/login_screen.dart' show LoginScreen;
 import 'features/auth/screens/register_screen.dart' show RegisterScreen;
 
-// Dashboards — each imported with `show` so class names never collide
+// Dashboards
 import 'features/dashboard/student_dashboard_screen.dart' show StudentDashboard;
 import 'features/dashboard/teacher_dashboard_screen.dart' show TeacherDashboard;
+import 'features/dashboard/teacher_pending_screen.dart' show TeacherPendingScreen;
 import 'features/dashboard/admin_dashboard_screen.dart' show AdminDashboard;
 
 // Models
@@ -52,7 +54,7 @@ class SHTheme {
       onPrimaryContainer: SHColors.burgundy,
       secondary: SHColors.slateBlue,
       onSecondary: Colors.white,
-      secondaryContainer: SHColors.dustyBlue.withOpacity(0.3),
+      secondaryContainer: SHColors.dustyBlue.withValues(alpha: 0.3),
       onSecondaryContainer: SHColors.slateBlue,
       tertiary: SHColors.mauve,
       onTertiary: Colors.white,
@@ -90,10 +92,9 @@ class SHTheme {
           disabledBackgroundColor: SHColors.lightPink,
           disabledForegroundColor: SHColors.inkSoft,
           elevation: 4,
-          shadowColor: SHColors.magenta.withOpacity(0.35),
+          shadowColor: SHColors.magenta.withValues(alpha: 0.35),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           textStyle: const TextStyle(
               fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 0.2),
         ),
@@ -108,8 +109,7 @@ class SHTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: SHColors.magenta,
           side: const BorderSide(color: SHColors.magenta, width: 1.5),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
         ),
       ),
@@ -133,10 +133,12 @@ class SHTheme {
             borderSide: const BorderSide(color: SHColors.magenta, width: 1.8)),
         errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFFB00020), width: 1.5)),
+            borderSide:
+                const BorderSide(color: Color(0xFFB00020), width: 1.5)),
         focusedErrorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFFB00020), width: 1.8)),
+            borderSide:
+                const BorderSide(color: Color(0xFFB00020), width: 1.8)),
         errorStyle: const TextStyle(color: Color(0xFFB00020), fontSize: 11.5),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -176,8 +178,8 @@ class SHTheme {
         unselectedLabelStyle:
             TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
       ),
-      dividerTheme:
-          const DividerThemeData(color: SHColors.line, thickness: 1, space: 1),
+      dividerTheme: const DividerThemeData(
+          color: SHColors.line, thickness: 1, space: 1),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: SHColors.ink,
         contentTextStyle: const TextStyle(
@@ -194,7 +196,9 @@ class SHTheme {
         titleTextStyle: TextStyle(
             fontSize: 14, fontWeight: FontWeight.w600, color: SHColors.ink),
         subtitleTextStyle: TextStyle(
-            fontSize: 12, color: SHColors.inkSoft, fontWeight: FontWeight.w500),
+            fontSize: 12,
+            color: SHColors.inkSoft,
+            fontWeight: FontWeight.w500),
       ),
       iconTheme: const IconThemeData(color: SHColors.inkSoft, size: 22),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
@@ -211,22 +215,15 @@ class SHTheme {
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ── Configure API base URL per platform ──────────────────────────────────
-  // Web browser → localhost (your dev machine)
-  // Android emulator → 10.0.2.2 (maps to host machine)
-  // iOS simulator → localhost
-  // Physical device → your machine's LAN IP, e.g. 192.168.1.x
-  // Production → your deployed Railway/Render URL
   String apiUrl;
   if (kIsWeb) {
     apiUrl = 'http://localhost:3000/api/v1';
   } else if (defaultTargetPlatform == TargetPlatform.android) {
     apiUrl = 'http://10.0.2.2:3000/api/v1';
   } else {
-    apiUrl = 'http://localhost:3000/api/v1'; // iOS simulator / desktop
+    apiUrl = 'http://localhost:3000/api/v1';
   }
   AuthRepository.configure(url: apiUrl);
-  // ─────────────────────────────────────────────────────────────────────────
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -264,6 +261,12 @@ class SuccorHavenApp extends StatelessWidget {
         // ── Dashboards ────────────────────────────────────────────────────
         '/dashboard': (_) => const StudentDashboard(),
         '/teacher-dashboard': (_) => const TeacherDashboard(),
+
+        // ── Teacher pending approval ──────────────────────────────────────
+        // Login screen / auth controller should redirect here instead of
+        // '/teacher-dashboard' when user.teacherApproved == false.
+        '/teacher-pending': (_) => const TeacherPendingScreen(),
+
         '/admin-dashboard': (_) => const AdminDashboard(),
       },
     );

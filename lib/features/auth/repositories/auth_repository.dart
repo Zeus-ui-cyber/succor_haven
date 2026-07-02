@@ -1,133 +1,103 @@
 // lib/features/auth/repositories/auth_repository.dart
-// Wired to the real Node/Express API.
+// Wired to the real Node/Express API via the shared ApiService.
 
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../../core/api/api_service.dart';
 import '../../../models/user.dart';
 import '../../../models/user_role.dart';
 
 class AuthRepository {
-  // ── Base URL — auto-switches per platform ─────────────────────────────────
-  static String get baseUrl {
-    // Flutter Web (browser) — backend must be on localhost
-    if (identical(0, 0.0)) {
-      // This branch never runs; use the kIsWeb import below
-    }
-    return _resolvedBaseUrl;
-  }
+  final ApiService _api = ApiService.instance;
 
-  // Resolved once at startup by _resolveBaseUrl() in main.dart
-  // Defaults to localhost:3000 so web always works out of the box.
-  static String _resolvedBaseUrl = 'http://localhost:3000/api/v1';
+  // ── Static helpers used across all dashboard screens & main.dart ──────────
 
-  /// Call this once in main() before runApp().
+  /// The active API base URL (e.g. "http://localhost:3000/api").
+  /// Delegates to ApiService so there is a single source of truth.
+  static String get baseUrl => ApiService.baseUrl;
+
+  /// Call once at startup (in main.dart) to point the app at the right server.
+  ///   AuthRepository.configure(url: 'http://localhost:3000/api');
   static void configure({required String url}) {
-    _resolvedBaseUrl = url;
+    ApiService.configure(url: url);
   }
 
-  // flutter_secure_storage works on mobile/desktop.
-  // On web it falls back to localStorage automatically (built-in to the package).
-  final _storage = const FlutterSecureStorage(
-    webOptions: WebOptions(dbName: 'succor_haven', publicKey: 'sh_tokens'),
-  );
+  // ── Token passthrough (handy for splash/boot screens) ─────────────────────
+  Future<String?> getAccessToken() => _api.getAccessToken();
+  Future<String?> getRefreshToken() => _api.getRefreshToken();
 
-  // ── Token helpers ─────────────────────────────────────────────────────────
-  Future<void> _saveTokens(String access, String refresh) async {
-    await _storage.write(key: 'access_token', value: access);
-    await _storage.write(key: 'refresh_token', value: refresh);
-  }
-
-  Future<String?> getAccessToken() => _storage.read(key: 'access_token');
-  Future<String?> getRefreshToken() => _storage.read(key: 'refresh_token');
-
-  Future<Map<String, String>> _authHeaders() async {
-    final token = await getAccessToken();
-    return {
-      'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
-  }
-
-  void _throwIfError(http.Response res) {
-    if (res.statusCode >= 400) {
-      final body = jsonDecode(res.body);
-      throw Exception(body['error'] ?? 'Unknown error');
-    }
-  }
-
-  UserModel _parseUser(Map<String, dynamic> data) {
+  // login/register/otp-verify all return the same shape:
+  // { accessToken, refreshToken, user: {...} }
+  // Note: this `user` payload is the raw users-table row (see auth.controller's
+  // userPublic()) — it does NOT include credits/points/teacher_approved, since
+  // those only come from the joined /auth/me query. Defaults are fine here;
+  // call getMe() right after login if you need the full profile immediately.
+  //
+  // ⚠️ FIXED: UserModel's real constructor takes `fullName` (required), not
+  // firstName/lastName/phone/isActive — the users table has one full_name
+  // column. firstName/lastName are derived getters on UserModel now, computed
+  // from fullName.
+  UserModel _parseAuthUser(Map<String, dynamic> data) {
+    final u = data['user'] as Map<String, dynamic>;
     return UserModel(
-      id: data['user']['id'],
-      email: data['user']['email'] ?? '',
-      firstName: data['user']['first_name'],
-      lastName: data['user']['last_name'],
-      role: data['user']['role'],
-      phone: data['user']['phone'],
-      credits: data['user']['credits'] ?? 0,
-      points: data['user']['points'] ?? 0,
-      createdAt: DateTime.parse(data['user']['created_at']),
+      id: u['id'].toString(),
+      email: u['email'] ?? '',
+      fullName: u['full_name'] ?? '',
+      role: u['role'] ?? 'student',
+      createdAt: DateTime.parse(u['created_at']),
+      // languagePref / credits / points / teacherApproved are left at their
+      // UserModel defaults here — call getMe() right after login/register/
+      // otp-verify if you need those populated immediately.
     );
   }
 
   // ── Email + Password Login ────────────────────────────────────────────────
   Future<UserModel> login(String email, String password) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/auth/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'password': password}),
+    final data = await _api.post(
+      '/auth/login',
+      data: {'email': email, 'password': password},
+      authenticated: false,
     );
-    _throwIfError(res);
-    final data = jsonDecode(res.body);
-    await _saveTokens(data['accessToken'], data['refreshToken']);
-    return _parseUser(data);
+    await _api.saveTokens(access: data['accessToken'], refresh: data['refreshToken']);
+    return _parseAuthUser(data);
   }
 
   // ── Send OTP ──────────────────────────────────────────────────────────────
   Future<bool> sendEmailOtp(String email) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/auth/otp/send'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'target': email, 'type': 'email'}),
+    await _api.post(
+      '/auth/otp/send',
+      data: {'target': email, 'type': 'email'},
+      authenticated: false,
     );
-    _throwIfError(res);
     return true;
   }
 
   Future<bool> sendPhoneOtp(String phone) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/auth/otp/send'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'target': phone, 'type': 'sms'}),
+    await _api.post(
+      '/auth/otp/send',
+      data: {'target': phone, 'type': 'sms'},
+      authenticated: false,
     );
-    _throwIfError(res);
     return true;
   }
 
   // ── Verify OTP ────────────────────────────────────────────────────────────
   Future<UserModel> verifyEmailOtp(String email, String otp) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/auth/otp/verify'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'target': email, 'code': otp, 'type': 'email'}),
+    final data = await _api.post(
+      '/auth/otp/verify',
+      data: {'target': email, 'code': otp, 'type': 'email'},
+      authenticated: false,
     );
-    _throwIfError(res);
-    final data = jsonDecode(res.body);
-    await _saveTokens(data['accessToken'], data['refreshToken']);
-    return _parseUser(data);
+    await _api.saveTokens(access: data['accessToken'], refresh: data['refreshToken']);
+    return _parseAuthUser(data);
   }
 
   Future<UserModel> verifyPhoneOtp(String phone, String otp) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/auth/otp/verify'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'target': phone, 'code': otp, 'type': 'sms'}),
+    final data = await _api.post(
+      '/auth/otp/verify',
+      data: {'target': phone, 'code': otp, 'type': 'sms'},
+      authenticated: false,
     );
-    _throwIfError(res);
-    final data = jsonDecode(res.body);
-    await _saveTokens(data['accessToken'], data['refreshToken']);
-    return _parseUser(data);
+    await _api.saveTokens(access: data['accessToken'], refresh: data['refreshToken']);
+    return _parseAuthUser(data);
   }
 
   Future<bool> resendOtp({String? email, String? phone}) async {
@@ -137,6 +107,20 @@ class AuthRepository {
   }
 
   // ── Register ──────────────────────────────────────────────────────────────
+  // ⚠️ FIXED: backend (auth.controller.js) expects a single `fullName` field
+  // (users table has one full_name column, no first_name/last_name split).
+  // We still collect firstName/lastName separately in the UI for nicer UX,
+  // but combine them here before sending, so the request actually matches
+  // what the server reads — previously it sent firstName/lastName only,
+  // which the backend never looked at, always failing with
+  // "Full name required" regardless of input.
+  //
+  // `phone` is now sent too — the users table has a phone column and the
+  // backend persists it, needed for Phone OTP login/registration.
+  //
+  // Dropped 'creditsPerSession' — session cost now comes from the pricing
+  // table, not a per-teacher column. Sending it is harmless (backend just
+  // ignores unknown fields) but removed for clarity.
   Future<UserModel> register({
     required String email,
     required String password,
@@ -152,60 +136,45 @@ class AuthRepository {
     List<String>? learningGoals,
     String? level,
   }) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/auth/register'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
+    final data = await _api.post(
+      '/auth/register',
+      authenticated: false,
+      data: {
         'email': email,
         'password': password,
-        'firstName': firstName,
-        'lastName': lastName,
-        'role': role.name,
+        'fullName': '$firstName $lastName'.trim(),
+        'role': role.apiValue,
         'phone': phone,
         'bio': bio,
         'subjects': subjects,
-        'creditsPerSession': creditsPerSession,
         'availability': availability,
         'nativeLanguage': nativeLanguage,
         'learningGoals': learningGoals,
         'level': level,
-      }),
+      },
     );
-    _throwIfError(res);
-    final data = jsonDecode(res.body);
-    await _saveTokens(data['accessToken'], data['refreshToken']);
-    return _parseUser(data);
+    await _api.saveTokens(access: data['accessToken'], refresh: data['refreshToken']);
+    return _parseAuthUser(data);
   }
 
   // ── Logout ────────────────────────────────────────────────────────────────
   Future<void> logout() async {
-    final refresh = await getRefreshToken();
-    await http.post(
-      Uri.parse('$baseUrl/auth/logout'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'refreshToken': refresh}),
-    );
-    await _storage.deleteAll();
+    final refresh = await _api.getRefreshToken();
+    try {
+      await _api.post(
+        '/auth/logout',
+        data: {'refreshToken': refresh},
+        authenticated: false,
+      );
+    } catch (_) {
+      // Even if the network call fails, always clear local tokens below.
+    }
+    await _api.clearTokens();
   }
 
-  // ── Get current user ──────────────────────────────────────────────────────
+  // ── Get current user (full profile incl. credits/points) ──────────────────
   Future<UserModel> getMe() async {
-    final res = await http.get(
-      Uri.parse('$baseUrl/auth/me'),
-      headers: await _authHeaders(),
-    );
-    _throwIfError(res);
-    final u = jsonDecode(res.body);
-    return UserModel(
-      id: u['id'],
-      email: u['email'] ?? '',
-      firstName: u['first_name'],
-      lastName: u['last_name'],
-      role: u['role'],
-      phone: u['phone'],
-      credits: u['credits'] ?? 0,
-      points: u['points'] ?? 0,
-      createdAt: DateTime.parse(u['created_at']),
-    );
+    final data = await _api.get('/auth/me');
+    return UserModel.fromJson(data as Map<String, dynamic>);
   }
 }

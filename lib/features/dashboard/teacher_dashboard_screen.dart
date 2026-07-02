@@ -1,28 +1,30 @@
 // lib/features/dashboard/teacher_dashboard_screen.dart
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import '../auth/controllers/auth_controller.dart';
 import '../auth/repositories/auth_repository.dart';
 import '../../models/user.dart';
+import '../../models/booking.dart';
 
+// ── Palette (kiddy / glowy — same family as admin + student dashboards) ─────
 class _C {
-  static const slateBlue = Color(0xFF3E678A);
-  static const dustyBlue = Color(0xFFA7BCCB);
-  static const bluePale = Color(0xFFDCEBF5);
-  static const magenta = Color(0xFFD64577);
-  static const burgundy = Color(0xFF7D002B);
-  static const blushPink = Color(0xFFF2C6D6);
-  static const softPink = Color(0xFFF9E1EA);
-  static const cream = Color(0xFFFFF5F7);
-  static const ink = Color(0xFF3B0A1F);
-  static const inkSoft = Color(0xFF8A6070);
-  static const line = Color(0xFFF0DCE5);
+  static const sunshine = Color(0xFFFFC93C);
+  static const sunshineDeep = Color(0xFFFFB100);
+  static const sunshineGlow = Color(0xFFFFE49A);
+  static const navy = Color(0xFF142850);
+  static const navySoft = Color(0xFF274472);
+  static const coral = Color(0xFFFF6F61);
+  static const coralSoft = Color(0xFFFFD9CC);
+  static const blushSoft = Color(0xFFFCE0E6);
+  static const cream = Color(0xFFFFF8E7);
   static const paper = Color(0xFFFFFFFF);
+  static const inkSoft = Color(0xFF6E7593);
+  static const line = Color(0xFFFFE8B8);
   static const green = Color(0xFF00C48C);
-  static const greenPale = Color(0xFFDCF7EE);
-  static const amber = Color(0xFFFFB347);
+  static const greenPale = Color(0xFFDFFBEF);
 }
 
 final _tRepoProvider = Provider((_) => AuthRepository());
@@ -30,15 +32,25 @@ final _tRepoProvider = Provider((_) => AuthRepository());
 final _tMeProvider =
     FutureProvider<UserModel>((ref) => ref.read(_tRepoProvider).getMe());
 
-final _tBookingsProvider = FutureProvider<List<dynamic>>((ref) async {
+// ⚠️ CHANGED: parses into BookingModel now (b.*, student_name, teacher_name,
+// teacher_avatar, pricing_name, session_type — see bookings.controller.js
+// list()). The old code read booking['student_first']/['student_last'],
+// which never existed on the real response — only student_name (full_name)
+// does, since users has one full_name column, not first/last.
+final _tBookingsProvider = FutureProvider<List<BookingModel>>((ref) async {
   final repo = ref.read(_tRepoProvider);
   final token = await repo.getAccessToken();
   final res = await http.get(
     Uri.parse('${AuthRepository.baseUrl}/bookings'),
     headers: {'Authorization': 'Bearer $token'},
   );
-  if (res.statusCode != 200) return [];
-  return jsonDecode(res.body) as List;
+  if (res.statusCode != 200) {
+    return [];
+  }
+  final decoded = jsonDecode(res.body) as List;
+  return decoded
+      .map((e) => BookingModel.fromJson(e as Map<String, dynamic>))
+      .toList();
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -58,25 +70,71 @@ class _TeacherDashboardState extends ConsumerState<TeacherDashboard> {
     return meAsync.when(
       loading: () => const Scaffold(
         backgroundColor: _C.cream,
-        body: Center(child: CircularProgressIndicator(color: _C.slateBlue)),
+        body: Center(child: CircularProgressIndicator(color: _C.coral)),
       ),
       error: (e, _) => Scaffold(
         backgroundColor: _C.cream,
-        body: Center(child: Text('$e')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: _C.coralSoft, width: 1.4),
+              ),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Text('⚠️', style: TextStyle(fontSize: 32)),
+                const SizedBox(height: 10),
+                const Text('Couldn\'t load profile',
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: _C.navy)),
+                const SizedBox(height: 8),
+                Text('$e',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12, color: _C.inkSoft)),
+                const SizedBox(height: 16),
+                GestureDetector(
+                  onTap: () => ref.invalidate(_tMeProvider),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 18, vertical: 10),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                          colors: [_C.sunshine, _C.coral]),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Text('Retry',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800)),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        ),
       ),
       data: (user) => Scaffold(
         backgroundColor: _C.cream,
         body: SafeArea(
-          child: IndexedStack(
-            index: _navIndex,
-            children: [
-              _THomeTab(user: user),
-              _TScheduleTab(user: user),
-              _TSessionsTab(user: user),
-              _TEarningsTab(user: user),
-              _TProfileTab(user: user, onLogout: _logout),
-            ],
-          ),
+          child: Stack(children: [
+            const _BackgroundBlobs(),
+            IndexedStack(
+              index: _navIndex,
+              children: [
+                _THomeTab(user: user),
+                _TScheduleTab(user: user),
+                _TSessionsTab(user: user),
+                _TEarningsTab(user: user),
+                _TProfileTab(user: user, onLogout: _logout),
+              ],
+            ),
+          ]),
         ),
         bottomNavigationBar: _buildBottomNav(),
       ),
@@ -105,18 +163,19 @@ class _TeacherDashboardState extends ConsumerState<TeacherDashboard> {
     return Container(
       decoration: BoxDecoration(
         color: _C.paper,
-        border: Border(top: BorderSide(color: _C.line, width: 1)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 12,
-              offset: const Offset(0, -4))
+              color: _C.sunshineDeep.withValues(alpha: 0.28),
+              blurRadius: 24,
+              spreadRadius: -4,
+              offset: const Offset(0, -6))
         ],
       ),
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: List.generate(items.length, (i) {
@@ -126,22 +185,37 @@ class _TeacherDashboardState extends ConsumerState<TeacherDashboard> {
                 onTap: () => setState(() => _navIndex = i),
                 behavior: HitTestBehavior.opaque,
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutBack,
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: active ? _C.bluePale : Colors.transparent,
-                    borderRadius: BorderRadius.circular(20),
+                    gradient: active
+                        ? const LinearGradient(
+                            colors: [_C.sunshine, _C.coral],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    borderRadius: BorderRadius.circular(22),
+                    boxShadow: active
+                        ? [
+                            BoxShadow(
+                                color: _C.coral.withValues(alpha: 0.45),
+                                blurRadius: 14,
+                                offset: const Offset(0, 4))
+                          ]
+                        : null,
                   ),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
                     Icon(active ? item.$1 : item.$2,
-                        color: active ? _C.slateBlue : _C.inkSoft, size: 22),
+                        color: active ? Colors.white : _C.inkSoft, size: 21),
                     const SizedBox(height: 2),
                     Text(active ? item.$3 : item.$4,
                         style: TextStyle(
                             fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: active ? _C.slateBlue : _C.inkSoft)),
+                            fontWeight: FontWeight.w800,
+                            color: active ? Colors.white : _C.inkSoft)),
                   ]),
                 ),
               );
@@ -156,6 +230,40 @@ class _TeacherDashboardState extends ConsumerState<TeacherDashboard> {
     await ref.read(authControllerProvider.notifier).logout();
     if (mounted) Navigator.pushReplacementNamed(context, '/login');
   }
+}
+
+// ── Decorative background blobs (shared visual language across dashboards) ──
+class _BackgroundBlobs extends StatelessWidget {
+  const _BackgroundBlobs();
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Stack(children: [
+        Positioned(
+            top: -60,
+            right: -70,
+            child: _glowCircle(180, _C.sunshineGlow.withValues(alpha: 0.55))),
+        Positioned(
+            top: 140,
+            left: -80,
+            child: _glowCircle(150, _C.blushSoft.withValues(alpha: 0.6))),
+        Positioned(
+            bottom: 80,
+            right: -60,
+            child: _glowCircle(140, _C.coralSoft.withValues(alpha: 0.5))),
+      ]),
+    );
+  }
+
+  Widget _glowCircle(double size, Color color) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient:
+              RadialGradient(colors: [color, color.withValues(alpha: 0)]),
+        ),
+      );
 }
 
 // ── HOME TAB ──────────────────────────────────────────────────────────────────
@@ -189,9 +297,12 @@ class _THomeTab extends ConsumerWidget {
               loading: () => const SizedBox.shrink(),
               error: (_, __) => const SizedBox.shrink(),
               data: (b) {
-                final next =
-                    b.where((x) => x['status'] == 'confirmed').toList();
-                if (next.isEmpty) return const SizedBox.shrink();
+                final next = b
+                    .where((x) => x.status == BookingStatus.confirmed)
+                    .toList();
+                if (next.isEmpty) {
+                  return const SizedBox.shrink();
+                }
                 return _TNextSessionBanner(booking: next.first);
               },
             ),
@@ -207,14 +318,15 @@ class _THomeTab extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
           sliver: SliverToBoxAdapter(
             child: bookingsAsync.when(
-              loading: () => const Center(
-                  child: CircularProgressIndicator(color: _C.slateBlue)),
+              loading: () =>
+                  const Center(child: CircularProgressIndicator(color: _C.coral)),
               error: (e, _) => Text('$e'),
               data: (b) {
                 final upcoming =
-                    b.where((x) => x['status'] == 'confirmed').toList();
-                if (upcoming.isEmpty)
+                    b.where((x) => x.status == BookingStatus.confirmed).toList();
+                if (upcoming.isEmpty) {
                   return const _TEmpty('No upcoming sessions yet', '暂无即将上课的课程');
+                }
                 return Column(
                     children: upcoming
                         .take(5)
@@ -231,39 +343,39 @@ class _THomeTab extends ConsumerWidget {
 
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
       child: Row(children: [
-        CircleAvatar(
-          radius: 22,
-          backgroundColor: _C.bluePale,
-          child: Text(user.firstName[0].toUpperCase(),
-              style: const TextStyle(
-                  color: _C.slateBlue,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16)),
-        ),
+        const _OwlMascot(size: 52),
         const SizedBox(width: 12),
         Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Hi, ${user.firstName}! 🎓',
               style: const TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.w800, color: _C.ink)),
-          const Text('老师 · Teacher',
-              style: TextStyle(fontSize: 11, color: _C.inkSoft)),
+                  fontSize: 18, fontWeight: FontWeight.w900, color: _C.navy)),
+          const Text('· 老师 Teacher',
+              style: TextStyle(
+                  fontSize: 12, color: _C.coral, fontWeight: FontWeight.w700)),
         ])),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-              color: _C.bluePale, borderRadius: BorderRadius.circular(20)),
+              gradient: const LinearGradient(colors: [_C.sunshine, _C.coral]),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                    color: _C.coral.withValues(alpha: 0.4),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3)),
+              ]),
           child: const Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.verified_outlined, color: _C.slateBlue, size: 14),
+            Icon(Icons.verified_rounded, color: Colors.white, size: 14),
             SizedBox(width: 4),
             Text('Teacher',
                 style: TextStyle(
                     fontSize: 11,
-                    color: _C.slateBlue,
-                    fontWeight: FontWeight.w700)),
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800)),
           ]),
         ),
       ]),
@@ -280,29 +392,15 @@ class _TScheduleTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bookingsAsync = ref.watch(_tBookingsProvider);
     final now = DateTime.now();
-    // Build next 7 days
     final days =
         List.generate(7, (i) => DateTime(now.year, now.month, now.day + i));
     final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
     return Column(children: [
-      // Header
       const Padding(
         padding: EdgeInsets.fromLTRB(20, 16, 20, 16),
-        child: Row(children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Schedule',
-                style: TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.w800, color: _C.ink)),
-            Text('日程安排',
-                style: TextStyle(
-                    fontSize: 12,
-                    color: _C.slateBlue,
-                    fontWeight: FontWeight.w600)),
-          ]),
-        ]),
+        child: _PageHeader('Schedule', '日程安排', '🗓️'),
       ),
-      // Week strip
       SizedBox(
         height: 72,
         child: ListView.builder(
@@ -325,11 +423,11 @@ class _TScheduleTab extends ConsumerWidget {
                   hasSession: false),
               data: (bookings) {
                 final hasSession = bookings.any((b) {
-                  final dt = DateTime.parse(b['scheduled_at']);
+                  final dt = b.scheduledAt;
                   return dt.year == day.year &&
                       dt.month == day.month &&
                       dt.day == day.day &&
-                      b['status'] == 'confirmed';
+                      b.status == BookingStatus.confirmed;
                 });
                 return _DayChip(
                     day: day,
@@ -349,20 +447,21 @@ class _TScheduleTab extends ConsumerWidget {
       const SizedBox(height: 12),
       Expanded(
         child: bookingsAsync.when(
-          loading: () => const Center(
-              child: CircularProgressIndicator(color: _C.slateBlue)),
+          loading: () =>
+              const Center(child: CircularProgressIndicator(color: _C.coral)),
           error: (e, _) => Center(child: Text('$e')),
           data: (bookings) {
             final scheduled = bookings
                 .where((b) =>
-                    b['status'] == 'confirmed' || b['status'] == 'pending')
+                    b.status == BookingStatus.confirmed ||
+                    b.status == BookingStatus.pending)
                 .toList()
-              ..sort((a, b) => DateTime.parse(a['scheduled_at'])
-                  .compareTo(DateTime.parse(b['scheduled_at'])));
+              ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
 
-            if (scheduled.isEmpty)
+            if (scheduled.isEmpty) {
               return const Center(
                   child: _TEmpty('No scheduled sessions', '暂无排课'));
+            }
 
             return ListView.builder(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
@@ -388,51 +487,47 @@ class _TSessionsTab extends ConsumerWidget {
     return Column(children: [
       const Padding(
         padding: EdgeInsets.fromLTRB(20, 16, 20, 16),
-        child: Row(children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Sessions',
-                style: TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.w800, color: _C.ink)),
-            Text('课程管理',
-                style: TextStyle(
-                    fontSize: 12,
-                    color: _C.slateBlue,
-                    fontWeight: FontWeight.w600)),
-          ]),
-        ]),
+        child: _PageHeader('Sessions', '课程管理', '🎬'),
       ),
       Expanded(
         child: bookingsAsync.when(
-          loading: () => const Center(
-              child: CircularProgressIndicator(color: _C.slateBlue)),
+          loading: () =>
+              const Center(child: CircularProgressIndicator(color: _C.coral)),
           error: (e, _) => Center(child: Text('$e')),
           data: (bookings) {
-            if (bookings.isEmpty)
+            if (bookings.isEmpty) {
               return const Center(child: _TEmpty('No sessions yet', '暂无课程'));
-            final upcoming =
-                bookings.where((b) => b['status'] == 'confirmed').toList();
-            final completed =
-                bookings.where((b) => b['status'] == 'completed').toList();
-            final cancelled =
-                bookings.where((b) => b['status'] == 'cancelled').toList();
+            }
+            final upcoming = bookings
+                .where((b) => b.status == BookingStatus.confirmed)
+                .toList();
+            final completed = bookings
+                .where((b) => b.status == BookingStatus.completed)
+                .toList();
+            final cancelled = bookings
+                .where((b) => b.status == BookingStatus.cancelled)
+                .toList();
 
             return ListView(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
               children: [
                 if (upcoming.isNotEmpty) ...[
-                  const _TLabel('Upcoming · 即将上课'),
+                  const _TLabel('Upcoming', '即将上课'),
+                  const SizedBox(height: 10),
                   ...upcoming.map((b) =>
                       _TBookingCard(booking: b, showComplete: true, ref: ref)),
                   const SizedBox(height: 16),
                 ],
                 if (completed.isNotEmpty) ...[
-                  const _TLabel('Completed · 已完成'),
+                  const _TLabel('Completed', '已完成'),
+                  const SizedBox(height: 10),
                   ...completed.map((b) => _TBookingCard(
                       booking: b, showComplete: false, ref: null)),
                   const SizedBox(height: 16),
                 ],
                 if (cancelled.isNotEmpty) ...[
-                  const _TLabel('Cancelled · 已取消'),
+                  const _TLabel('Cancelled', '已取消'),
+                  const SizedBox(height: 10),
                   ...cancelled.map((b) => _TBookingCard(
                       booking: b, showComplete: false, ref: null)),
                 ],
@@ -456,99 +551,100 @@ class _TEarningsTab extends ConsumerWidget {
 
     return bookingsAsync.when(
       loading: () =>
-          const Center(child: CircularProgressIndicator(color: _C.slateBlue)),
+          const Center(child: CircularProgressIndicator(color: _C.coral)),
       error: (e, _) => Center(child: Text('$e')),
       data: (bookings) {
         final completed =
-            bookings.where((b) => b['status'] == 'completed').toList();
-        final totalCredits = completed.fold<int>(
-            0, (sum, b) => sum + (b['credits_cost'] as int? ?? 0));
+            bookings.where((b) => b.status == BookingStatus.completed).toList();
+        final totalCredits =
+            completed.fold<int>(0, (sum, b) => sum + b.creditsCost);
         final totalSessions = completed.length;
         final thisMonth = completed.where((b) {
-          final dt = DateTime.parse(b['scheduled_at']);
+          final dt = b.scheduledAt;
           final now = DateTime.now();
           return dt.year == now.year && dt.month == now.month;
         }).toList();
-        final monthCredits = thisMonth.fold<int>(
-            0, (sum, b) => sum + (b['credits_cost'] as int? ?? 0));
+        final monthCredits =
+            thisMonth.fold<int>(0, (sum, b) => sum + b.creditsCost);
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
           children: [
-            // Earnings header
-            const Row(children: [
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Earnings',
-                    style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: _C.ink)),
-                Text('收入统计',
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: _C.slateBlue,
-                        fontWeight: FontWeight.w600)),
-              ]),
-            ]),
+            const _PageHeader('Earnings', '收入统计', '💰'),
             const SizedBox(height: 16),
 
-            // Total earnings hero
+            // Total earnings hero (navy glow card — matches admin's revenue card)
             Container(
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [_C.slateBlue, Color(0xFF2D5A7E)],
+                  colors: [_C.navy, _C.navySoft],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(22),
+                borderRadius: BorderRadius.circular(28),
                 boxShadow: [
                   BoxShadow(
-                      color: _C.slateBlue.withOpacity(0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8))
+                      color: _C.sunshineDeep.withValues(alpha: 0.35),
+                      blurRadius: 24,
+                      spreadRadius: -4,
+                      offset: const Offset(0, 10)),
                 ],
               ),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Total Credits Earned · 总积分收入',
-                        style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 6),
-                    Text('$totalCredits',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 48,
-                            fontWeight: FontWeight.w900)),
-                    const Text('credits from completed sessions',
-                        style: TextStyle(color: Colors.white60, fontSize: 12)),
-                  ]),
+              child: Stack(children: [
+                const Positioned(
+                  right: -10,
+                  top: -10,
+                  child: Opacity(
+                    opacity: 0.18,
+                    child: Icon(Icons.diamond_rounded,
+                        size: 90, color: _C.sunshine),
+                  ),
+                ),
+                Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Total Credits Earned · 总积分收入',
+                          style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 8),
+                      Text('$totalCredits',
+                          style: const TextStyle(
+                              color: _C.sunshine,
+                              fontSize: 44,
+                              fontWeight: FontWeight.w900)),
+                      const Text('credits from completed sessions',
+                          style:
+                              TextStyle(color: Colors.white60, fontSize: 12)),
+                    ]),
+              ]),
             ),
             const SizedBox(height: 16),
 
             // Stats row
             Row(children: [
-              _EarningStat('$totalSessions', 'Total Sessions\n总课程数',
-                  _C.slateBlue, _C.bluePale),
-              const SizedBox(width: 12),
-              _EarningStat(
-                  '$monthCredits', 'This Month\n本月收入', _C.green, _C.greenPale),
-              const SizedBox(width: 12),
-              _EarningStat(
-                  totalSessions > 0
-                      ? (totalCredits / totalSessions).toStringAsFixed(1)
-                      : '0',
-                  'Avg / Session\n平均每课',
-                  _C.magenta,
-                  const Color(0xFFF9E1EA)),
+              Expanded(
+                  child: _EarningStat('$totalSessions', 'Sessions\n总课程数',
+                      _C.coral, _C.coralSoft)),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: _EarningStat('$monthCredits', 'This Month\n本月收入',
+                      _C.green, _C.greenPale)),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: _EarningStat(
+                      totalSessions > 0
+                          ? (totalCredits / totalSessions).toStringAsFixed(1)
+                          : '0',
+                      'Avg / Session\n平均每课',
+                      _C.navy,
+                      _C.sunshineGlow)),
             ]),
             const SizedBox(height: 24),
 
-            // Per-session breakdown
-            const _TLabel('Session Breakdown · 课程明细'),
+            const _TLabel('Session Breakdown', '课程明细'),
             const SizedBox(height: 12),
             if (completed.isEmpty)
               const _TEmpty('No completed sessions yet', '暂无已完成课程')
@@ -571,67 +667,76 @@ class _TProfileTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bookingsAsync = ref.watch(_tBookingsProvider);
     final totalSessions = bookingsAsync.whenOrNull(
-          data: (b) => b.where((x) => x['status'] == 'completed').length,
+          data: (b) =>
+              b.where((x) => x.status == BookingStatus.completed).length,
         ) ??
         0;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 40),
       children: [
         Center(
             child: Column(children: [
-          CircleAvatar(
-            radius: 42,
-            backgroundColor: _C.bluePale,
-            child: Text(user.firstName[0].toUpperCase(),
-                style: const TextStyle(
-                    fontSize: 36,
-                    color: _C.slateBlue,
-                    fontWeight: FontWeight.w800)),
-          ),
-          const SizedBox(height: 12),
-          Text('${user.firstName} ${user.lastName}',
+          const _OwlMascot(size: 84),
+          const SizedBox(height: 14),
+          Text(user.fullName,
               style: const TextStyle(
-                  fontSize: 20, fontWeight: FontWeight.w800, color: _C.ink)),
+                  fontSize: 20, fontWeight: FontWeight.w900, color: _C.navy)),
           const SizedBox(height: 2),
           Text(user.email,
               style: const TextStyle(fontSize: 13, color: _C.inkSoft)),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
-                color: _C.bluePale, borderRadius: BorderRadius.circular(20)),
+                gradient:
+                    const LinearGradient(colors: [_C.sunshine, _C.coral]),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                      color: _C.coral.withValues(alpha: 0.4),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3)),
+                ]),
             child: const Text('老师 · Teacher',
                 style: TextStyle(
                     fontSize: 12,
-                    color: _C.slateBlue,
-                    fontWeight: FontWeight.w700)),
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800)),
           ),
         ])),
-        const SizedBox(height: 24),
+        const SizedBox(height: 28),
 
-        // Stats
+        // ⚠️ CHANGED: user.phone doesn't exist on UserModel (the real users
+        // table has no phone column) — swapped for languagePref, which is
+        // an actual field on the model.
         Row(children: [
-          _TEacherProfileStat('$totalSessions', 'Sessions\n总课程'),
+          Expanded(
+              child: _TeacherProfileStat('$totalSessions', 'Sessions\n总课程')),
           const SizedBox(width: 12),
-          _TEacherProfileStat(user.phone ?? '—', 'Phone\n手机'),
+          Expanded(
+              child: _TeacherProfileStat(
+                  user.languagePref.toUpperCase(), 'Language\n语言')),
         ]),
         const SizedBox(height: 24),
 
-        // Settings
+        // ⚠️ CHANGED: "Credits Per Session" removed — teachers.controller.js
+        // no longer has a credits_per_session column on teacher_profiles;
+        // session cost is set by an admin via the pricing table and picked
+        // by the student per-course. Replaced with an informational tile.
         _TProfileSection('Teaching', '教学', [
           _TProfileTile(
-              Icons.edit_outlined, 'Edit Bio & Subjects', '编辑简介', () {}),
+              Icons.edit_rounded, 'Edit Bio & Subjects', '编辑简介', _noop),
           _TProfileTile(
-              Icons.schedule_outlined, 'Set Availability', '设置空闲时间', () {}),
-          _TProfileTile(
-              Icons.diamond_outlined, 'Credits Per Session', '每节课积分', () {}),
+              Icons.schedule_rounded, 'Set Availability', '设置空闲时间', _noop),
+          _TProfileTile(Icons.info_outline_rounded, 'Session Pricing (set by admin)',
+              '课程定价由管理员设置', _noop),
         ]),
         const SizedBox(height: 16),
         _TProfileSection('Account', '账户', [
-          _TProfileTile(Icons.lock_outline, 'Change Password', '修改密码', () {}),
+          _TProfileTile(Icons.lock_outline, 'Change Password', '修改密码', _noop),
           _TProfileTile(
-              Icons.notifications_outlined, 'Notifications', '通知', () {}),
+              Icons.notifications_outlined, 'Notifications', '通知', _noop),
         ]),
         const SizedBox(height: 24),
 
@@ -640,14 +745,158 @@ class _TProfileTab extends ConsumerWidget {
           icon: const Icon(Icons.logout_rounded, size: 18),
           label: const Text('Sign Out · 退出登录'),
           style: OutlinedButton.styleFrom(
-            foregroundColor: _C.burgundy,
-            side: const BorderSide(color: _C.blushPink, width: 1.5),
+            foregroundColor: _C.coral,
+            side: const BorderSide(color: _C.coral, width: 1.6),
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           ),
         ),
       ],
+    );
+  }
+}
+
+void _noop() {}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// THE TWIST — animated owl mascot 🦉 (teacher's wise companion)
+// Bobs gently like the admin's tool mascot, and gives a little extra "wing
+// flap" wiggle whenever a session gets marked complete (see _CelebrationPulse
+// below, which the owl listens for via the shared completionPulseProvider).
+// ══════════════════════════════════════════════════════════════════════════════
+final _completionPulseProvider = StateProvider<int>((ref) => 0);
+
+class _OwlMascot extends ConsumerStatefulWidget {
+  final double size;
+  const _OwlMascot({required this.size});
+  @override
+  ConsumerState<_OwlMascot> createState() => _OwlMascotState();
+}
+
+class _OwlMascotState extends ConsumerState<_OwlMascot>
+    with TickerProviderStateMixin {
+  // TickerProviderStateMixin (not Single-) because this state drives TWO
+  // AnimationControllers — the idle bob loop and the completion wiggle.
+  // SingleTickerProviderStateMixin only supports one ticker per State and
+  // throws "_OwlMascotState is a SingleTickerProviderStateMixin but
+  // multiple tickers were created" on the second AnimationController
+  // (vsync: this) call.
+  late final AnimationController _bobCtrl;
+  late final AnimationController _wiggleCtrl;
+  int _lastPulse = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _bobCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1200))
+      ..repeat(reverse: true);
+    _wiggleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+  }
+
+  @override
+  void dispose() {
+    _bobCtrl.dispose();
+    _wiggleCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pulse = ref.watch(_completionPulseProvider);
+    if (pulse != _lastPulse) {
+      _lastPulse = pulse;
+      _wiggleCtrl.forward(from: 0);
+    }
+
+    return AnimatedBuilder(
+      animation: Listenable.merge([_bobCtrl, _wiggleCtrl]),
+      builder: (_, __) {
+        final bob = math.sin(_bobCtrl.value * math.pi) * -4;
+        final wiggle =
+            math.sin(_wiggleCtrl.value * math.pi * 4) * (1 - _wiggleCtrl.value) * 0.15;
+        return Transform.translate(
+          offset: Offset(0, bob),
+          child: Transform.rotate(
+            angle: wiggle,
+            child: Container(
+              width: widget.size,
+              height: widget.size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                    colors: [_C.navy, _C.navySoft],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight),
+                boxShadow: [
+                  BoxShadow(
+                      color: _C.sunshineDeep.withValues(alpha: 0.5),
+                      blurRadius: 18,
+                      spreadRadius: 1,
+                      offset: const Offset(0, 6)),
+                ],
+                border: Border.all(color: Colors.white, width: 3),
+              ),
+              child: Center(
+                  child: Text('🦉',
+                      style: TextStyle(fontSize: widget.size * 0.43))),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// Little floating "+credits" celebration that pops up near a card when a
+// session is marked done — the second half of the twist alongside the owl.
+class _CelebrationPulse extends StatefulWidget {
+  final VoidCallback onDone;
+  const _CelebrationPulse({required this.onDone});
+  @override
+  State<_CelebrationPulse> createState() => _CelebrationPulseState();
+}
+
+class _CelebrationPulseState extends State<_CelebrationPulse>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 700))
+      ..forward().whenComplete(widget.onDone);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) {
+        final t = _ctrl.value;
+        return Opacity(
+          opacity: (1 - t).clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: Offset(0, -28 * t),
+            child: const Text('✨ +credits',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: _C.green)),
+          ),
+        );
+      },
     );
   }
 }
@@ -656,27 +905,64 @@ class _TProfileTab extends ConsumerWidget {
 // SHARED TEACHER WIDGETS
 // ══════════════════════════════════════════════════════════════════════════════
 
+class _PageHeader extends StatelessWidget {
+  final String en, zh, emoji;
+  const _PageHeader(this.en, this.zh, this.emoji);
+  @override
+  Widget build(BuildContext context) => Row(children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const LinearGradient(colors: [_C.sunshine, _C.coral]),
+            boxShadow: [
+              BoxShadow(
+                  color: _C.coral.withValues(alpha: 0.4),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4)),
+            ],
+          ),
+          child: Center(child: Text(emoji, style: const TextStyle(fontSize: 20))),
+        ),
+        const SizedBox(width: 12),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(en,
+              style: const TextStyle(
+                  fontSize: 20, fontWeight: FontWeight.w900, color: _C.navy)),
+          Text('· $zh',
+              style: const TextStyle(
+                  fontSize: 12, color: _C.coral, fontWeight: FontWeight.w700)),
+        ]),
+      ]);
+}
+
 class _StatsHero extends StatelessWidget {
-  final List<dynamic> bookings;
+  final List<BookingModel> bookings;
   const _StatsHero({required this.bookings});
   @override
   Widget build(BuildContext context) {
     final total = bookings.length;
-    final completed = bookings.where((b) => b['status'] == 'completed').length;
-    final upcoming = bookings.where((b) => b['status'] == 'confirmed').length;
+    final completed =
+        bookings.where((b) => b.status == BookingStatus.completed).length;
+    final upcoming =
+        bookings.where((b) => b.status == BookingStatus.confirmed).length;
     final credits = bookings
-        .where((b) => b['status'] == 'completed')
-        .fold<int>(0, (s, b) => s + (b['credits_cost'] as int? ?? 0));
+        .where((b) => b.status == BookingStatus.completed)
+        .fold<int>(0, (s, b) => s + b.creditsCost);
 
     return Row(children: [
-      _MiniStat('$total', 'Total\n总计', _C.slateBlue, _C.bluePale),
+      Expanded(child: _MiniStat('$total', 'Total\n总计', _C.navy, _C.sunshineGlow)),
       const SizedBox(width: 10),
-      _MiniStat('$completed', 'Done\n已完成', _C.green, _C.greenPale),
+      Expanded(
+          child: _MiniStat('$completed', 'Done\n已完成', _C.green, _C.greenPale)),
       const SizedBox(width: 10),
-      _MiniStat('$upcoming', 'Soon\n即将', _C.magenta, const Color(0xFFF9E1EA)),
+      Expanded(
+          child: _MiniStat('$upcoming', 'Soon\n即将', _C.coral, _C.coralSoft)),
       const SizedBox(width: 10),
-      _MiniStat('$credits', 'Credits\n积分', const Color(0xFFE08AB2),
-          const Color(0xFFFDE8F3)),
+      Expanded(
+          child:
+              _MiniStat('$credits', 'Credits\n积分', _C.navySoft, _C.blushSoft)),
     ]);
   }
 }
@@ -686,50 +972,68 @@ class _MiniStat extends StatelessWidget {
   final Color color, pale;
   const _MiniStat(this.value, this.label, this.color, this.pale);
   @override
-  Widget build(BuildContext context) => Expanded(
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-              color: pale, borderRadius: BorderRadius.circular(14)),
-          child: Column(children: [
-            Text(value,
-                style: TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.w900, color: color)),
-            Text(label,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 9,
-                    color: _C.inkSoft,
-                    fontWeight: FontWeight.w600,
-                    height: 1.3)),
-          ]),
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+        decoration: BoxDecoration(
+          color: pale,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+                color: color.withValues(alpha: 0.16),
+                blurRadius: 8,
+                offset: const Offset(0, 3)),
+          ],
         ),
+        child: Column(children: [
+          Text(value,
+              style: TextStyle(
+                  fontSize: 20, fontWeight: FontWeight.w900, color: color)),
+          Text(label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 9,
+                  color: _C.inkSoft,
+                  fontWeight: FontWeight.w700,
+                  height: 1.3)),
+        ]),
       );
 }
 
 class _TNextSessionBanner extends StatelessWidget {
-  final Map<String, dynamic> booking;
+  final BookingModel booking;
   const _TNextSessionBanner({required this.booking});
   @override
   Widget build(BuildContext context) {
-    final dt = DateTime.parse(booking['scheduled_at']).toLocal();
-    final name = '${booking['student_first']} ${booking['student_last']}';
+    final dt = booking.scheduledAt.toLocal();
+    final name = booking.studentName ?? 'your student';
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _C.bluePale,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _C.slateBlue.withOpacity(0.3)),
+        color: const Color(0xFFFFF3CD),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFFFD700)),
+        boxShadow: [
+          BoxShadow(
+              color: const Color(0xFFFFD700).withValues(alpha: 0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 5)),
+        ],
       ),
       child: Row(children: [
         Container(
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-              color: _C.slateBlue.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12)),
+              gradient: const LinearGradient(colors: [_C.sunshine, _C.coral]),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                    color: _C.coral.withValues(alpha: 0.4),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3)),
+              ]),
           child: const Icon(Icons.video_call_rounded,
-              color: _C.slateBlue, size: 24),
+              color: Colors.white, size: 24),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -737,112 +1041,142 @@ class _TNextSessionBanner extends StatelessWidget {
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('Next Session · 下一节课',
               style: TextStyle(
-                  fontSize: 11,
-                  color: _C.slateBlue,
-                  fontWeight: FontWeight.w700)),
+                  fontSize: 11, color: _C.coral, fontWeight: FontWeight.w800)),
           Text('with $name',
               style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w700, color: _C.ink)),
+                  fontSize: 13, fontWeight: FontWeight.w800, color: _C.navy)),
           Text(
               '${dt.day}/${dt.month}  '
               '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}',
               style: const TextStyle(fontSize: 12, color: _C.inkSoft)),
         ])),
-        const Icon(Icons.arrow_forward_ios_rounded,
-            size: 14, color: _C.slateBlue),
+        const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: _C.coral),
       ]),
     );
   }
 }
 
-class _TBookingCard extends StatelessWidget {
-  final Map<String, dynamic> booking;
+class _TBookingCard extends ConsumerStatefulWidget {
+  final BookingModel booking;
   final bool showComplete;
   final WidgetRef? ref;
   const _TBookingCard(
       {required this.booking, required this.showComplete, required this.ref});
 
+  @override
+  ConsumerState<_TBookingCard> createState() => _TBookingCardState();
+}
+
+class _TBookingCardState extends ConsumerState<_TBookingCard> {
+  bool _showCelebration = false;
+
   Future<void> _complete(BuildContext context) async {
-    final repo = ref!.read(_tRepoProvider);
+    final activeRef = widget.ref ?? ref;
+    final repo = activeRef.read(_tRepoProvider);
     final token = await repo.getAccessToken();
     final res = await http.patch(
-      Uri.parse('${AuthRepository.baseUrl}/bookings/${booking['id']}/complete'),
+      Uri.parse(
+          '${AuthRepository.baseUrl}/bookings/${widget.booking.id}/complete'),
       headers: {'Authorization': 'Bearer $token'},
     );
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(res.statusCode == 200 ? 'Session completed ✓' : 'Failed'),
-        backgroundColor: res.statusCode == 200 ? _C.green : _C.burgundy,
+        backgroundColor: res.statusCode == 200 ? _C.green : _C.coral,
       ));
-      if (res.statusCode == 200) ref!.invalidate(_tBookingsProvider);
+      if (res.statusCode == 200) {
+        setState(() => _showCelebration = true);
+        ref.read(_completionPulseProvider.notifier).state++;
+        activeRef.invalidate(_tBookingsProvider);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final name = '${booking['student_first']} ${booking['student_last']}';
-    final status = booking['status'] as String;
-    final dt = DateTime.parse(booking['scheduled_at']).toLocal();
+    final booking = widget.booking;
+    final name = booking.studentName ?? 'Student';
+    final initial = name.isNotEmpty ? name[0] : '?';
+    final status = booking.status;
+    final dt = booking.scheduledAt.toLocal();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-          color: _C.paper,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _C.line)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _C.line, width: 1.4),
+        boxShadow: [
+          BoxShadow(
+              color: _C.sunshineDeep.withValues(alpha: 0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4)),
+        ],
+      ),
       child: Row(children: [
         CircleAvatar(
             radius: 20,
-            backgroundColor: _C.softPink,
-            child: Text(name[0],
+            backgroundColor: _C.sunshineGlow,
+            child: Text(initial,
                 style: const TextStyle(
-                    color: _C.magenta, fontWeight: FontWeight.w800))),
+                    color: _C.navy, fontWeight: FontWeight.w900))),
         const SizedBox(width: 12),
         Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(name,
               style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w700, color: _C.ink)),
+                  fontSize: 13, fontWeight: FontWeight.w800, color: _C.navy)),
           const SizedBox(height: 2),
           Text(
               '${dt.day}/${dt.month}/${dt.year}  '
               '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}',
               style: const TextStyle(fontSize: 11, color: _C.inkSoft)),
           Text(
-              '${booking['credits_cost']} credits · ${booking['duration_mins']} min',
+              '${booking.creditsCost} credits · ${booking.durationMins} min',
               style: const TextStyle(
-                  fontSize: 11,
-                  color: _C.slateBlue,
-                  fontWeight: FontWeight.w600)),
+                  fontSize: 11, color: _C.coral, fontWeight: FontWeight.w700)),
         ])),
-        if (showComplete && status == 'confirmed')
+        if (_showCelebration)
+          _CelebrationPulse(onDone: () {
+            if (mounted) setState(() => _showCelebration = false);
+          }),
+        if (widget.showComplete && status == BookingStatus.confirmed)
           GestureDetector(
             onTap: () => _complete(context),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                  color: _C.green, borderRadius: BorderRadius.circular(20)),
+                color: _C.green,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                      color: _C.green.withValues(alpha: 0.4),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3)),
+                ],
+              ),
               child: const Text('Done',
                   style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       color: Colors.white,
-                      fontWeight: FontWeight.w700)),
+                      fontWeight: FontWeight.w800)),
             ),
           )
-        else
+        else if (!_showCelebration)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-                color: (status == 'completed' ? _C.green : _C.inkSoft)
-                    .withOpacity(0.12),
+                color: (status == BookingStatus.completed ? _C.green : _C.inkSoft)
+                    .withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(20)),
-            child: Text(status,
+            child: Text(status.label,
                 style: TextStyle(
                     fontSize: 10,
-                    color: status == 'completed' ? _C.green : _C.inkSoft,
-                    fontWeight: FontWeight.w700)),
+                    color:
+                        status == BookingStatus.completed ? _C.green : _C.inkSoft,
+                    fontWeight: FontWeight.w800)),
           ),
       ]),
     );
@@ -850,34 +1184,37 @@ class _TBookingCard extends StatelessWidget {
 }
 
 class _TScheduleCard extends StatelessWidget {
-  final Map<String, dynamic> booking;
+  final BookingModel booking;
   const _TScheduleCard({required this.booking});
   @override
   Widget build(BuildContext context) {
-    final name = '${booking['student_first']} ${booking['student_last']}';
-    final dt = DateTime.parse(booking['scheduled_at']).toLocal();
+    final name = booking.studentName ?? 'Student';
+    final dt = booking.scheduledAt.toLocal();
     final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-          color: _C.paper,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _C.line)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _C.line, width: 1.4),
+        boxShadow: [
+          BoxShadow(
+              color: _C.sunshineDeep.withValues(alpha: 0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4)),
+        ],
+      ),
       child: Row(children: [
-        Container(
+        SizedBox(
           width: 48,
           child: Column(children: [
             Text(dayNames[(dt.weekday - 1) % 7],
                 style: const TextStyle(
-                    fontSize: 11,
-                    color: _C.inkSoft,
-                    fontWeight: FontWeight.w600)),
+                    fontSize: 11, color: _C.inkSoft, fontWeight: FontWeight.w700)),
             Text('${dt.day}',
                 style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: _C.slateBlue)),
+                    fontSize: 20, fontWeight: FontWeight.w900, color: _C.coral)),
             Text('${dt.month}/${dt.year.toString().substring(2)}',
                 style: const TextStyle(fontSize: 10, color: _C.inkSoft)),
           ]),
@@ -892,24 +1229,22 @@ class _TScheduleCard extends StatelessWidget {
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(name,
               style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w700, color: _C.ink)),
+                  fontSize: 13, fontWeight: FontWeight.w800, color: _C.navy)),
           const SizedBox(height: 3),
           Row(children: [
-            const Icon(Icons.access_time_outlined, size: 12, color: _C.inkSoft),
+            const Icon(Icons.access_time_rounded, size: 12, color: _C.inkSoft),
             const SizedBox(width: 4),
             Text(
                 '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}  '
-                '· ${booking['duration_mins']} min',
+                '· ${booking.durationMins} min',
                 style: const TextStyle(fontSize: 11, color: _C.inkSoft)),
           ]),
           Row(children: [
-            const Icon(Icons.diamond_outlined, size: 12, color: _C.slateBlue),
+            const Icon(Icons.diamond_rounded, size: 12, color: _C.coral),
             const SizedBox(width: 4),
-            Text('${booking['credits_cost']} credits',
+            Text('${booking.creditsCost} credits',
                 style: const TextStyle(
-                    fontSize: 11,
-                    color: _C.slateBlue,
-                    fontWeight: FontWeight.w600)),
+                    fontSize: 11, color: _C.coral, fontWeight: FontWeight.w700)),
           ]),
         ])),
       ]),
@@ -918,51 +1253,49 @@ class _TScheduleCard extends StatelessWidget {
 }
 
 class _EarningRow extends StatelessWidget {
-  final Map<String, dynamic> booking;
+  final BookingModel booking;
   const _EarningRow({required this.booking});
   @override
   Widget build(BuildContext context) {
-    final name = '${booking['student_first']} ${booking['student_last']}';
-    final credits = booking['credits_cost'] as int? ?? 0;
-    final dt = DateTime.parse(booking['scheduled_at']).toLocal();
+    final name = booking.studentName ?? 'Student';
+    final initial = name.isNotEmpty ? name[0] : '?';
+    final credits = booking.creditsCost;
+    final dt = booking.scheduledAt.toLocal();
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-          color: _C.paper,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _C.line)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _C.line, width: 1.4),
+      ),
       child: Row(children: [
         CircleAvatar(
             radius: 16,
-            backgroundColor: _C.bluePale,
-            child: Text(name[0],
+            backgroundColor: _C.sunshineGlow,
+            child: Text(initial,
                 style: const TextStyle(
-                    color: _C.slateBlue,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12))),
+                    color: _C.navy, fontWeight: FontWeight.w900, fontSize: 12))),
         const SizedBox(width: 10),
         Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(name,
               style: const TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w700, color: _C.ink)),
+                  fontSize: 12, fontWeight: FontWeight.w800, color: _C.navy)),
           Text('${dt.day}/${dt.month}/${dt.year}',
               style: const TextStyle(fontSize: 11, color: _C.inkSoft)),
         ])),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-              color: _C.bluePale, borderRadius: BorderRadius.circular(10)),
+              color: _C.greenPale, borderRadius: BorderRadius.circular(10)),
           child: Row(children: [
-            const Icon(Icons.diamond_outlined, size: 12, color: _C.slateBlue),
+            const Icon(Icons.diamond_rounded, size: 12, color: _C.green),
             const SizedBox(width: 4),
             Text('+$credits',
                 style: const TextStyle(
-                    fontSize: 12,
-                    color: _C.slateBlue,
-                    fontWeight: FontWeight.w800)),
+                    fontSize: 12, color: _C.green, fontWeight: FontWeight.w800)),
           ]),
         ),
       ]),
@@ -975,24 +1308,29 @@ class _EarningStat extends StatelessWidget {
   final Color color, pale;
   const _EarningStat(this.value, this.label, this.color, this.pale);
   @override
-  Widget build(BuildContext context) => Expanded(
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-              color: pale, borderRadius: BorderRadius.circular(14)),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(value,
-                style: TextStyle(
-                    fontSize: 22, fontWeight: FontWeight.w900, color: color)),
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 10,
-                    color: _C.inkSoft,
-                    fontWeight: FontWeight.w600,
-                    height: 1.4)),
-          ]),
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+        decoration: BoxDecoration(
+          color: pale,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+                color: color.withValues(alpha: 0.16),
+                blurRadius: 10,
+                offset: const Offset(0, 4)),
+          ],
         ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(value,
+              style: TextStyle(
+                  fontSize: 22, fontWeight: FontWeight.w900, color: color)),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 10,
+                  color: _C.inkSoft,
+                  fontWeight: FontWeight.w700,
+                  height: 1.4)),
+        ]),
       );
 }
 
@@ -1010,29 +1348,41 @@ class _DayChip extends StatelessWidget {
         width: 52,
         margin: const EdgeInsets.only(right: 10),
         decoration: BoxDecoration(
-          color: isToday ? _C.slateBlue : _C.paper,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: isToday ? _C.slateBlue : _C.line),
+          gradient: isToday
+              ? const LinearGradient(colors: [_C.sunshine, _C.coral])
+              : null,
+          color: isToday ? null : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+              color: isToday ? Colors.transparent : _C.line, width: 1.4),
+          boxShadow: isToday
+              ? [
+                  BoxShadow(
+                      color: _C.coral.withValues(alpha: 0.35),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4))
+                ]
+              : null,
         ),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           Text(dayName,
               style: TextStyle(
                   fontSize: 10,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                   color: isToday ? Colors.white70 : _C.inkSoft)),
           const SizedBox(height: 2),
           Text('${day.day}',
               style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
-                  color: isToday ? Colors.white : _C.ink)),
+                  color: isToday ? Colors.white : _C.navy)),
           if (hasSession)
             Container(
                 width: 6,
                 height: 6,
                 margin: const EdgeInsets.only(top: 2),
                 decoration: BoxDecoration(
-                    color: isToday ? Colors.white : _C.magenta,
+                    color: isToday ? Colors.white : _C.coral,
                     shape: BoxShape.circle)),
         ]),
       );
@@ -1046,14 +1396,12 @@ class _TLabel extends StatelessWidget {
   Widget build(BuildContext context) => Row(children: [
         Text(en,
             style: const TextStyle(
-                fontSize: 15, fontWeight: FontWeight.w800, color: _C.ink)),
+                fontSize: 15, fontWeight: FontWeight.w900, color: _C.navy)),
         if (zh != null) ...[
           const SizedBox(width: 5),
           Text('· $zh',
               style: const TextStyle(
-                  fontSize: 12,
-                  color: _C.slateBlue,
-                  fontWeight: FontWeight.w600)),
+                  fontSize: 12, color: _C.coral, fontWeight: FontWeight.w700)),
         ],
       ]);
 }
@@ -1065,44 +1413,43 @@ class _TEmpty extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(28),
         decoration: BoxDecoration(
-            color: _C.bluePale, borderRadius: BorderRadius.circular(18)),
+            color: _C.sunshineGlow.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: _C.line, width: 1.4)),
         child: Column(children: [
-          const Icon(Icons.calendar_today_outlined,
-              size: 36, color: _C.slateBlue),
+          const Text('🗓️', style: TextStyle(fontSize: 36)),
           const SizedBox(height: 10),
           Text(title,
               style: const TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.w700, color: _C.ink)),
+                  fontSize: 14, fontWeight: FontWeight.w800, color: _C.navy)),
           Text('· $titleCn',
-              style: const TextStyle(fontSize: 12, color: _C.slateBlue)),
+              style: const TextStyle(fontSize: 12, color: _C.coral)),
         ]),
       );
 }
 
-class _TEacherProfileStat extends StatelessWidget {
+class _TeacherProfileStat extends StatelessWidget {
   final String value, label;
-  const _TEacherProfileStat(this.value, this.label);
+  const _TeacherProfileStat(this.value, this.label);
   @override
-  Widget build(BuildContext context) => Expanded(
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-              color: _C.bluePale, borderRadius: BorderRadius.circular(14)),
-          child: Column(children: [
-            Text(value,
-                style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: _C.slateBlue)),
-            Text(label,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 10,
-                    color: _C.inkSoft,
-                    fontWeight: FontWeight.w600,
-                    height: 1.4)),
-          ]),
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: _C.sunshineGlow.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(16),
         ),
+        child: Column(children: [
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 20, fontWeight: FontWeight.w900, color: _C.navy)),
+          Text(label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 10,
+                  color: _C.inkSoft,
+                  fontWeight: FontWeight.w700,
+                  height: 1.4)),
+        ]),
       );
 }
 
@@ -1119,19 +1466,23 @@ class _TProfileSection extends StatelessWidget {
             child: Row(children: [
               Text(en,
                   style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: _C.inkSoft)),
+                      fontSize: 13, fontWeight: FontWeight.w800, color: _C.inkSoft)),
               const SizedBox(width: 5),
               Text('· $zh',
-                  style: const TextStyle(fontSize: 12, color: _C.slateBlue)),
+                  style: const TextStyle(fontSize: 12, color: _C.coral)),
             ]),
           ),
           Container(
             decoration: BoxDecoration(
-                color: _C.paper,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _C.line)),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: _C.line, width: 1.4),
+                boxShadow: [
+                  BoxShadow(
+                      color: _C.sunshineDeep.withValues(alpha: 0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4)),
+                ]),
             child: Column(children: tiles),
           ),
         ],
@@ -1146,10 +1497,10 @@ class _TProfileTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListTile(
         onTap: onTap,
-        leading: Icon(icon, color: _C.inkSoft, size: 20),
+        leading: Icon(icon, color: _C.coral, size: 20),
         title: Text('$label · $labelCn',
             style: const TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w600, color: _C.ink)),
+                fontSize: 13, fontWeight: FontWeight.w700, color: _C.navy)),
         trailing: const Icon(Icons.arrow_forward_ios_rounded,
             size: 13, color: _C.inkSoft),
         dense: true,

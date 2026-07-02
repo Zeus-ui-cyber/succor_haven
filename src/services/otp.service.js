@@ -48,13 +48,23 @@ async function sendSmsOtp(phone) {
   const code = generateCode();
   await saveOtp(phone, code, "sms");
 
-  const client = twilio(
-    process.env.TWILIO_ACCOUNT_SID,
-    process.env.TWILIO_AUTH_TOKEN,
-  );
+  const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER } =
+    process.env;
+
+  // Dev fallback: if Twilio isn't configured yet, log the code instead of
+  // sending a real SMS. This branch becomes a no-op the moment all three
+  // env vars are filled in with real Twilio credentials — safe to leave in.
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_PHONE_NUMBER) {
+    console.log(
+      `📱 [DEV] SMS OTP for ${phone}: ${code} (Twilio not configured — code was not actually sent)`,
+    );
+    return true;
+  }
+
+  const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
   await client.messages.create({
     body: `Your Succor Haven verification code is: ${code}. Valid for ${EXPIRY_MINS} minutes.`,
-    from: process.env.TWILIO_PHONE_NUMBER,
+    from: TWILIO_PHONE_NUMBER,
     to: phone,
   });
   return true;

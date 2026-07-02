@@ -81,9 +81,49 @@ exports.toggleUser = async (req, res) => {
       `UPDATE users SET is_active = NOT is_active WHERE id = $1 RETURNING is_active`,
       [req.params.id],
     );
+    if (!rows.length) return res.status(404).json({ error: "User not found" });
     res.json({ isActive: rows[0].is_active });
   } catch (err) {
     res.status(500).json({ error: "Toggle failed" });
+  }
+};
+
+// ── DELETE /admin/users/:id — permanently delete a user ───────────────────────
+// Blocked if the user has any non-cancelled bookings, to avoid orphaning
+// booking/payment history. Admins should deactivate (toggle) instead if the
+// user has activity — this is for cleaning up genuinely unused accounts
+// (e.g. spam signups, accidental duplicates).
+exports.deleteUser = async (req, res) => {
+  const { id } = req.params;
+
+  if (String(req.user.sub) === String(id))
+    return res.status(400).json({ error: "You cannot delete your own account" });
+
+  try {
+    const { rows: existing } = await pool.query(
+      `SELECT id FROM users WHERE id = $1`,
+      [id],
+    );
+    if (!existing.length) return res.status(404).json({ error: "User not found" });
+
+    const { rows: activity } = await pool.query(
+      `SELECT COUNT(*) FROM bookings
+       WHERE (student_id = $1 OR teacher_id = $1)
+         AND status NOT IN ('cancelled')`,
+      [id],
+    );
+    if (Number(activity[0].count) > 0) {
+      return res.status(409).json({
+        error:
+          "User has booking history and cannot be deleted. Deactivate the account instead.",
+      });
+    }
+
+    await pool.query(`DELETE FROM users WHERE id = $1`, [id]);
+    res.json({ deleted: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete user" });
   }
 };
 
@@ -166,8 +206,160 @@ exports.updateReward = async (req, res) => {
         req.params.id,
       ],
     );
+    if (!rows.length) return res.status(404).json({ error: "Reward not found" });
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: "Update failed" });
+  }
+};
+
+// ── DELETE /admin/rewards/:id ─────────────────────────────────────────────────
+exports.deleteReward = async (req, res) => {
+  try {
+    const { rowCount } = await pool.query(`DELETE FROM rewards WHERE id = $1`, [
+      req.params.id,
+    ]);
+    if (!rowCount) return res.status(404).json({ error: "Reward not found" });
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ error: "Delete failed" });
+  }
+};
+
+// ── PATCH /admin/users/:id/credits — admin adjusts a student's credit balance ─
+// body: { amount: number (can be negative), reason?: string }
+exports.adjustCredits = async (req, res) => {
+  const { id } = req.params;
+  const { amount, reason } = req.body;
+  const delta = Number(amount);
+
+  if (!Number.isFinite(delta) || delta === 0)
+    return res.status(400).json({ error: "amount must be a non-zero number" });
+
+  try {
+    const { rows: sp } = await pool.query(
+      `SELECT credits FROM student_profiles WHERE user_id = $1`,
+      [id],
+    );
+    if (!sp.length)
+      return res.status(404).json({ error: "User has no credit balance (not a student)" });
+
+    const newBalance = sp[0].credits + delta;
+    if (newBalance < 0)
+      return res.status(400).json({ error: "Adjustment would result in negative credits" });
+
+    await pool.query("BEGIN");
+    const { rows } = await pool.query(
+      `UPDATE student_profiles SET credits = credits + $1 WHERE user_id = $2 RETURNING credits`,
+      [delta, id],
+    );
+    await pool.query(
+      `INSERT INTO credits_ledger (user_id, amount, reason, created_by)
+       VALUES ($1,$2,$3,$4)`,
+      [id, delta, reason || "", req.user.sub],
+    );
+    await pool.query("COMMIT");
+
+    res.json({ credits: rows[0].credits });
+  } catch (err) {
+    await pool.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ error: "Failed to adjust credits" });
+  }
+};
+
+// ── PATCH /admin/users/:id/points — admin adjusts a student's points balance ──
+// body: { amount: number (can be negative), reason?: string }
+exports.adjustPoints = async (req, res) => {
+  const { id } = req.params;
+  const { amount, reason } = req.body;
+  const delta = Number(amount);
+
+  if (!Number.isFinite(delta) || delta === 0)
+    return res.status(400).json({ error: "amount must be a non-zero number" });
+
+  try {
+    const { rows: sp } = await pool.query(
+      `SELECT points FROM student_profiles WHERE user_id = $1`,
+      [id],
+    );
+    if (!sp.length)
+      return res.status(404).json({ error: "User has no points balance (not a student)" });
+
+    const newBalance = sp[0].points + delta;
+    if (newBalance < 0)
+      return res.status(400).json({ error: "Adjustment would result in negative points" });
+
+    await pool.query("BEGIN");
+    const { rows } = await pool.query(
+      `UPDATE student_profiles SET points = points + $1 WHERE user_id = $2 RETURNING points`,
+      [delta, id],
+    );
+    await pool.query(
+      `INSERT INTO points_ledger (user_id, booking_id, points, reason)
+       VALUES ($1, NULL, $2, $3)`,
+      [id, delta, reason || (delta > 0 ? "Admin credit" : "Admin deduction")],
+    );
+    await pool.query("COMMIT");
+
+    res.json({ points: rows[0].points });
+  } catch (err) {
+    await pool.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ error: "Failed to adjust points" });
+  }
+};
+
+// ── GET /admin/teachers/:id/bookings — admin views a teacher's full schedule ──
+exports.teacherSchedule = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rows } = await pool.query(
+      `SELECT b.*,
+         s.first_name AS student_first, s.last_name AS student_last,
+         t.first_name AS teacher_first, t.last_name AS teacher_last
+       FROM bookings b
+       JOIN users s ON s.id = b.student_id
+       JOIN users t ON t.id = b.teacher_id
+       WHERE b.teacher_id = $1
+       ORDER BY b.scheduled_at DESC
+       LIMIT 100`,
+      [id],
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch teacher schedule" });
+  }
+};
+
+// ── PATCH /admin/bookings/:id/cancel — admin force-cancels any booking ────────
+exports.cancelBooking = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rows } = await pool.query(`SELECT * FROM bookings WHERE id = $1`, [
+      id,
+    ]);
+    if (!rows.length) return res.status(404).json({ error: "Booking not found" });
+    const b = rows[0];
+
+    if (!["pending", "confirmed"].includes(b.status))
+      return res.status(400).json({ error: "Cannot cancel this booking" });
+
+    await pool.query("BEGIN");
+    await pool.query(`UPDATE bookings SET status = 'cancelled' WHERE id = $1`, [
+      id,
+    ]);
+    await pool.query(
+      `UPDATE student_profiles SET credits = credits + $1 WHERE user_id = $2`,
+      [b.credits_cost, b.student_id],
+    );
+    await pool.query("COMMIT");
+
+    res.json({ message: "Booking cancelled and credits refunded" });
+  } catch (err) {
+    await pool.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ error: "Cancellation failed" });
   }
 };

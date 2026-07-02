@@ -10,10 +10,6 @@ class _C {
   static const burgundy = Color(0xFF7D002B);
   static const blushPink = Color(0xFFF2C6D6);
   static const softPink = Color(0xFFF9E1EA);
-  static const lightPink = Color(0xFFF7D6E2);
-  static const slateBlue = Color(0xFF3E678A);
-  static const dustyBlue = Color(0xFFA7BCCB);
-  static const mauve = Color(0xFFE08AB2);
   static const cream = Color(0xFFFFF5F7);
   static const ink = Color(0xFF3B0A1F);
   static const inkSoft = Color(0xFF8A6070);
@@ -242,7 +238,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
               decoration: BoxDecoration(
                 color: _accentPale,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _accent.withOpacity(0.25)),
+                border: Border.all(color: _accent.withValues(alpha: 0.25)),
               ),
               child: Row(children: [
                 Text(_role.emoji, style: const TextStyle(fontSize: 14)),
@@ -547,7 +543,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
           decoration: BoxDecoration(
               color: _accentPale,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _accent.withOpacity(0.2))),
+              border: Border.all(color: _accent.withValues(alpha: 0.2))),
           child: const Row(children: [
             Text('📋', style: TextStyle(fontSize: 20)),
             SizedBox(width: 12),
@@ -586,7 +582,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
           decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: _C.greenPale,
-              border: Border.all(color: _C.green.withOpacity(0.3), width: 2)),
+              border:
+                  Border.all(color: _C.green.withValues(alpha: 0.3), width: 2)),
           child:
               const Center(child: Text('🎉', style: TextStyle(fontSize: 46))),
         )),
@@ -823,7 +820,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                     boxShadow: isSelected
                         ? [
                             BoxShadow(
-                                color: _accent.withOpacity(0.2),
+                                color: _accent.withValues(alpha: 0.2),
                                 blurRadius: 8,
                                 offset: const Offset(0, 3))
                           ]
@@ -895,12 +892,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           gradient: LinearGradient(
-              colors: [_accent, _accent.withOpacity(0.75)],
+              colors: [_accent, _accent.withValues(alpha: 0.75)],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight),
           boxShadow: [
             BoxShadow(
-                color: _accent.withOpacity(0.32),
+                color: _accent.withValues(alpha: 0.32),
                 blurRadius: 14,
                 offset: const Offset(0, 6))
           ],

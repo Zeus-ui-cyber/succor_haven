@@ -24,6 +24,7 @@ dependencies:
 
   # URL launching (social links, tel, mailto)
   url_launcher: ^6.2.6
+  dio: ^5.9.2
 
 dev_dependencies:
   flutter_test:
