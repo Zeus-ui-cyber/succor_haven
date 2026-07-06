@@ -95,7 +95,7 @@ class TestimonialModel {
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 final _kTeachers = [
-  TeacherModel(
+  const TeacherModel(
     id: 't1',
     emoji: '👩‍🏫',
     name: 'Ms. Sarah Chen',
@@ -112,7 +112,7 @@ final _kTeachers = [
     tags: ['IELTS', 'Speaking', 'Pronunciation', 'Business'],
     availability: ['Mon', 'Tue', 'Thu', 'Fri'],
     level: 'All Levels',
-    gradientA: const Color(0xFFFFD9A0),
+    gradientA: Color(0xFFFFD9A0),
     gradientB: _C.coral,
     isOnline: true,
     certifications: ['CELTA', 'IELTS Examiner', 'Delta L3'],
@@ -151,7 +151,7 @@ final _kTeachers = [
       ),
     ],
   ),
-  TeacherModel(
+  const TeacherModel(
     id: 't2',
     emoji: '👨‍🏫',
     name: 'Mr. James Wang',
@@ -168,8 +168,8 @@ final _kTeachers = [
     tags: ['HSK', 'Tones', 'Grammar', 'Beginner Friendly'],
     availability: ['Tue', 'Wed', 'Sat', 'Sun'],
     level: 'Beginner',
-    gradientA: const Color(0xFFA0E8E0),
-    gradientB: const Color(0xFF6FC8E0),
+    gradientA: Color(0xFFA0E8E0),
+    gradientB: Color(0xFF6FC8E0),
     isOnline: true,
     certifications: ['MTCSOL', 'HSK Chief Examiner'],
     responseTime: '< 2 hours',
@@ -196,7 +196,7 @@ final _kTeachers = [
       ),
     ],
   ),
-  TeacherModel(
+  const TeacherModel(
     id: 't3',
     emoji: '👩‍🏫',
     name: 'Ms. Linda Li',
@@ -213,8 +213,8 @@ final _kTeachers = [
     tags: ['C-Suite', 'Presentations', 'Interviews', 'Email Writing'],
     availability: ['Mon', 'Wed', 'Fri'],
     level: 'Intermediate',
-    gradientA: const Color(0xFFC9B6FF),
-    gradientB: const Color(0xFF8B7CF6),
+    gradientA: Color(0xFFC9B6FF),
+    gradientB: Color(0xFF8B7CF6),
     isOnline: false,
     certifications: ['Cambridge CPE', 'MBA Communication'],
     responseTime: '< 3 hours',
@@ -242,7 +242,7 @@ final _kTeachers = [
       ),
     ],
   ),
-  TeacherModel(
+  const TeacherModel(
     id: 't4',
     emoji: '👨‍🏫',
     name: 'Mr. Kevin Zhao',
@@ -259,7 +259,7 @@ final _kTeachers = [
     tags: ['GCSE', 'A-Level', 'Gaokao', 'SAT Math'],
     availability: ['Mon', 'Thu', 'Sat'],
     level: 'Advanced',
-    gradientA: const Color(0xFFFFE08A),
+    gradientA: Color(0xFFFFE08A),
     gradientB: _C.amber,
     isOnline: true,
     certifications: ['PhD Applied Math (in progress)', 'IB Examiner'],
@@ -278,7 +278,7 @@ final _kTeachers = [
       ),
     ],
   ),
-  TeacherModel(
+  const TeacherModel(
     id: 't5',
     emoji: '👩‍🏫',
     name: 'Ms. Amy Park',
@@ -295,8 +295,8 @@ final _kTeachers = [
     tags: ['K-Pop', 'Drama Korean', 'Hangul', 'Beginner'],
     availability: ['Tue', 'Thu', 'Sun'],
     level: 'Beginner',
-    gradientA: const Color(0xFFFFB3D1),
-    gradientB: const Color(0xFFFF6FA6),
+    gradientA: Color(0xFFFFB3D1),
+    gradientB: Color(0xFFFF6FA6),
     isOnline: true,
     certifications: ['TOPIK Examiner', 'Seoul National Uni'],
     responseTime: '< 1 hour',
@@ -314,7 +314,7 @@ final _kTeachers = [
       ),
     ],
   ),
-  TeacherModel(
+  const TeacherModel(
     id: 't6',
     emoji: '👨‍🏫',
     name: 'Mr. Raj Patel',
@@ -331,8 +331,8 @@ final _kTeachers = [
     tags: ['Creative Writing', 'Oxford', 'Essays', 'Literature'],
     availability: ['Wed', 'Fri', 'Sat'],
     level: 'Intermediate',
-    gradientA: const Color(0xFFB5E8C3),
-    gradientB: const Color(0xFF3FC6BD),
+    gradientA: Color(0xFFB5E8C3),
+    gradientB: Color(0xFF3FC6BD),
     isOnline: true,
     certifications: ['Oxford BA English', 'Published Author'],
     responseTime: '< 5 hours',
@@ -389,13 +389,11 @@ class _FindTeachersPageState extends State<FindTeachersPage> {
   List<TeacherModel> get _filtered {
     var list = _kTeachers.where((t) {
       final q = _searchQuery.toLowerCase();
-      final matchesSearch =
-          q.isEmpty ||
+      final matchesSearch = q.isEmpty ||
           t.name.toLowerCase().contains(q) ||
           t.subjects.toLowerCase().contains(q) ||
           t.tags.any((tag) => tag.toLowerCase().contains(q));
-      final matchesSubject =
-          _selectedSubject == 'All' ||
+      final matchesSubject = _selectedSubject == 'All' ||
           t.subjects.contains(_selectedSubject) ||
           t.tags.any((tag) => tag.contains(_selectedSubject));
       final matchesLevel =
@@ -542,7 +540,7 @@ class _FindTeachersPageState extends State<FindTeachersPage> {
           boxShadow: [
             BoxShadow(
               color: _C.violet.withValues(alpha: 0.06),
-              blurRadius: 12,
+              blurRadius: 0.1,
               offset: const Offset(0, 4),
             ),
           ],
@@ -613,7 +611,7 @@ class _FindTeachersPageState extends State<FindTeachersPage> {
                         ? [
                             BoxShadow(
                               color: _C.violet.withValues(alpha: 0.28),
-                              blurRadius: 8,
+                              blurRadius: 0.1,
                               offset: const Offset(0, 3),
                             ),
                           ]
@@ -906,7 +904,7 @@ class _TeacherCard extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 14,
+              blurRadius: 0.1,
               offset: const Offset(0, 5),
             ),
           ],
@@ -994,7 +992,7 @@ class _TeacherCard extends StatelessWidget {
                         boxShadow: [
                           BoxShadow(
                             color: teacher.gradientB.withValues(alpha: 0.4),
-                            blurRadius: 10,
+                            blurRadius: 0.1,
                             offset: const Offset(0, 4),
                           ),
                         ],
@@ -1124,7 +1122,7 @@ class _TeacherCard extends StatelessWidget {
                           boxShadow: [
                             BoxShadow(
                               color: _C.violet.withValues(alpha: 0.3),
-                              blurRadius: 8,
+                              blurRadius: 0.1,
                               offset: const Offset(0, 3),
                             ),
                           ],
@@ -1265,7 +1263,7 @@ class _TeacherProfileSheetState extends State<_TeacherProfileSheet>
                     boxShadow: [
                       BoxShadow(
                         color: t.gradientB.withValues(alpha: 0.35),
-                        blurRadius: 16,
+                        blurRadius: 0.1,
                         offset: const Offset(0, 6),
                       ),
                     ],
@@ -1487,11 +1485,11 @@ class _TeacherProfileSheetState extends State<_TeacherProfileSheet>
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
       decoration: BoxDecoration(
         color: _C.paper,
-        border: Border(top: BorderSide(color: _C.line)),
+        border: const Border(top: BorderSide(color: _C.line)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 16,
+            blurRadius: 0.1,
             offset: const Offset(0, -6),
           ),
         ],
@@ -1546,7 +1544,7 @@ class _TeacherProfileSheetState extends State<_TeacherProfileSheet>
                 boxShadow: [
                   BoxShadow(
                     color: _C.violet.withValues(alpha: 0.35),
-                    blurRadius: 12,
+                    blurRadius: 0.1,
                     offset: const Offset(0, 5),
                   ),
                 ],
@@ -1790,10 +1788,10 @@ class _ReviewsTab extends StatelessWidget {
                       final pct = star == 5
                           ? 0.78
                           : star == 4
-                          ? 0.16
-                          : star == 3
-                          ? 0.04
-                          : 0.01;
+                              ? 0.16
+                              : star == 3
+                                  ? 0.04
+                                  : 0.01;
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 5),
                         child: Row(
@@ -1872,7 +1870,7 @@ class _ReviewCard extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
+            blurRadius: 0.1,
             offset: const Offset(0, 3),
           ),
         ],
@@ -2065,9 +2063,9 @@ class _ScheduleTabState extends State<_ScheduleTab> {
                     return GestureDetector(
                       onTap: available
                           ? () => setState(() {
-                              _selectedDay = day;
-                              _selectedTime = null;
-                            })
+                                _selectedDay = day;
+                                _selectedTime = null;
+                              })
                           : null,
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 180),
@@ -2084,14 +2082,14 @@ class _ScheduleTabState extends State<_ScheduleTab> {
                           color: selected
                               ? null
                               : available
-                              ? _C.violetPale
-                              : const Color(0xFFF1EFFB),
+                                  ? _C.violetPale
+                                  : const Color(0xFFF1EFFB),
                           borderRadius: BorderRadius.circular(14),
                           boxShadow: selected
                               ? [
                                   BoxShadow(
                                     color: _C.violet.withValues(alpha: 0.3),
-                                    blurRadius: 8,
+                                    blurRadius: 0.1,
                                     offset: const Offset(0, 3),
                                   ),
                                 ]
@@ -2108,8 +2106,8 @@ class _ScheduleTabState extends State<_ScheduleTab> {
                                 color: selected
                                     ? Colors.white
                                     : available
-                                    ? _C.violetDeep
-                                    : _C.inkSoft,
+                                        ? _C.violetDeep
+                                        : _C.inkSoft,
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -2178,15 +2176,15 @@ class _ScheduleTabState extends State<_ScheduleTab> {
                             color: selected
                                 ? null
                                 : isBooked
-                                ? const Color(0xFFF1EFFB)
-                                : _C.tealPale,
+                                    ? const Color(0xFFF1EFFB)
+                                    : _C.tealPale,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: selected
                                   ? Colors.transparent
                                   : isBooked
-                                  ? _C.line
-                                  : _C.teal.withValues(alpha: 0.3),
+                                      ? _C.line
+                                      : _C.teal.withValues(alpha: 0.3),
                             ),
                           ),
                           child: Text(
@@ -2197,11 +2195,10 @@ class _ScheduleTabState extends State<_ScheduleTab> {
                               color: selected
                                   ? Colors.white
                                   : isBooked
-                                  ? _C.inkSoft
-                                  : const Color(0xFF1F9890),
-                              decoration: isBooked
-                                  ? TextDecoration.lineThrough
-                                  : null,
+                                      ? _C.inkSoft
+                                      : const Color(0xFF1F9890),
+                              decoration:
+                                  isBooked ? TextDecoration.lineThrough : null,
                             ),
                           ),
                         ),

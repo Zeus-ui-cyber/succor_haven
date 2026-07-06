@@ -70,8 +70,12 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
   @override
   void dispose() {
     _timer?.cancel();
-    for (final c in _digitCtrls) c.dispose();
-    for (final f in _focusNodes) f.dispose();
+    for (final c in _digitCtrls) {
+      c.dispose();
+    }
+    for (final f in _focusNodes) {
+      f.dispose();
+    }
     _shakeCtrl.dispose();
     super.dispose();
   }
@@ -165,8 +169,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: _accent.withOpacity(0.3),
-                      blurRadius: 20,
+                      color: _accent.withValues(alpha: 0.3),
+                      blurRadius: 12,
                       offset: const Offset(0, 8),
                     ),
                   ],
@@ -248,14 +252,14 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
                     gradient: LinearGradient(
-                      colors: [_accent, _accent.withOpacity(0.75)],
+                      colors: [_accent, _accent.withValues(alpha: 0.75)],
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: _accent.withOpacity(0.35),
-                        blurRadius: 14,
+                        color: _accent.withValues(alpha: 0.35),
+                        blurRadius: 12,
                         offset: const Offset(0, 6),
                       ),
                     ],
@@ -336,21 +340,21 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
       width: 46,
       height: 56,
       decoration: BoxDecoration(
-        color: hasValue ? _accent.withOpacity(0.08) : _C.softPink,
+        color: hasValue ? _accent.withValues(alpha: 0.08) : _C.softPink,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isFocused
               ? _accent
               : hasValue
-                  ? _accent.withOpacity(0.4)
+                  ? _accent.withValues(alpha: 0.4)
                   : _C.line,
           width: isFocused ? 2 : 1.5,
         ),
         boxShadow: isFocused
             ? [
                 BoxShadow(
-                  color: _accent.withOpacity(0.2),
-                  blurRadius: 10,
+                  color: _accent.withValues(alpha: 0.2),
+                  blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
               ]

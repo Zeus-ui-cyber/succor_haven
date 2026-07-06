@@ -37,7 +37,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   late final Animation<Offset> _cardSlide;
   late final Animation<double> _contentFade;
 
-  int _dotIndex = 0;
+  final int _dotIndex = 0;
 
   @override
   void initState() {
@@ -60,8 +60,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     _cardSlide = Tween<Offset>(
       begin: const Offset(0, 0.25),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _entryController, curve: Curves.easeOutCubic));
-    _contentFade = CurvedAnimation(parent: _entryController, curve: Curves.easeIn);
+    ).animate(
+        CurvedAnimation(parent: _entryController, curve: Curves.easeOutCubic));
+    _contentFade =
+        CurvedAnimation(parent: _entryController, curve: Curves.easeIn);
 
     _entryController.forward();
   }
@@ -133,12 +135,13 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                     Positioned(
                       top: -40,
                       left: -30,
-                      child: _glowBlob(140, _C.mauve.withOpacity(0.35)),
+                      child: _glowBlob(140, _C.mauve.withValues(alpha: 0.35)),
                     ),
                     Positioned(
                       bottom: -20,
                       right: -40,
-                      child: _glowBlob(180, _C.blushPink.withOpacity(0.28)),
+                      child:
+                          _glowBlob(180, _C.blushPink.withValues(alpha: 0.28)),
                     ),
 
                     // Skip shortcut
@@ -183,8 +186,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                             color: Colors.white,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.20),
-                                blurRadius: 26,
+                                color: Colors.black.withValues(alpha: 0.20),
+                                blurRadius: 12,
                                 offset: const Offset(0, 12),
                               ),
                             ],
@@ -259,8 +262,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: _C.magenta.withOpacity(0.35),
-                                blurRadius: 14,
+                                color: _C.magenta.withValues(alpha: 0.35),
+                                blurRadius: 12,
                                 offset: const Offset(0, 6),
                               ),
                             ],
@@ -339,7 +342,7 @@ class _SparklePainter extends CustomPainter {
       final dy = (baseY - progress * size.height * 0.5) % size.height;
       final r = 1.0 + rnd.nextDouble() * 1.6;
       final twinkle = (sin((progress * 2 * pi) + i * 1.1) + 1) / 2;
-      paint.color = Colors.white.withOpacity(0.10 + twinkle * 0.3);
+      paint.color = Colors.white.withValues(alpha: 0.10 + twinkle * 0.3);
       canvas.drawCircle(Offset(dx, dy), r, paint);
     }
   }
