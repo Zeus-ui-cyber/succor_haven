@@ -105,7 +105,7 @@ class _SplashScreenState extends State<SplashScreen>
                 height: 260,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _C.mauve.withOpacity(0.25),
+                  color: _C.mauve.withValues(alpha: 0.25),
                 ),
               ),
             ),
@@ -124,7 +124,7 @@ class _SplashScreenState extends State<SplashScreen>
                       color: Colors.white,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.18),
+                          color: Colors.black.withValues(alpha: 0.18),
                           blurRadius: 30,
                           offset: const Offset(0, 14),
                         ),
@@ -202,7 +202,7 @@ class _SparklePainter extends CustomPainter {
       final dy = (baseY - progress * size.height * 0.6) % size.height;
       final r = 1.0 + rnd.nextDouble() * 1.8;
       final twinkle = (sin((progress * 2 * pi) + i * 1.3) + 1) / 2;
-      paint.color = Colors.white.withOpacity(0.12 + twinkle * 0.35);
+      paint.color = Colors.white.withValues(alpha: 0.12 + twinkle * 0.35);
       canvas.drawCircle(Offset(dx, dy), r, paint);
     }
   }

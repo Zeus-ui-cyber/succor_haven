@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 
 // ─── Design tokens (matches dashboard _C palette) ─────────────────────────────

@@ -26,7 +26,7 @@ String formatStartsIn(DateTime scheduledAt, {DateTime? now}) {
     final mins = diff.inMinutes.remainder(60);
     return mins == 0
         ? 'Starts in ${diff.inHours} hr'
-        : 'Starts in ${diff.inHours} hr ${mins} min';
+        : 'Starts in ${diff.inHours} hr $mins min';
   }
   return 'Starts ${formatDate(scheduledAt)}';
 }
@@ -34,8 +34,18 @@ String formatStartsIn(DateTime scheduledAt, {DateTime? now}) {
 /// e.g. "Jul 3, 2:30 PM"
 String formatDate(DateTime dt) {
   const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   final month = months[dt.month - 1];
   final hour12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;

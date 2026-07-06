@@ -158,8 +158,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
       case _Tab.phoneOtp:
         String phone = _phoneCtrl.text.trim();
-        if (!phone.startsWith('+'))
+        if (!phone.startsWith('+')) {
           phone = '+63${phone.replaceFirst(RegExp(r'^0'), '')}';
+        }
         await ctrl.sendPhoneOtp(phone);
         _goToOtp();
         break;
@@ -372,7 +373,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             height: 132,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _accent.withOpacity(0.14),
+              color: _accent.withValues(alpha: 0.14),
             ),
           ),
 
@@ -391,8 +392,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 color: _C.paper,
                 boxShadow: [
                   BoxShadow(
-                    color: _accent.withOpacity(0.28),
-                    blurRadius: 24,
+                    color: _accent.withValues(alpha: 0.28),
+                    blurRadius: 12,
                     offset: const Offset(0, 10),
                   ),
                 ],
@@ -433,7 +434,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       decoration: BoxDecoration(
         color: _accentPale,
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: _accent.withOpacity(0.25)),
+        border: Border.all(color: _accent.withValues(alpha: 0.25)),
       ),
       child: Row(
         children: [
@@ -498,15 +499,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isActive
-                        ? _accent.withOpacity(0.35)
+                        ? _accent.withValues(alpha: 0.35)
                         : Colors.transparent,
                     width: 1.5,
                   ),
                   boxShadow: isActive
                       ? [
                           BoxShadow(
-                            color: _accent.withOpacity(0.15),
-                            blurRadius: 8,
+                            color: _accent.withValues(alpha: 0.15),
+                            blurRadius: 12,
                             offset: const Offset(0, 3),
                           ),
                         ]
@@ -631,8 +632,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ],
               validator: (v) {
                 if (v == null || v.isEmpty) return _l.enterPhone;
-                if (v.replaceAll(RegExp(r'[^0-9]'), '').length < 10)
+                if (v.replaceAll(RegExp(r'[^0-9]'), '').length < 10) {
                   return _l.validPhone;
+                }
                 return null;
               },
             ),
@@ -659,9 +661,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           Expanded(
             child: Text(text,
                 style: TextStyle(
-                    fontSize: 12,
-                    color: _accent,
-                    fontWeight: FontWeight.w600)),
+                    fontSize: 12, color: _accent, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -680,14 +680,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           gradient: LinearGradient(
-            colors: [_accent, _accent.withOpacity(0.75)],
+            colors: [_accent, _accent.withValues(alpha: 0.75)],
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
           ),
           boxShadow: [
             BoxShadow(
-              color: _accent.withOpacity(0.35),
-              blurRadius: 14,
+              color: _accent.withValues(alpha: 0.35),
+              blurRadius: 12,
               offset: const Offset(0, 6),
             ),
           ],
@@ -698,8 +698,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
           child: authState.isLoading
               ? const SizedBox(
@@ -745,13 +745,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         side: BorderSide(color: _accentPale, width: 1.5),
         backgroundColor: _C.paper,
         padding: const EdgeInsets.symmetric(vertical: 14),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       child: Text(
         _l.newAccount,
-        style:
-            const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+        style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -824,8 +822,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       border: Border.all(color: _C.line, width: 1),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 6,
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 12,
                           offset: const Offset(0, 2),
                         ),
                       ],
@@ -954,14 +952,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             borderSide: BorderSide(color: _accent, width: 1.8)),
         errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide:
-                const BorderSide(color: Color(0xFFB00020), width: 1.5)),
+            borderSide: const BorderSide(color: Color(0xFFB00020), width: 1.5)),
         focusedErrorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide:
-                const BorderSide(color: Color(0xFFB00020), width: 1.8)),
-        errorStyle:
-            const TextStyle(color: Color(0xFFB00020), fontSize: 11.5),
+            borderSide: const BorderSide(color: Color(0xFFB00020), width: 1.8)),
+        errorStyle: const TextStyle(color: Color(0xFFB00020), fontSize: 11.5),
       ),
       validator: validator,
     );
@@ -996,15 +991,15 @@ class _RoleSelector extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isActive
-                        ? role.accent.withOpacity(0.35)
+                        ? role.accent.withValues(alpha: 0.35)
                         : Colors.transparent,
                     width: 1.5,
                   ),
                   boxShadow: isActive
                       ? [
                           BoxShadow(
-                            color: role.accent.withOpacity(0.15),
-                            blurRadius: 8,
+                            color: role.accent.withValues(alpha: 0.15),
+                            blurRadius: 12,
                             offset: const Offset(0, 3),
                           ),
                         ]
@@ -1020,9 +1015,7 @@ class _RoleSelector extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: isActive
-                            ? role.accent
-                            : const Color(0xFF8A6070),
+                        color: isActive ? role.accent : const Color(0xFF8A6070),
                       ),
                       child: Text(role.label),
                     ),
@@ -1033,8 +1026,8 @@ class _RoleSelector extends StatelessWidget {
                         fontSize: 10.5,
                         fontWeight: FontWeight.w500,
                         color: isActive
-                            ? role.accent.withOpacity(0.55)
-                            : const Color(0xFF8A6070).withOpacity(0.45),
+                            ? role.accent.withValues(alpha: 0.55)
+                            : const Color(0xFF8A6070).withValues(alpha: 0.45),
                       ),
                       child: Text('· ${role.labelCn}'),
                     ),
@@ -1065,7 +1058,7 @@ class _SparklePainter extends CustomPainter {
       final dy = (baseY - progress * size.height * 0.5) % size.height;
       final r = 1.0 + rnd.nextDouble() * 1.6;
       final twinkle = (sin((progress * 2 * pi) + i * 1.15) + 1) / 2;
-      paint.color = color.withOpacity(0.08 + twinkle * 0.22);
+      paint.color = color.withValues(alpha: 0.08 + twinkle * 0.22);
       canvas.drawCircle(Offset(dx, dy), r, paint);
     }
   }
@@ -1097,8 +1090,8 @@ class _TranslationToggle extends StatelessWidget {
               color: zhMode ? accent : const Color(0xFFF0DCE5), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: accent.withOpacity(0.15),
-              blurRadius: 8,
+              color: accent.withValues(alpha: 0.15),
+              blurRadius: 12,
               offset: const Offset(0, 3),
             ),
           ],
@@ -1128,7 +1121,7 @@ class _TranslationToggle extends StatelessWidget {
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: zhMode
-                    ? Colors.white.withOpacity(0.7)
+                    ? Colors.white.withValues(alpha: 0.7)
                     : const Color(0xFF8A6070),
               ),
             ),

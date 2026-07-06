@@ -125,7 +125,7 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
     ];
 
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: _C.paper,
         border: Border(top: BorderSide(color: _C.line, width: 1)),
       ),
@@ -256,13 +256,14 @@ class _HomeTab extends ConsumerWidget {
               error: (e, _) => Text('$e'),
               data: (bookings) {
                 final recent = bookings.take(3).toList();
-                if (recent.isEmpty)
-                  return _EmptyCard(
+                if (recent.isEmpty) {
+                  return const _EmptyCard(
                     icon: Icons.calendar_today_outlined,
                     title: 'No sessions yet',
                     titleCn: '暂无课程',
                     subtitle: 'Book a session with a teacher to get started.',
                   );
+                }
                 return Column(
                     children:
                         recent.map((b) => _BookingCard(booking: b)).toList());
@@ -405,10 +406,10 @@ class _FindTeachersTabState extends ConsumerState<_FindTeachersTab> {
 
     return Column(children: [
       // Header
-      Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+      const Padding(
+        padding: EdgeInsets.fromLTRB(20, 16, 20, 12),
         child: Row(children: [
-          const Expanded(
+          Expanded(
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -495,13 +496,14 @@ class _FindTeachersTabState extends ConsumerState<_FindTeachersTab> {
               return matchSearch && matchSubject;
             }).toList();
 
-            if (filtered.isEmpty)
-              return _EmptyCard(
+            if (filtered.isEmpty) {
+              return const _EmptyCard(
                 icon: Icons.person_search_outlined,
                 title: 'No teachers found',
                 titleCn: '未找到老师',
                 subtitle: 'Try a different subject or search term.',
               );
+            }
 
             return GridView.builder(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
@@ -552,14 +554,15 @@ class _SessionsTab extends ConsumerWidget {
               const Center(child: CircularProgressIndicator(color: _C.magenta)),
           error: (e, _) => Center(child: Text('$e')),
           data: (bookings) {
-            if (bookings.isEmpty)
-              return Center(
+            if (bookings.isEmpty) {
+              return const Center(
                   child: _EmptyCard(
                 icon: Icons.calendar_today_outlined,
                 title: 'No sessions yet',
                 titleCn: '暂无课程',
                 subtitle: 'Book a session to get started.',
               ));
+            }
             // Group: upcoming / past
             final upcoming = bookings
                 .where((b) =>
@@ -574,12 +577,12 @@ class _SessionsTab extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
               children: [
                 if (upcoming.isNotEmpty) ...[
-                  _GroupLabel(label: 'Upcoming · 即将上课'),
+                  const _GroupLabel(label: 'Upcoming · 即将上课'),
                   ...upcoming.map((b) => _BookingCard(booking: b)),
                   const SizedBox(height: 16),
                 ],
                 if (past.isNotEmpty) ...[
-                  _GroupLabel(label: 'Past · 历史课程'),
+                  const _GroupLabel(label: 'Past · 历史课程'),
                   ...past.map((b) => _BookingCard(booking: b)),
                 ],
               ],

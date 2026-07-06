@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 
 // ─── Design tokens (matches dashboard _C palette) ─────────────────────────────
@@ -541,8 +540,8 @@ class _FindTeachersPageState extends State<FindTeachersPage> {
           border: Border.all(color: _C.line),
           boxShadow: [
             BoxShadow(
-              color: _C.violet.withAlpha(((0.06),
-              blurRadius: 0.1,
+              color: _C.violet.withValues(alpha: 0.06),
+              blurRadius: 12,
               offset: const Offset(0, 4),
             ),
           ],
@@ -613,8 +612,8 @@ class _FindTeachersPageState extends State<FindTeachersPage> {
                     boxShadow: active
                         ? [
                             BoxShadow(
-                              color: _C.violet.withAlpha(((0.28),
-                              blurRadius: 0.1,
+                              color: _C.violet.withValues(alpha: 0.28),
+                              blurRadius: 12,
                               offset: const Offset(0, 3),
                             ),
                           ]
@@ -907,8 +906,8 @@ class _TeacherCard extends StatelessWidget {
           border: Border.all(color: _C.line),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withAlpha(((0.05),
-              blurRadius: 0.1,
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 12,
               offset: const Offset(0, 5),
             ),
           ],
@@ -939,7 +938,7 @@ class _TeacherCard extends StatelessWidget {
                       height: 80,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.white.withAlpha(((0.12),
+                        color: Colors.white.withValues(alpha: 0.12),
                       ),
                     ),
                   ),
@@ -954,7 +953,7 @@ class _TeacherCard extends StatelessWidget {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white.withAlpha(((0.9),
+                          color: Colors.white.withValues(alpha: 0.9),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Row(
@@ -995,8 +994,8 @@ class _TeacherCard extends StatelessWidget {
                         border: Border.all(color: Colors.white, width: 3),
                         boxShadow: [
                           BoxShadow(
-                            color: teacher.gradientB.withAlpha(((0.4),
-                            blurRadius: 0.1,
+                            color: teacher.gradientB.withValues(alpha: 0.4),
+                            blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),
                         ],
@@ -1127,8 +1126,8 @@ class _TeacherCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: _C.violet.withAlpha(((0.3),
-                              blurRadius: 0.1,
+                              color: _C.violet.withValues(alpha: 0.3),
+                              blurRadius: 12,
                               offset: const Offset(0, 3),
                             ),
                           ],
@@ -1239,7 +1238,7 @@ class _TeacherProfileSheetState extends State<_TeacherProfileSheet>
               height: 130,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withAlpha(((0.1),
+                color: Colors.white.withValues(alpha: 0.1),
               ),
             ),
           ),
@@ -1251,7 +1250,7 @@ class _TeacherProfileSheetState extends State<_TeacherProfileSheet>
               height: 90,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withAlpha(((0.07),
+                color: Colors.white.withValues(alpha: 0.07),
               ),
             ),
           ),
@@ -1271,8 +1270,8 @@ class _TeacherProfileSheetState extends State<_TeacherProfileSheet>
                     border: Border.all(color: Colors.white, width: 3),
                     boxShadow: [
                       BoxShadow(
-                        color: t.gradientB.withAlpha(((0.35),
-                        blurRadius: 0.1,
+                        color: t.gradientB.withValues(alpha: 0.35),
+                        blurRadius: 12,
                         offset: const Offset(0, 6),
                       ),
                     ],
@@ -1305,7 +1304,7 @@ class _TeacherProfileSheetState extends State<_TeacherProfileSheet>
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.white.withAlpha(((0.2),
+                                color: Colors.white.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: const Row(
@@ -1499,8 +1498,8 @@ class _TeacherProfileSheetState extends State<_TeacherProfileSheet>
         border: const Border(top: BorderSide(color: _C.line)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(((0.06),
-            blurRadius: 0.1,
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
             offset: const Offset(0, -6),
           ),
         ],
@@ -1556,8 +1555,8 @@ class _TeacherProfileSheetState extends State<_TeacherProfileSheet>
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: _C.violet.withAlpha(((0.35),
-                    blurRadius: 0.1,
+                    color: _C.violet.withValues(alpha: 0.35),
+                    blurRadius: 12,
                     offset: const Offset(0, 5),
                   ),
                 ],
@@ -1888,8 +1887,8 @@ class _ReviewCard extends StatelessWidget {
         border: Border.all(color: _C.line),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(((0.04),
-            blurRadius: 0.1,
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
             offset: const Offset(0, 3),
           ),
         ],
@@ -2111,8 +2110,8 @@ class _ScheduleTabState extends State<_ScheduleTab> {
                           boxShadow: selected
                               ? [
                                   BoxShadow(
-                                    color: _C.violet.withAlpha(((0.3),
-                                    blurRadius: 0.1,
+                                    color: _C.violet.withValues(alpha: 0.3),
+                                    blurRadius: 12,
                                     offset: const Offset(0, 3),
                                   ),
                                 ]
@@ -2208,7 +2207,7 @@ class _ScheduleTabState extends State<_ScheduleTab> {
                                   ? Colors.transparent
                                   : isBooked
                                       ? _C.line
-                                      : _C.teal.withAlpha(((0.3),
+                                      : _C.teal.withValues(alpha: 0.3),
                             ),
                           ),
                           child: Text(
@@ -2239,7 +2238,7 @@ class _ScheduleTabState extends State<_ScheduleTab> {
               decoration: BoxDecoration(
                 color: _C.greenPale,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: _C.green.withAlpha(((0.3)),
+                border: Border.all(color: _C.green.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
@@ -2331,7 +2330,7 @@ class _PulseGreenState extends State<_PulseGreen>
                 height: 5,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _C.green.withAlpha(((_opacity.value),
+                  color: _C.green.withValues(alpha: _opacity.value),
                 ),
               ),
             ),

@@ -33,20 +33,20 @@ import '../../auth/repositories/auth_repository.dart';
 
 // ── Palette (same family as admin_dashboard_screen.dart) ────────────────────
 class _C {
-  static const sunshine    = Color(0xFFFFC93C);
+  static const sunshine = Color(0xFFFFC93C);
   static const sunshineDeep = Color(0xFFFFB100);
   static const sunshineGlow = Color(0xFFFFE49A);
-  static const navy        = Color(0xFF142850);
-  static const navySoft    = Color(0xFF274472);
-  static const coral       = Color(0xFFFF6F61);
-  static const coralSoft   = Color(0xFFFFD9CC);
-  static const blushSoft   = Color(0xFFFCE0E6);
-  static const cream       = Color(0xFFFFF8E7);
-  static const paper       = Color(0xFFFFFFFF);
-  static const inkSoft     = Color(0xFF6E7593);
-  static const line        = Color(0xFFFFE8B8);
-  static const green       = Color(0xFF00C48C);
-  static const greenPale   = Color(0xFFDFFBEF);
+  static const navy = Color(0xFF142850);
+  static const navySoft = Color(0xFF274472);
+  static const coral = Color(0xFFFF6F61);
+  static const coralSoft = Color(0xFFFFD9CC);
+  static const blushSoft = Color(0xFFFCE0E6);
+  static const cream = Color(0xFFFFF8E7);
+  static const paper = Color(0xFFFFFFFF);
+  static const inkSoft = Color(0xFF6E7593);
+  static const line = Color(0xFFFFE8B8);
+  static const green = Color(0xFF00C48C);
+  static const greenPale = Color(0xFFDFFBEF);
 }
 
 // ── Providers ────────────────────────────────────────────────────────────────
@@ -66,7 +66,9 @@ final _rulesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
     Uri.parse('${AuthRepository.baseUrl}/admin/credit-rules'),
     headers: await _headers(repo),
   );
-  if (res.statusCode != 200) throw Exception('Failed to load rules (${res.statusCode})');
+  if (res.statusCode != 200) {
+    throw Exception('Failed to load rules (${res.statusCode})');
+  }
   return (jsonDecode(res.body) as List).cast<Map<String, dynamic>>();
 });
 
@@ -102,7 +104,8 @@ class _CreditRulesScreenState extends ConsumerState<CreditRulesScreen>
     );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(res.statusCode == 200 ? 'Rule deleted' : 'Failed to delete'),
+        content:
+            Text(res.statusCode == 200 ? 'Rule deleted' : 'Failed to delete'),
         backgroundColor: res.statusCode == 200 ? _C.green : _C.coral,
       ));
       if (res.statusCode == 200) ref.invalidate(_rulesProvider);
@@ -179,8 +182,8 @@ class _CreditRulesScreenState extends ConsumerState<CreditRulesScreen>
                 child: TabBar(
                   controller: _tabs,
                   indicator: BoxDecoration(
-                    gradient: const LinearGradient(
-                        colors: [_C.sunshine, _C.coral]),
+                    gradient:
+                        const LinearGradient(colors: [_C.sunshine, _C.coral]),
                     borderRadius: BorderRadius.circular(13),
                   ),
                   indicatorSize: TabBarIndicatorSize.tab,
@@ -201,13 +204,12 @@ class _CreditRulesScreenState extends ConsumerState<CreditRulesScreen>
               child: rulesAsync.when(
                 loading: () => const Center(
                     child: CircularProgressIndicator(color: _C.coral)),
-                error: (e, _) => _ErrorView(error: '$e',
-                    onRetry: () => ref.invalidate(_rulesProvider)),
+                error: (e, _) => _ErrorView(
+                    error: '$e', onRetry: () => ref.invalidate(_rulesProvider)),
                 data: (rules) {
                   final tabType = _tabs.index == 0 ? 'earn' : 'spend';
-                  final filtered = rules
-                      .where((r) => r['type'] == tabType)
-                      .toList();
+                  final filtered =
+                      rules.where((r) => r['type'] == tabType).toList();
 
                   if (filtered.isEmpty) {
                     return _NiceEmpty(
@@ -256,15 +258,16 @@ class _RuleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isEarn    = rule['type'] == 'earn';
-    final currency  = rule['currency'] as String? ?? 'credits';
-    final amount    = rule['amount'] as num? ?? 0;
-    final active    = rule['is_active'] as bool? ?? true;
+    final isEarn = rule['type'] == 'earn';
+    final currency = rule['currency'] as String? ?? 'credits';
+    final amount = rule['amount'] as num? ?? 0;
+    final active = rule['is_active'] as bool? ?? true;
     final appliesTo = rule['applies_to'] as String? ?? 'all';
 
-    final accentColor = isEarn ? _C.green   : _C.coral;
-    final paleBg      = isEarn ? _C.greenPale : _C.coralSoft;
-    final icon        = isEarn ? Icons.add_circle_rounded : Icons.remove_circle_rounded;
+    final accentColor = isEarn ? _C.green : _C.coral;
+    final paleBg = isEarn ? _C.greenPale : _C.coralSoft;
+    final icon =
+        isEarn ? Icons.add_circle_rounded : Icons.remove_circle_rounded;
 
     return Opacity(
       opacity: active ? 1.0 : 0.55,
@@ -277,7 +280,7 @@ class _RuleCard extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: _C.sunshineDeep.withValues(alpha: 0.10),
-              blurRadius: 12,
+              blurRadius: 0.1,
               offset: const Offset(0, 5),
             ),
           ],
@@ -297,7 +300,8 @@ class _RuleCard extends StatelessWidget {
                 child: Icon(icon, color: accentColor, size: 22),
               ),
               const SizedBox(width: 12),
-              Expanded(child: Column(
+              Expanded(
+                  child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(rule['name'] ?? '—',
@@ -308,14 +312,15 @@ class _RuleCard extends StatelessWidget {
                   if ((rule['name_cn'] ?? '').isNotEmpty)
                     Text(rule['name_cn'],
                         style: const TextStyle(
-                            fontSize: 11, color: _C.coral,
+                            fontSize: 11,
+                            color: _C.coral,
                             fontWeight: FontWeight.w700)),
                 ],
               )),
               // amount badge
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: paleBg,
                   borderRadius: BorderRadius.circular(20),
@@ -349,9 +354,7 @@ class _RuleCard extends StatelessWidget {
               GestureDetector(
                 onTap: onToggle,
                 child: Icon(
-                  active
-                      ? Icons.toggle_on_rounded
-                      : Icons.toggle_off_rounded,
+                  active ? Icons.toggle_on_rounded : Icons.toggle_off_rounded,
                   color: active ? _C.green : _C.inkSoft,
                   size: 30,
                 ),
@@ -366,8 +369,8 @@ class _RuleCard extends StatelessWidget {
                     color: _C.sunshineGlow.withValues(alpha: 0.6),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.edit_rounded,
-                      size: 15, color: _C.navy),
+                  child:
+                      const Icon(Icons.edit_rounded, size: 15, color: _C.navy),
                 ),
               ),
               const SizedBox(width: 6),
@@ -395,32 +398,26 @@ class _RuleCard extends StatelessWidget {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Delete Rule?',
-            style: TextStyle(
-                fontWeight: FontWeight.w800, color: _C.navy)),
+            style: TextStyle(fontWeight: FontWeight.w800, color: _C.navy)),
         content: Text('Remove "${rule['name']}"? This cannot be undone.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel',
-                  style: TextStyle(color: _C.inkSoft))),
+              child: const Text('Cancel', style: TextStyle(color: _C.inkSoft))),
           GestureDetector(
             onTap: () {
               Navigator.pop(context);
               onDelete();
             },
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                  color: _C.coral,
-                  borderRadius: BorderRadius.circular(12)),
+                  color: _C.coral, borderRadius: BorderRadius.circular(12)),
               child: const Text('Delete',
                   style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800)),
+                      color: Colors.white, fontWeight: FontWeight.w800)),
             ),
           ),
         ],
@@ -439,14 +436,14 @@ class _RuleSheet extends ConsumerStatefulWidget {
 }
 
 class _RuleSheetState extends ConsumerState<_RuleSheet> {
-  final _nameCtrl    = TextEditingController();
-  final _nameCnCtrl  = TextEditingController();
-  final _amountCtrl  = TextEditingController();
-  String _type       = 'earn';
-  String _currency   = 'credits';
-  String _appliesTo  = 'all';
-  String _trigger    = 'booking_completed';
-  bool   _saving     = false;
+  final _nameCtrl = TextEditingController();
+  final _nameCnCtrl = TextEditingController();
+  final _amountCtrl = TextEditingController();
+  String _type = 'earn';
+  String _currency = 'credits';
+  String _appliesTo = 'all';
+  String _trigger = 'booking_completed';
+  bool _saving = false;
 
   static const _triggers = [
     'booking_completed',
@@ -462,13 +459,13 @@ class _RuleSheetState extends ConsumerState<_RuleSheet> {
     super.initState();
     final e = widget.existing;
     if (e != null) {
-      _nameCtrl.text   = e['name']     ?? '';
-      _nameCnCtrl.text = e['name_cn']  ?? '';
+      _nameCtrl.text = e['name'] ?? '';
+      _nameCnCtrl.text = e['name_cn'] ?? '';
       _amountCtrl.text = '${e['amount'] ?? ''}';
-      _type            = e['type']      ?? 'earn';
-      _currency        = e['currency']  ?? 'credits';
-      _appliesTo       = e['applies_to'] ?? 'all';
-      _trigger         = e['trigger']   ?? 'booking_completed';
+      _type = e['type'] ?? 'earn';
+      _currency = e['currency'] ?? 'credits';
+      _appliesTo = e['applies_to'] ?? 'all';
+      _trigger = e['trigger'] ?? 'booking_completed';
     }
   }
 
@@ -490,24 +487,25 @@ class _RuleSheetState extends ConsumerState<_RuleSheet> {
     }
 
     setState(() => _saving = true);
-    final repo    = ref.read(_repoProvider);
+    final repo = ref.read(_repoProvider);
     final headers = await _headers(repo);
-    final body    = jsonEncode({
-      'name':       _nameCtrl.text.trim(),
-      'name_cn':    _nameCnCtrl.text.trim(),
-      'type':       _type,
-      'currency':   _currency,
-      'amount':     int.tryParse(_amountCtrl.text) ?? 0,
-      'trigger':    _trigger,
+    final body = jsonEncode({
+      'name': _nameCtrl.text.trim(),
+      'name_cn': _nameCnCtrl.text.trim(),
+      'type': _type,
+      'currency': _currency,
+      'amount': int.tryParse(_amountCtrl.text) ?? 0,
+      'trigger': _trigger,
       'applies_to': _appliesTo,
-      'is_active':  true,
+      'is_active': true,
     });
 
     try {
       final http.Response res;
       if (widget.existing != null) {
         res = await http.patch(
-          Uri.parse('${AuthRepository.baseUrl}/admin/credit-rules/${widget.existing!['id']}'),
+          Uri.parse(
+              '${AuthRepository.baseUrl}/admin/credit-rules/${widget.existing!['id']}'),
           headers: headers,
           body: body,
         );
@@ -524,8 +522,7 @@ class _RuleSheetState extends ConsumerState<_RuleSheet> {
           content: Text(res.statusCode < 300
               ? (widget.existing != null ? 'Rule updated ✓' : 'Rule created ✓')
               : 'Failed (${res.statusCode})'),
-          backgroundColor:
-              res.statusCode < 300 ? _C.green : _C.coral,
+          backgroundColor: res.statusCode < 300 ? _C.green : _C.coral,
         ));
         if (res.statusCode < 300) {
           widget.onSaved();
@@ -558,117 +555,117 @@ class _RuleSheetState extends ConsumerState<_RuleSheet> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-            Center(
-              child: Container(
-                  width: 40,
-                  height: 5,
-                  decoration: BoxDecoration(
-                      color: _C.line,
-                      borderRadius: BorderRadius.circular(10))),
-            ),
-            const SizedBox(height: 16),
-            Row(children: [
-              const Text('💎', style: TextStyle(fontSize: 20)),
-              const SizedBox(width: 8),
-              Text(
-                  widget.existing != null
-                      ? 'Edit Rule · 编辑规则'
-                      : 'New Rule · 新建规则',
-                  style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      color: _C.navy)),
-            ]),
-            const SizedBox(height: 18),
-
-            // type
-            _SectionLabel('Rule Type · 规则类型'),
-            const SizedBox(height: 8),
-            Row(children: [
-              _SheetToggle(
-                  label: 'Earn · 获得',
-                  active: _type == 'earn',
-                  onTap: () => setState(() => _type = 'earn')),
-              const SizedBox(width: 8),
-              _SheetToggle(
-                  label: 'Spend · 消耗',
-                  active: _type == 'spend',
-                  onTap: () => setState(() => _type = 'spend')),
-            ]),
-            const SizedBox(height: 14),
-
-            // currency
-            _SectionLabel('Currency · 货币类型'),
-            const SizedBox(height: 8),
-            Row(children: [
-              _SheetToggle(
-                  label: '💎 Credits',
-                  active: _currency == 'credits',
-                  onTap: () => setState(() => _currency = 'credits')),
-              const SizedBox(width: 8),
-              _SheetToggle(
-                  label: '⭐ Points',
-                  active: _currency == 'points',
-                  onTap: () => setState(() => _currency = 'points')),
-            ]),
-            const SizedBox(height: 14),
-
-            // name fields
-            _GlowField(
-                controller: _nameCtrl,
-                label: 'Rule name (EN)',
-                icon: Icons.label_rounded),
-            const SizedBox(height: 10),
-            _GlowField(
-                controller: _nameCnCtrl,
-                label: '规则名称 (中文)',
-                icon: Icons.translate_rounded),
-            const SizedBox(height: 10),
-            _GlowField(
-                controller: _amountCtrl,
-                label: 'Amount · 数量',
-                icon: Icons.numbers_rounded,
-                numeric: true),
-            const SizedBox(height: 14),
-
-            // trigger
-            _SectionLabel('Trigger · 触发条件'),
-            const SizedBox(height: 8),
-            _DropdownField<String>(
-              value: _trigger,
-              items: _triggers,
-              label: (t) => t.replaceAll('_', ' '),
-              onChanged: (v) => setState(() => _trigger = v!),
-            ),
-            const SizedBox(height: 14),
-
-            // applies to
-            _SectionLabel('Applies to · 适用对象'),
-            const SizedBox(height: 8),
-            Row(children: [
-              for (final opt in ['all', 'student', 'teacher'])
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: _SheetToggle(
-                    label: opt == 'all'
-                        ? 'All · 全部'
-                        : opt == 'student'
-                            ? 'Students'
-                            : 'Teachers',
-                    active: _appliesTo == opt,
-                    onTap: () => setState(() => _appliesTo = opt),
-                  ),
+                Center(
+                  child: Container(
+                      width: 40,
+                      height: 5,
+                      decoration: BoxDecoration(
+                          color: _C.line,
+                          borderRadius: BorderRadius.circular(10))),
                 ),
-            ]),
-            const SizedBox(height: 22),
+                const SizedBox(height: 16),
+                Row(children: [
+                  const Text('💎', style: TextStyle(fontSize: 20)),
+                  const SizedBox(width: 8),
+                  Text(
+                      widget.existing != null
+                          ? 'Edit Rule · 编辑规则'
+                          : 'New Rule · 新建规则',
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: _C.navy)),
+                ]),
+                const SizedBox(height: 18),
 
-            _SaveButton(
-                label: widget.existing != null
-                    ? 'Update Rule · 更新规则'
-                    : 'Create Rule · 创建规则',
-                saving: _saving,
-                onTap: _save),
-          ]),
+                // type
+                const _SectionLabel('Rule Type · 规则类型'),
+                const SizedBox(height: 8),
+                Row(children: [
+                  _SheetToggle(
+                      label: 'Earn · 获得',
+                      active: _type == 'earn',
+                      onTap: () => setState(() => _type = 'earn')),
+                  const SizedBox(width: 8),
+                  _SheetToggle(
+                      label: 'Spend · 消耗',
+                      active: _type == 'spend',
+                      onTap: () => setState(() => _type = 'spend')),
+                ]),
+                const SizedBox(height: 14),
+
+                // currency
+                const _SectionLabel('Currency · 货币类型'),
+                const SizedBox(height: 8),
+                Row(children: [
+                  _SheetToggle(
+                      label: '💎 Credits',
+                      active: _currency == 'credits',
+                      onTap: () => setState(() => _currency = 'credits')),
+                  const SizedBox(width: 8),
+                  _SheetToggle(
+                      label: '⭐ Points',
+                      active: _currency == 'points',
+                      onTap: () => setState(() => _currency = 'points')),
+                ]),
+                const SizedBox(height: 14),
+
+                // name fields
+                _GlowField(
+                    controller: _nameCtrl,
+                    label: 'Rule name (EN)',
+                    icon: Icons.label_rounded),
+                const SizedBox(height: 10),
+                _GlowField(
+                    controller: _nameCnCtrl,
+                    label: '规则名称 (中文)',
+                    icon: Icons.translate_rounded),
+                const SizedBox(height: 10),
+                _GlowField(
+                    controller: _amountCtrl,
+                    label: 'Amount · 数量',
+                    icon: Icons.numbers_rounded,
+                    numeric: true),
+                const SizedBox(height: 14),
+
+                // trigger
+                const _SectionLabel('Trigger · 触发条件'),
+                const SizedBox(height: 8),
+                _DropdownField<String>(
+                  value: _trigger,
+                  items: _triggers,
+                  label: (t) => t.replaceAll('_', ' '),
+                  onChanged: (v) => setState(() => _trigger = v!),
+                ),
+                const SizedBox(height: 14),
+
+                // applies to
+                const _SectionLabel('Applies to · 适用对象'),
+                const SizedBox(height: 8),
+                Row(children: [
+                  for (final opt in ['all', 'student', 'teacher'])
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: _SheetToggle(
+                        label: opt == 'all'
+                            ? 'All · 全部'
+                            : opt == 'student'
+                                ? 'Students'
+                                : 'Teachers',
+                        active: _appliesTo == opt,
+                        onTap: () => setState(() => _appliesTo = opt),
+                      ),
+                    ),
+                ]),
+                const SizedBox(height: 22),
+
+                _SaveButton(
+                    label: widget.existing != null
+                        ? 'Update Rule · 更新规则'
+                        : 'Create Rule · 创建规则',
+                    saving: _saving,
+                    onTap: _save),
+              ]),
         ),
       ),
     );
@@ -692,9 +689,7 @@ class _Chip extends StatelessWidget {
         ),
         child: Text(label,
             style: TextStyle(
-                fontSize: 10,
-                color: color,
-                fontWeight: FontWeight.w700)),
+                fontSize: 10, color: color, fontWeight: FontWeight.w700)),
       );
 }
 
@@ -704,9 +699,7 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(text,
       style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          color: _C.inkSoft));
+          fontSize: 11, fontWeight: FontWeight.w800, color: _C.inkSoft));
 }
 
 class _SheetToggle extends StatelessWidget {
@@ -720,8 +713,7 @@ class _SheetToggle extends StatelessWidget {
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             gradient: active
                 ? const LinearGradient(colors: [_C.sunshine, _C.coral])
@@ -729,13 +721,12 @@ class _SheetToggle extends StatelessWidget {
             color: active ? null : _C.paper,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-                color: active ? Colors.transparent : _C.line,
-                width: 1.4),
+                color: active ? Colors.transparent : _C.line, width: 1.4),
             boxShadow: active
                 ? [
                     BoxShadow(
                         color: _C.coral.withValues(alpha: 0.3),
-                        blurRadius: 8,
+                        blurRadius: 0.1,
                         offset: const Offset(0, 3))
                   ]
                 : null,
@@ -763,8 +754,7 @@ class _GlowField extends StatelessWidget {
   @override
   Widget build(BuildContext context) => TextField(
         controller: controller,
-        keyboardType:
-            numeric ? TextInputType.number : TextInputType.text,
+        keyboardType: numeric ? TextInputType.number : TextInputType.text,
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: Icon(icon, color: _C.coral, size: 18),
@@ -772,16 +762,13 @@ class _GlowField extends StatelessWidget {
           fillColor: _C.paper,
           border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide:
-                  const BorderSide(color: _C.line, width: 1.4)),
+              borderSide: const BorderSide(color: _C.line, width: 1.4)),
           enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide:
-                  const BorderSide(color: _C.line, width: 1.4)),
+              borderSide: const BorderSide(color: _C.line, width: 1.4)),
           focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide:
-                  const BorderSide(color: _C.coral, width: 1.6)),
+              borderSide: const BorderSide(color: _C.coral, width: 1.6)),
         ),
       );
 }
@@ -831,9 +818,7 @@ class _SaveButton extends StatelessWidget {
   final bool saving;
   final VoidCallback onTap;
   const _SaveButton(
-      {required this.label,
-      required this.saving,
-      required this.onTap});
+      {required this.label, required this.saving, required this.onTap});
   @override
   Widget build(BuildContext context) => GestureDetector(
         onTap: saving ? null : onTap,
@@ -842,13 +827,12 @@ class _SaveButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 14),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-                colors: [_C.sunshine, _C.coral]),
+            gradient: const LinearGradient(colors: [_C.sunshine, _C.coral]),
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
                   color: _C.coral.withValues(alpha: 0.4),
-                  blurRadius: 12,
+                  blurRadius: 0.1,
                   offset: const Offset(0, 5)),
             ],
           ),
@@ -875,16 +859,14 @@ class _GlowFab extends StatelessWidget {
   Widget build(BuildContext context) => GestureDetector(
         onTap: onTap,
         child: Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
           decoration: BoxDecoration(
-            gradient:
-                const LinearGradient(colors: [_C.sunshine, _C.coral]),
+            gradient: const LinearGradient(colors: [_C.sunshine, _C.coral]),
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
                   color: _C.coral.withValues(alpha: 0.5),
-                  blurRadius: 18,
+                  blurRadius: 0.1,
                   offset: const Offset(0, 6)),
             ],
           ),
@@ -911,31 +893,25 @@ class _HeaderTitle extends StatelessWidget {
           height: 40,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: const LinearGradient(
-                colors: [_C.sunshine, _C.coral]),
+            gradient: const LinearGradient(colors: [_C.sunshine, _C.coral]),
             boxShadow: [
               BoxShadow(
                   color: _C.coral.withValues(alpha: 0.4),
-                  blurRadius: 10,
+                  blurRadius: 0.1,
                   offset: const Offset(0, 3)),
             ],
           ),
-          child: Center(
-              child:
-                  Text(emoji, style: const TextStyle(fontSize: 18))),
+          child:
+              Center(child: Text(emoji, style: const TextStyle(fontSize: 18))),
         ),
         const SizedBox(width: 10),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(en,
               style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  color: _C.navy)),
+                  fontSize: 18, fontWeight: FontWeight.w900, color: _C.navy)),
           Text('· $zh',
               style: const TextStyle(
-                  fontSize: 11,
-                  color: _C.coral,
-                  fontWeight: FontWeight.w700)),
+                  fontSize: 11, color: _C.coral, fontWeight: FontWeight.w700)),
         ]),
       ]);
 }
@@ -943,9 +919,7 @@ class _HeaderTitle extends StatelessWidget {
 class _NiceEmpty extends StatelessWidget {
   final String emoji, title, titleCn;
   const _NiceEmpty(
-      {required this.emoji,
-      required this.title,
-      required this.titleCn});
+      {required this.emoji, required this.title, required this.titleCn});
   @override
   Widget build(BuildContext context) => Center(
         child: Container(
@@ -955,18 +929,14 @@ class _NiceEmpty extends StatelessWidget {
               color: _C.sunshineGlow.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: _C.line, width: 1.4)),
-          child:
-              Column(mainAxisSize: MainAxisSize.min, children: [
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(emoji, style: const TextStyle(fontSize: 40)),
             const SizedBox(height: 12),
             Text(title,
                 style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: _C.navy)),
+                    fontSize: 15, fontWeight: FontWeight.w800, color: _C.navy)),
             Text('· $titleCn',
-                style: const TextStyle(
-                    fontSize: 12, color: _C.coral)),
+                style: const TextStyle(fontSize: 12, color: _C.coral)),
           ]),
         ),
       );
@@ -987,29 +957,26 @@ class _ErrorView extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: _C.coralSoft, width: 1.4),
             ),
-            child:
-                Column(mainAxisSize: MainAxisSize.min, children: [
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
               const Text('⚠️', style: TextStyle(fontSize: 32)),
               const SizedBox(height: 10),
               Text(error,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontSize: 12, color: _C.inkSoft)),
+                  style: const TextStyle(fontSize: 12, color: _C.inkSoft)),
               const SizedBox(height: 16),
               GestureDetector(
                 onTap: onRetry,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 18, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                        colors: [_C.sunshine, _C.coral]),
+                    gradient:
+                        const LinearGradient(colors: [_C.sunshine, _C.coral]),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: const Text('Retry',
                       style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800)),
+                          color: Colors.white, fontWeight: FontWeight.w800)),
                 ),
               ),
             ]),
@@ -1026,18 +993,15 @@ class _BackgroundBlobs extends StatelessWidget {
           Positioned(
               top: -60,
               right: -70,
-              child: _blob(180,
-                  _C.sunshineGlow.withValues(alpha: 0.55))),
+              child: _blob(180, _C.sunshineGlow.withValues(alpha: 0.55))),
           Positioned(
               top: 140,
               left: -80,
-              child: _blob(
-                  150, _C.blushSoft.withValues(alpha: 0.6))),
+              child: _blob(150, _C.blushSoft.withValues(alpha: 0.6))),
           Positioned(
               bottom: 80,
               right: -60,
-              child: _blob(
-                  140, _C.coralSoft.withValues(alpha: 0.5))),
+              child: _blob(140, _C.coralSoft.withValues(alpha: 0.5))),
         ]),
       );
 
@@ -1046,8 +1010,7 @@ class _BackgroundBlobs extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: RadialGradient(
-              colors: [color, color.withValues(alpha: 0)]),
+          gradient: RadialGradient(colors: [color, color.withValues(alpha: 0)]),
         ),
       );
 }

@@ -129,8 +129,9 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard>
                             await ref
                                 .read(authControllerProvider.notifier)
                                 .logout();
-                            if (context.mounted)
+                            if (context.mounted) {
                               Navigator.pushReplacementNamed(context, '/login');
+                            }
                           },
                         )),
               ]),
@@ -397,8 +398,8 @@ class _TeachersTab extends ConsumerWidget {
                       Text(t['email'] ?? t['phone'] ?? '',
                           style:
                               const TextStyle(fontSize: 12, color: _C.inkSoft)),
-                      Text('Pending approval · 待审核',
-                          style: const TextStyle(
+                      const Text('Pending approval · 待审核',
+                          style: TextStyle(
                               fontSize: 11,
                               color: _C.magenta,
                               fontWeight: FontWeight.w600)),

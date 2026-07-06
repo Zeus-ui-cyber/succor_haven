@@ -103,7 +103,7 @@ class _TeacherDashboardState extends ConsumerState<TeacherDashboard> {
     ];
 
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: _C.paper,
         border: Border(top: BorderSide(color: _C.line, width: 1)),
       ),
@@ -207,8 +207,9 @@ class _THomeTab extends ConsumerWidget {
               data: (b) {
                 final upcoming =
                     b.where((x) => x['status'] == 'confirmed').toList();
-                if (upcoming.isEmpty)
+                if (upcoming.isEmpty) {
                   return const _TEmpty('No upcoming sessions yet', '暂无即将上课的课程');
+                }
                 return Column(
                     children: upcoming
                         .take(5)
@@ -354,9 +355,10 @@ class _TScheduleTab extends ConsumerWidget {
               ..sort((a, b) => DateTime.parse(a['scheduled_at'])
                   .compareTo(DateTime.parse(b['scheduled_at'])));
 
-            if (scheduled.isEmpty)
+            if (scheduled.isEmpty) {
               return const Center(
                   child: _TEmpty('No scheduled sessions', '暂无排课'));
+            }
 
             return ListView.builder(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
@@ -401,8 +403,9 @@ class _TSessionsTab extends ConsumerWidget {
               child: CircularProgressIndicator(color: _C.slateBlue)),
           error: (e, _) => Center(child: Text('$e')),
           data: (bookings) {
-            if (bookings.isEmpty)
+            if (bookings.isEmpty) {
               return const Center(child: _TEmpty('No sessions yet', '暂无课程'));
+            }
             final upcoming =
                 bookings.where((b) => b['status'] == 'confirmed').toList();
             final completed =
@@ -853,7 +856,7 @@ class _TScheduleCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: _C.line)),
       child: Row(children: [
-        Container(
+        SizedBox(
           width: 48,
           child: Column(children: [
             Text(dayNames[(dt.weekday - 1) % 7],
