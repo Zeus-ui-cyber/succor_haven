@@ -35,22 +35,22 @@ import '../../auth/repositories/auth_repository.dart';
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 class _C {
-  static const sunshine     = Color(0xFFFFC93C);
+  static const sunshine = Color(0xFFFFC93C);
   static const sunshineDeep = Color(0xFFFFB100);
   static const sunshineGlow = Color(0xFFFFE49A);
-  static const navy         = Color(0xFF142850);
-  static const navySoft     = Color(0xFF274472);
-  static const coral        = Color(0xFFFF6F61);
-  static const coralSoft    = Color(0xFFFFD9CC);
-  static const blushSoft    = Color(0xFFFCE0E6);
-  static const cream        = Color(0xFFFFF8E7);
-  static const paper        = Color(0xFFFFFFFF);
-  static const inkSoft      = Color(0xFF6E7593);
-  static const line         = Color(0xFFFFE8B8);
-  static const green        = Color(0xFF00C48C);
-  static const greenPale    = Color(0xFFDFFBEF);
-  static const teal         = Color(0xFF0097A7);
-  static const tealPale     = Color(0xFFE0F7FA);
+  static const navy = Color(0xFF142850);
+  static const navySoft = Color(0xFF274472);
+  static const coral = Color(0xFFFF6F61);
+  static const coralSoft = Color(0xFFFFD9CC);
+  static const blushSoft = Color(0xFFFCE0E6);
+  static const cream = Color(0xFFFFF8E7);
+  static const paper = Color(0xFFFFFFFF);
+  static const inkSoft = Color(0xFF6E7593);
+  static const line = Color(0xFFFFE8B8);
+  static const green = Color(0xFF00C48C);
+  static const greenPale = Color(0xFFDFFBEF);
+  static const teal = Color(0xFF0097A7);
+  static const tealPale = Color(0xFFE0F7FA);
 }
 
 // ── Providers ────────────────────────────────────────────────────────────────
@@ -85,12 +85,16 @@ class SessionPricingScreen extends ConsumerStatefulWidget {
       _SessionPricingScreenState();
 }
 
-class _SessionPricingScreenState
-    extends ConsumerState<SessionPricingScreen> {
-  String _filter = 'all'; // 'all' | 'standard' | 'trial' | 'group' | 'intensive'
+class _SessionPricingScreenState extends ConsumerState<SessionPricingScreen> {
+  String _filter =
+      'all'; // 'all' | 'standard' | 'trial' | 'group' | 'intensive'
 
   static const _sessionTypes = [
-    'all', 'standard', 'trial', 'group', 'intensive',
+    'all',
+    'standard',
+    'trial',
+    'group',
+    'intensive',
   ];
 
   Future<void> _delete(String id) async {
@@ -101,10 +105,8 @@ class _SessionPricingScreenState
     );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-            res.statusCode == 200 ? 'Tier deleted' : 'Failed'),
-        backgroundColor:
-            res.statusCode == 200 ? _C.green : _C.coral,
+        content: Text(res.statusCode == 200 ? 'Tier deleted' : 'Failed'),
+        backgroundColor: res.statusCode == 200 ? _C.green : _C.coral,
       ));
       if (res.statusCode == 200) ref.invalidate(_pricingProvider);
     }
@@ -115,8 +117,7 @@ class _SessionPricingScreenState
     final updated = Map<String, dynamic>.from(tier)
       ..['is_active'] = !(tier['is_active'] as bool? ?? true);
     final res = await http.patch(
-      Uri.parse(
-          '${AuthRepository.baseUrl}/admin/pricing/${tier['id']}'),
+      Uri.parse('${AuthRepository.baseUrl}/admin/pricing/${tier['id']}'),
       headers: await _headers(repo),
       body: jsonEncode(updated),
     );
@@ -147,8 +148,7 @@ class _SessionPricingScreenState
           Column(children: [
             // ── Header ──────────────────────────────────────────────────────
             Padding(
-              padding:
-                  const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Row(children: [
                 GestureDetector(
                   onTap: () => Navigator.pop(context),
@@ -157,18 +157,14 @@ class _SessionPricingScreenState
                     decoration: BoxDecoration(
                       color: _C.paper,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                          color: _C.line, width: 1.4),
+                      border: Border.all(color: _C.line, width: 1.4),
                     ),
-                    child: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        size: 16,
-                        color: _C.navy),
+                    child: const Icon(Icons.arrow_back_ios_new_rounded,
+                        size: 16, color: _C.navy),
                   ),
                 ),
                 const SizedBox(width: 12),
-                const _HeaderTitle(
-                    'Session Pricing', '课程定价', '💰'),
+                const _HeaderTitle('Session Pricing', '课程定价', '💰'),
               ]),
             ),
             const SizedBox(height: 8),
@@ -179,12 +175,10 @@ class _SessionPricingScreenState
                 final totalActive =
                     tiers.where((t) => t['is_active'] == true).length;
                 final bundles = tiers
-                    .where((t) =>
-                        (t['sessions_in_package'] as num? ?? 1) > 1)
+                    .where((t) => (t['sessions_in_package'] as num? ?? 1) > 1)
                     .length;
                 return Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Row(children: [
                     _SummaryPill(
                         label: '${tiers.length} Tiers',
@@ -233,16 +227,13 @@ class _SessionPricingScreenState
                         color: active ? null : _C.paper,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                            color: active
-                                ? Colors.transparent
-                                : _C.line,
+                            color: active ? Colors.transparent : _C.line,
                             width: 1.4),
                         boxShadow: active
                             ? [
                                 BoxShadow(
-                                    color: _C.coral
-                                        .withValues(alpha: 0.3),
-                                    blurRadius: 8,
+                                    color: _C.coral.withValues(alpha: 0.3),
+                                    blurRadius: 0.1,
                                     offset: const Offset(0, 3))
                               ]
                             : null,
@@ -252,9 +243,7 @@ class _SessionPricingScreenState
                           style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
-                              color: active
-                                  ? Colors.white
-                                  : _C.inkSoft)),
+                              color: active ? Colors.white : _C.inkSoft)),
                     ),
                   );
                 }).toList(),
@@ -266,18 +255,15 @@ class _SessionPricingScreenState
             Expanded(
               child: async.when(
                 loading: () => const Center(
-                    child: CircularProgressIndicator(
-                        color: _C.coral)),
+                    child: CircularProgressIndicator(color: _C.coral)),
                 error: (e, _) => _ErrorView(
                     error: '$e',
-                    onRetry: () =>
-                        ref.invalidate(_pricingProvider)),
+                    onRetry: () => ref.invalidate(_pricingProvider)),
                 data: (tiers) {
                   final filtered = _filter == 'all'
                       ? tiers
                       : tiers
-                          .where((t) =>
-                              t['session_type'] == _filter)
+                          .where((t) => t['session_type'] == _filter)
                           .toList();
 
                   if (filtered.isEmpty) {
@@ -289,15 +275,12 @@ class _SessionPricingScreenState
                   }
 
                   return ListView.builder(
-                    padding:
-                        const EdgeInsets.fromLTRB(20, 4, 20, 100),
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
                     itemCount: filtered.length,
                     itemBuilder: (_, i) => _PricingCard(
                       tier: filtered[i],
-                      onEdit: () =>
-                          _openSheet(tier: filtered[i]),
-                      onDelete: () =>
-                          _delete(filtered[i]['id']),
+                      onEdit: () => _openSheet(tier: filtered[i]),
+                      onDelete: () => _delete(filtered[i]['id']),
                       onToggle: () => _toggle(filtered[i]),
                     ),
                   );
@@ -316,11 +299,11 @@ class _SessionPricingScreenState
 
   String _typeLabelBilingual(String type) {
     return switch (type) {
-      'standard'  => 'Standard · 标准',
-      'trial'     => 'Trial · 试课',
-      'group'     => 'Group · 小组',
+      'standard' => 'Standard · 标准',
+      'trial' => 'Trial · 试课',
+      'group' => 'Group · 小组',
       'intensive' => 'Intensive · 强化',
-      _           => type,
+      _ => type,
     };
   }
 }
@@ -338,17 +321,17 @@ class _PricingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t             = tier;
-    final active        = t['is_active'] as bool? ?? true;
-    final sessionType   = t['session_type'] as String? ?? 'standard';
+    final t = tier;
+    final active = t['is_active'] as bool? ?? true;
+    final sessionType = t['session_type'] as String? ?? 'standard';
     final creditsPerSes = t['credits_per_session'] as num? ?? 0;
     final sessionsInPkg = t['sessions_in_package'] as num? ?? 1;
-    final totalCredits  = t['total_credits'] as num? ?? creditsPerSes;
-    final discountPct   = t['discount_pct'] as num? ?? 0;
-    final isBundle      = sessionsInPkg > 1;
+    final totalCredits = t['total_credits'] as num? ?? creditsPerSes;
+    final discountPct = t['discount_pct'] as num? ?? 0;
+    final isBundle = sessionsInPkg > 1;
 
     final typeColor = _typeColor(sessionType);
-    final typePale  = _typePale(sessionType);
+    final typePale = _typePale(sessionType);
 
     return Opacity(
       opacity: active ? 1.0 : 0.55,
@@ -361,7 +344,7 @@ class _PricingCard extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: _C.sunshineDeep.withValues(alpha: 0.10),
-              blurRadius: 12,
+              blurRadius: 0.1,
               offset: const Offset(0, 5),
             ),
           ],
@@ -387,25 +370,23 @@ class _PricingCard extends StatelessWidget {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                Text(t['name'] ?? '—',
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: _C.navy)),
-                if ((t['name_cn'] ?? '').isNotEmpty)
-                  Text(t['name_cn'],
-                      style: const TextStyle(
-                          fontSize: 11,
-                          color: _C.coral,
-                          fontWeight: FontWeight.w700)),
-              ])),
+                    Text(t['name'] ?? '—',
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: _C.navy)),
+                    if ((t['name_cn'] ?? '').isNotEmpty)
+                      Text(t['name_cn'],
+                          style: const TextStyle(
+                              fontSize: 11,
+                              color: _C.coral,
+                              fontWeight: FontWeight.w700)),
+                  ])),
               // active toggle
               GestureDetector(
                 onTap: onToggle,
                 child: Icon(
-                  active
-                      ? Icons.toggle_on_rounded
-                      : Icons.toggle_off_rounded,
+                  active ? Icons.toggle_on_rounded : Icons.toggle_off_rounded,
                   color: active ? _C.green : _C.inkSoft,
                   size: 32,
                 ),
@@ -429,39 +410,37 @@ class _PricingCard extends StatelessWidget {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                    Text('Per Session',
-                        style: TextStyle(
-                            fontSize: 10,
-                            color: typeColor,
-                            fontWeight: FontWeight.w700)),
-                    Text('$creditsPerSes 💎',
-                        style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                            color: typeColor)),
-                  ]),
+                        Text('Per Session',
+                            style: TextStyle(
+                                fontSize: 10,
+                                color: typeColor,
+                                fontWeight: FontWeight.w700)),
+                        Text('$creditsPerSes 💎',
+                            style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                color: typeColor)),
+                      ]),
                 ),
                 if (isBundle) ...[
-                  Container(
-                      width: 1, height: 36, color: _C.line),
+                  Container(width: 1, height: 36, color: _C.line),
                   const SizedBox(width: 12),
                   // bundle total
                   Expanded(
                     child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                      Text('$sessionsInPkg-session bundle',
-                          style: const TextStyle(
-                              fontSize: 10,
-                              color: _C.inkSoft,
-                              fontWeight: FontWeight.w700)),
-                      Text('$totalCredits 💎 total',
-                          style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w900,
-                              color: _C.navy)),
-                    ]),
+                          Text('$sessionsInPkg-session bundle',
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  color: _C.inkSoft,
+                                  fontWeight: FontWeight.w700)),
+                          Text('$totalCredits 💎 total',
+                              style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  color: _C.navy)),
+                        ]),
                   ),
                   if (discountPct > 0)
                     Container(
@@ -485,9 +464,7 @@ class _PricingCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 10, 10, 12),
             child: Row(children: [
-              _Chip(
-                  label: _typeLabelBilingual(sessionType),
-                  color: typeColor),
+              _Chip(label: _typeLabelBilingual(sessionType), color: typeColor),
               const SizedBox(width: 6),
               _Chip(
                 label: (t['applies_to'] ?? 'all') == 'all'
@@ -506,8 +483,8 @@ class _PricingCard extends StatelessWidget {
                     color: _C.sunshineGlow.withValues(alpha: 0.7),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.edit_rounded,
-                      size: 15, color: _C.navy),
+                  child:
+                      const Icon(Icons.edit_rounded, size: 15, color: _C.navy),
                 ),
               ),
               const SizedBox(width: 6),
@@ -534,33 +511,26 @@ class _PricingCard extends StatelessWidget {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Delete Tier?',
-            style: TextStyle(
-                fontWeight: FontWeight.w800, color: _C.navy)),
-        content: Text(
-            'Remove "${tier['name']}"? This cannot be undone.'),
+            style: TextStyle(fontWeight: FontWeight.w800, color: _C.navy)),
+        content: Text('Remove "${tier['name']}"? This cannot be undone.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel',
-                  style: TextStyle(color: _C.inkSoft))),
+              child: const Text('Cancel', style: TextStyle(color: _C.inkSoft))),
           GestureDetector(
             onTap: () {
               Navigator.pop(context);
               onDelete();
             },
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                  color: _C.coral,
-                  borderRadius: BorderRadius.circular(12)),
+                  color: _C.coral, borderRadius: BorderRadius.circular(12)),
               child: const Text('Delete',
                   style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800)),
+                      color: Colors.white, fontWeight: FontWeight.w800)),
             ),
           ),
         ],
@@ -569,31 +539,31 @@ class _PricingCard extends StatelessWidget {
   }
 
   Color _typeColor(String t) => switch (t) {
-        'trial'     => _C.green,
-        'group'     => _C.teal,
+        'trial' => _C.green,
+        'group' => _C.teal,
         'intensive' => _C.coral,
-        _           => _C.navy,
+        _ => _C.navy,
       };
 
   Color _typePale(String t) => switch (t) {
-        'trial'     => _C.greenPale,
-        'group'     => _C.tealPale,
+        'trial' => _C.greenPale,
+        'group' => _C.tealPale,
         'intensive' => _C.coralSoft,
-        _           => _C.sunshineGlow,
+        _ => _C.sunshineGlow,
       };
 
   String _typeEmoji(String t) => switch (t) {
-        'trial'     => '🎯',
-        'group'     => '👥',
+        'trial' => '🎯',
+        'group' => '👥',
         'intensive' => '⚡',
-        _           => '📚',
+        _ => '📚',
       };
 
   String _typeLabelBilingual(String t) => switch (t) {
-        'trial'     => 'Trial · 试课',
-        'group'     => 'Group · 小组',
+        'trial' => 'Trial · 试课',
+        'group' => 'Group · 小组',
         'intensive' => 'Intensive · 强化',
-        _           => 'Standard · 标准',
+        _ => 'Standard · 标准',
       };
 }
 
@@ -603,24 +573,26 @@ class _PricingSheet extends ConsumerStatefulWidget {
   final VoidCallback onSaved;
   const _PricingSheet({this.existing, required this.onSaved});
   @override
-  ConsumerState<_PricingSheet> createState() =>
-      _PricingSheetState();
+  ConsumerState<_PricingSheet> createState() => _PricingSheetState();
 }
 
 class _PricingSheetState extends ConsumerState<_PricingSheet> {
-  final _nameCtrl        = TextEditingController();
-  final _nameCnCtrl      = TextEditingController();
-  final _creditsCtrl     = TextEditingController();
-  final _sessionsCtrl    = TextEditingController(text: '1');
-  final _totalCtrl       = TextEditingController();
-  final _discountCtrl    = TextEditingController(text: '0');
-  String _sessionType    = 'standard';
-  String _appliesTo      = 'all';
-  bool   _isBundle       = false;
-  bool   _saving         = false;
+  final _nameCtrl = TextEditingController();
+  final _nameCnCtrl = TextEditingController();
+  final _creditsCtrl = TextEditingController();
+  final _sessionsCtrl = TextEditingController(text: '1');
+  final _totalCtrl = TextEditingController();
+  final _discountCtrl = TextEditingController(text: '0');
+  String _sessionType = 'standard';
+  String _appliesTo = 'all';
+  bool _isBundle = false;
+  bool _saving = false;
 
   static const _types = [
-    'standard', 'trial', 'group', 'intensive',
+    'standard',
+    'trial',
+    'group',
+    'intensive',
   ];
 
   @override
@@ -628,16 +600,15 @@ class _PricingSheetState extends ConsumerState<_PricingSheet> {
     super.initState();
     final e = widget.existing;
     if (e != null) {
-      _nameCtrl.text     = e['name']                 ?? '';
-      _nameCnCtrl.text   = e['name_cn']              ?? '';
-      _creditsCtrl.text  = '${e['credits_per_session'] ?? ''}';
+      _nameCtrl.text = e['name'] ?? '';
+      _nameCnCtrl.text = e['name_cn'] ?? '';
+      _creditsCtrl.text = '${e['credits_per_session'] ?? ''}';
       _sessionsCtrl.text = '${e['sessions_in_package'] ?? 1}';
-      _totalCtrl.text    = '${e['total_credits']       ?? ''}';
-      _discountCtrl.text = '${e['discount_pct']        ?? 0}';
-      _sessionType       = e['session_type']           ?? 'standard';
-      _appliesTo         = e['applies_to']             ?? 'all';
-      _isBundle =
-          (e['sessions_in_package'] as num? ?? 1) > 1;
+      _totalCtrl.text = '${e['total_credits'] ?? ''}';
+      _discountCtrl.text = '${e['discount_pct'] ?? 0}';
+      _sessionType = e['session_type'] ?? 'standard';
+      _appliesTo = e['applies_to'] ?? 'all';
+      _isBundle = (e['sessions_in_package'] as num? ?? 1) > 1;
     }
     // Auto-compute total when credits or sessions change
     _creditsCtrl.addListener(_autoTotal);
@@ -646,9 +617,9 @@ class _PricingSheetState extends ConsumerState<_PricingSheet> {
   }
 
   void _autoTotal() {
-    final c  = int.tryParse(_creditsCtrl.text) ?? 0;
-    final s  = int.tryParse(_sessionsCtrl.text) ?? 1;
-    final d  = double.tryParse(_discountCtrl.text) ?? 0;
+    final c = int.tryParse(_creditsCtrl.text) ?? 0;
+    final s = int.tryParse(_sessionsCtrl.text) ?? 1;
+    final d = double.tryParse(_discountCtrl.text) ?? 0;
     final raw = c * s;
     final discounted = (raw * (1 - d / 100)).round();
     if (_totalCtrl.text != '$discounted') {
@@ -668,8 +639,7 @@ class _PricingSheetState extends ConsumerState<_PricingSheet> {
   }
 
   Future<void> _save() async {
-    if (_nameCtrl.text.trim().isEmpty ||
-        _creditsCtrl.text.trim().isEmpty) {
+    if (_nameCtrl.text.trim().isEmpty || _creditsCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Name and credits per session are required'),
         backgroundColor: _C.coral,
@@ -677,18 +647,18 @@ class _PricingSheetState extends ConsumerState<_PricingSheet> {
       return;
     }
     setState(() => _saving = true);
-    final repo    = ref.read(_repoProvider);
+    final repo = ref.read(_repoProvider);
     final headers = await _headers(repo);
-    final body    = jsonEncode({
-      'name':                _nameCtrl.text.trim(),
-      'name_cn':             _nameCnCtrl.text.trim(),
-      'session_type':        _sessionType,
-      'credits_per_session': int.tryParse(_creditsCtrl.text)  ?? 0,
+    final body = jsonEncode({
+      'name': _nameCtrl.text.trim(),
+      'name_cn': _nameCnCtrl.text.trim(),
+      'session_type': _sessionType,
+      'credits_per_session': int.tryParse(_creditsCtrl.text) ?? 0,
       'sessions_in_package': int.tryParse(_sessionsCtrl.text) ?? 1,
-      'total_credits':       int.tryParse(_totalCtrl.text)    ?? 0,
-      'discount_pct':        double.tryParse(_discountCtrl.text) ?? 0,
-      'applies_to':          _appliesTo,
-      'is_active':           true,
+      'total_credits': int.tryParse(_totalCtrl.text) ?? 0,
+      'discount_pct': double.tryParse(_discountCtrl.text) ?? 0,
+      'applies_to': _appliesTo,
+      'is_active': true,
     });
 
     try {
@@ -710,12 +680,9 @@ class _PricingSheetState extends ConsumerState<_PricingSheet> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(res.statusCode < 300
-              ? (widget.existing != null
-                  ? 'Tier updated ✓'
-                  : 'Tier created ✓')
+              ? (widget.existing != null ? 'Tier updated ✓' : 'Tier created ✓')
               : 'Failed (${res.statusCode})'),
-          backgroundColor:
-              res.statusCode < 300 ? _C.green : _C.coral,
+          backgroundColor: res.statusCode < 300 ? _C.green : _C.coral,
         ));
         if (res.statusCode < 300) {
           widget.onSaved();
@@ -735,195 +702,191 @@ class _PricingSheetState extends ConsumerState<_PricingSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
         decoration: const BoxDecoration(
           color: _C.cream,
-          borderRadius:
-              BorderRadius.vertical(top: Radius.circular(28)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
         child: SingleChildScrollView(
           child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-            Center(
-              child: Container(
-                  width: 40,
-                  height: 5,
-                  decoration: BoxDecoration(
-                      color: _C.line,
-                      borderRadius: BorderRadius.circular(10))),
-            ),
-            const SizedBox(height: 16),
-            Row(children: [
-              const Text('💰', style: TextStyle(fontSize: 20)),
-              const SizedBox(width: 8),
-              Text(
-                  widget.existing != null
-                      ? 'Edit Pricing · 编辑定价'
-                      : 'New Pricing Tier · 新建定价',
-                  style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      color: _C.navy)),
-            ]),
-            const SizedBox(height: 18),
-
-            // session type
-            _SectionLabel('Session Type · 课程类型'),
-            const SizedBox(height: 8),
-            Wrap(spacing: 8, runSpacing: 8, children: _types
-                .map((t) => _SheetToggle(
-                      label: _typeLabel(t),
-                      active: _sessionType == t,
-                      onTap: () =>
-                          setState(() => _sessionType = t),
-                    ))
-                .toList()),
-            const SizedBox(height: 14),
-
-            _GlowField(
-                controller: _nameCtrl,
-                label: 'Tier name (EN)',
-                icon: Icons.label_rounded),
-            const SizedBox(height: 10),
-            _GlowField(
-                controller: _nameCnCtrl,
-                label: '套餐名称 (中文)',
-                icon: Icons.translate_rounded),
-            const SizedBox(height: 14),
-
-            // credits per session
-            _SectionLabel('Credits per session · 每节课积分'),
-            const SizedBox(height: 8),
-            _GlowField(
-                controller: _creditsCtrl,
-                label: 'Credits per session',
-                icon: Icons.diamond_rounded,
-                numeric: true),
-            const SizedBox(height: 14),
-
-            // bundle toggle
-            Row(children: [
-              const Expanded(
-                  child: _SectionLabel(
-                      'Bundle / Package · 套餐')),
-              Switch(
-                value: _isBundle,
-                activeColor: _C.coral,
-                onChanged: (v) {
-                  setState(() {
-                    _isBundle = v;
-                    if (!v) {
-                      _sessionsCtrl.text = '1';
-                      _discountCtrl.text = '0';
-                    }
-                    _autoTotal();
-                  });
-                },
-              ),
-            ]),
-            if (_isBundle) ...[
-              const SizedBox(height: 8),
-              Row(children: [
-                Expanded(
-                  child: _GlowField(
-                      controller: _sessionsCtrl,
-                      label: '# of sessions',
-                      icon: Icons.repeat_rounded,
-                      numeric: true),
+                Center(
+                  child: Container(
+                      width: 40,
+                      height: 5,
+                      decoration: BoxDecoration(
+                          color: _C.line,
+                          borderRadius: BorderRadius.circular(10))),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _GlowField(
-                      controller: _discountCtrl,
-                      label: 'Discount %',
-                      icon: Icons.percent_rounded,
-                      numeric: true),
-                ),
-              ]),
-              const SizedBox(height: 10),
-              // total preview
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: _C.greenPale,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                      color: _C.green.withValues(alpha: 0.4),
-                      width: 1.4),
-                ),
-                child: Row(children: [
-                  const Icon(Icons.calculate_rounded,
-                      color: _C.green, size: 18),
+                const SizedBox(height: 16),
+                Row(children: [
+                  const Text('💰', style: TextStyle(fontSize: 20)),
                   const SizedBox(width: 8),
-                  const Text('Bundle total: ',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: _C.inkSoft,
-                          fontWeight: FontWeight.w700)),
-                  Expanded(
-                    child: TextField(
-                      controller: _totalCtrl,
-                      keyboardType: TextInputType.number,
+                  Text(
+                      widget.existing != null
+                          ? 'Edit Pricing · 编辑定价'
+                          : 'New Pricing Tier · 新建定价',
                       style: const TextStyle(
-                          fontSize: 14,
+                          fontSize: 16,
                           fontWeight: FontWeight.w900,
-                          color: _C.green),
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        border: InputBorder.none,
-                        suffix: Text(' 💎',
-                            style: TextStyle(fontSize: 13)),
-                      ),
-                    ),
+                          color: _C.navy)),
+                ]),
+                const SizedBox(height: 18),
+
+                // session type
+                const _SectionLabel('Session Type · 课程类型'),
+                const SizedBox(height: 8),
+                Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _types
+                        .map((t) => _SheetToggle(
+                              label: _typeLabel(t),
+                              active: _sessionType == t,
+                              onTap: () => setState(() => _sessionType = t),
+                            ))
+                        .toList()),
+                const SizedBox(height: 14),
+
+                _GlowField(
+                    controller: _nameCtrl,
+                    label: 'Tier name (EN)',
+                    icon: Icons.label_rounded),
+                const SizedBox(height: 10),
+                _GlowField(
+                    controller: _nameCnCtrl,
+                    label: '套餐名称 (中文)',
+                    icon: Icons.translate_rounded),
+                const SizedBox(height: 14),
+
+                // credits per session
+                const _SectionLabel('Credits per session · 每节课积分'),
+                const SizedBox(height: 8),
+                _GlowField(
+                    controller: _creditsCtrl,
+                    label: 'Credits per session',
+                    icon: Icons.diamond_rounded,
+                    numeric: true),
+                const SizedBox(height: 14),
+
+                // bundle toggle
+                Row(children: [
+                  const Expanded(child: _SectionLabel('Bundle / Package · 套餐')),
+                  Switch(
+                    value: _isBundle,
+                    activeThumbColor: _C.coral,
+                    onChanged: (v) {
+                      setState(() {
+                        _isBundle = v;
+                        if (!v) {
+                          _sessionsCtrl.text = '1';
+                          _discountCtrl.text = '0';
+                        }
+                        _autoTotal();
+                      });
+                    },
                   ),
                 ]),
-              ),
-            ],
-            const SizedBox(height: 14),
-
-            // applies to
-            _SectionLabel('Applies to · 适用对象'),
-            const SizedBox(height: 8),
-            Row(children: [
-              for (final opt in ['all', 'student', 'teacher'])
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: _SheetToggle(
-                    label: opt == 'all'
-                        ? 'All · 全部'
-                        : opt == 'student'
-                            ? 'Students'
-                            : 'Teachers',
-                    active: _appliesTo == opt,
-                    onTap: () =>
-                        setState(() => _appliesTo = opt),
+                if (_isBundle) ...[
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Expanded(
+                      child: _GlowField(
+                          controller: _sessionsCtrl,
+                          label: '# of sessions',
+                          icon: Icons.repeat_rounded,
+                          numeric: true),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _GlowField(
+                          controller: _discountCtrl,
+                          label: 'Discount %',
+                          icon: Icons.percent_rounded,
+                          numeric: true),
+                    ),
+                  ]),
+                  const SizedBox(height: 10),
+                  // total preview
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: _C.greenPale,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                          color: _C.green.withValues(alpha: 0.4), width: 1.4),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.calculate_rounded,
+                          color: _C.green, size: 18),
+                      const SizedBox(width: 8),
+                      const Text('Bundle total: ',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: _C.inkSoft,
+                              fontWeight: FontWeight.w700)),
+                      Expanded(
+                        child: TextField(
+                          controller: _totalCtrl,
+                          keyboardType: TextInputType.number,
+                          style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                              color: _C.green),
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            border: InputBorder.none,
+                            suffix: Text(' 💎', style: TextStyle(fontSize: 13)),
+                          ),
+                        ),
+                      ),
+                    ]),
                   ),
-                ),
-            ]),
-            const SizedBox(height: 22),
+                ],
+                const SizedBox(height: 14),
 
-            _SaveButton(
-                label: widget.existing != null
-                    ? 'Update Tier · 更新'
-                    : 'Create Tier · 创建',
-                saving: _saving,
-                onTap: _save),
-          ]),
+                // applies to
+                const _SectionLabel('Applies to · 适用对象'),
+                const SizedBox(height: 8),
+                Row(children: [
+                  for (final opt in ['all', 'student', 'teacher'])
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: _SheetToggle(
+                        label: opt == 'all'
+                            ? 'All · 全部'
+                            : opt == 'student'
+                                ? 'Students'
+                                : 'Teachers',
+                        active: _appliesTo == opt,
+                        onTap: () => setState(() => _appliesTo = opt),
+                      ),
+                    ),
+                ]),
+                const SizedBox(height: 22),
+
+                _SaveButton(
+                    label: widget.existing != null
+                        ? 'Update Tier · 更新'
+                        : 'Create Tier · 创建',
+                    saving: _saving,
+                    onTap: _save),
+              ]),
         ),
       ),
     );
   }
 
   String _typeLabel(String t) => switch (t) {
-        'trial'     => 'Trial · 试课',
-        'group'     => 'Group · 小组',
+        'trial' => 'Trial · 试课',
+        'group' => 'Group · 小组',
         'intensive' => 'Intensive · 强化',
-        _           => 'Standard · 标准',
+        _ => 'Standard · 标准',
       };
 }
 
@@ -941,23 +904,19 @@ class _SummaryPill extends StatelessWidget {
       required this.pale});
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-            color: pale, borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration:
+            BoxDecoration(color: pale, borderRadius: BorderRadius.circular(12)),
         child: RichText(
           text: TextSpan(
             children: [
               TextSpan(
                   text: label,
                   style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: color)),
+                      fontSize: 12, fontWeight: FontWeight.w800, color: color)),
               TextSpan(
                   text: ' · $labelCn',
-                  style: const TextStyle(
-                      fontSize: 10, color: _C.inkSoft)),
+                  style: const TextStyle(fontSize: 10, color: _C.inkSoft)),
             ],
           ),
         ),
@@ -977,9 +936,7 @@ class _Chip extends StatelessWidget {
         ),
         child: Text(label,
             style: TextStyle(
-                fontSize: 10,
-                color: color,
-                fontWeight: FontWeight.w700)),
+                fontSize: 10, color: color, fontWeight: FontWeight.w700)),
       );
 }
 
@@ -989,9 +946,7 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(text,
       style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          color: _C.inkSoft));
+          fontSize: 11, fontWeight: FontWeight.w800, color: _C.inkSoft));
 }
 
 class _SheetToggle extends StatelessWidget {
@@ -999,32 +954,26 @@ class _SheetToggle extends StatelessWidget {
   final bool active;
   final VoidCallback onTap;
   const _SheetToggle(
-      {required this.label,
-      required this.active,
-      required this.onTap});
+      {required this.label, required this.active, required this.onTap});
   @override
   Widget build(BuildContext context) => GestureDetector(
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(
-              horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             gradient: active
-                ? const LinearGradient(
-                    colors: [_C.sunshine, _C.coral])
+                ? const LinearGradient(colors: [_C.sunshine, _C.coral])
                 : null,
             color: active ? null : _C.paper,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-                color:
-                    active ? Colors.transparent : _C.line,
-                width: 1.4),
+                color: active ? Colors.transparent : _C.line, width: 1.4),
             boxShadow: active
                 ? [
                     BoxShadow(
                         color: _C.coral.withValues(alpha: 0.3),
-                        blurRadius: 8,
+                        blurRadius: 0.1,
                         offset: const Offset(0, 3))
                   ]
                 : null,
@@ -1052,8 +1001,7 @@ class _GlowField extends StatelessWidget {
   @override
   Widget build(BuildContext context) => TextField(
         controller: controller,
-        keyboardType:
-            numeric ? TextInputType.number : TextInputType.text,
+        keyboardType: numeric ? TextInputType.number : TextInputType.text,
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: Icon(icon, color: _C.coral, size: 18),
@@ -1061,16 +1009,13 @@ class _GlowField extends StatelessWidget {
           fillColor: _C.paper,
           border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide:
-                  const BorderSide(color: _C.line, width: 1.4)),
+              borderSide: const BorderSide(color: _C.line, width: 1.4)),
           enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide:
-                  const BorderSide(color: _C.line, width: 1.4)),
+              borderSide: const BorderSide(color: _C.line, width: 1.4)),
           focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(
-                  color: _C.coral, width: 1.6)),
+              borderSide: const BorderSide(color: _C.coral, width: 1.6)),
         ),
       );
 }
@@ -1080,9 +1025,7 @@ class _SaveButton extends StatelessWidget {
   final bool saving;
   final VoidCallback onTap;
   const _SaveButton(
-      {required this.label,
-      required this.saving,
-      required this.onTap});
+      {required this.label, required this.saving, required this.onTap});
   @override
   Widget build(BuildContext context) => GestureDetector(
         onTap: saving ? null : onTap,
@@ -1091,13 +1034,12 @@ class _SaveButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 14),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-                colors: [_C.sunshine, _C.coral]),
+            gradient: const LinearGradient(colors: [_C.sunshine, _C.coral]),
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
                   color: _C.coral.withValues(alpha: 0.4),
-                  blurRadius: 12,
+                  blurRadius: 0.1,
                   offset: const Offset(0, 5)),
             ],
           ),
@@ -1124,22 +1066,19 @@ class _GlowFab extends StatelessWidget {
   Widget build(BuildContext context) => GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(
-              horizontal: 18, vertical: 13),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-                colors: [_C.sunshine, _C.coral]),
+            gradient: const LinearGradient(colors: [_C.sunshine, _C.coral]),
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
                   color: _C.coral.withValues(alpha: 0.5),
-                  blurRadius: 18,
+                  blurRadius: 0.1,
                   offset: const Offset(0, 6)),
             ],
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.add_rounded,
-                color: Colors.white, size: 20),
+            const Icon(Icons.add_rounded, color: Colors.white, size: 20),
             const SizedBox(width: 6),
             Text(label,
                 style: const TextStyle(
@@ -1161,31 +1100,25 @@ class _HeaderTitle extends StatelessWidget {
           height: 40,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: const LinearGradient(
-                colors: [_C.sunshine, _C.coral]),
+            gradient: const LinearGradient(colors: [_C.sunshine, _C.coral]),
             boxShadow: [
               BoxShadow(
                   color: _C.coral.withValues(alpha: 0.4),
-                  blurRadius: 10,
+                  blurRadius: 0.1,
                   offset: const Offset(0, 3)),
             ],
           ),
-          child: Center(
-              child: Text(emoji,
-                  style: const TextStyle(fontSize: 18))),
+          child:
+              Center(child: Text(emoji, style: const TextStyle(fontSize: 18))),
         ),
         const SizedBox(width: 10),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(en,
               style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  color: _C.navy)),
+                  fontSize: 18, fontWeight: FontWeight.w900, color: _C.navy)),
           Text('· $zh',
               style: const TextStyle(
-                  fontSize: 11,
-                  color: _C.coral,
-                  fontWeight: FontWeight.w700)),
+                  fontSize: 11, color: _C.coral, fontWeight: FontWeight.w700)),
         ]),
       ]);
 }
@@ -1193,9 +1126,7 @@ class _HeaderTitle extends StatelessWidget {
 class _NiceEmpty extends StatelessWidget {
   final String emoji, title, titleCn;
   const _NiceEmpty(
-      {required this.emoji,
-      required this.title,
-      required this.titleCn});
+      {required this.emoji, required this.title, required this.titleCn});
   @override
   Widget build(BuildContext context) => Center(
         child: Container(
@@ -1205,18 +1136,14 @@ class _NiceEmpty extends StatelessWidget {
               color: _C.sunshineGlow.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: _C.line, width: 1.4)),
-          child:
-              Column(mainAxisSize: MainAxisSize.min, children: [
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(emoji, style: const TextStyle(fontSize: 40)),
             const SizedBox(height: 12),
             Text(title,
                 style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: _C.navy)),
+                    fontSize: 15, fontWeight: FontWeight.w800, color: _C.navy)),
             Text('· $titleCn',
-                style: const TextStyle(
-                    fontSize: 12, color: _C.coral)),
+                style: const TextStyle(fontSize: 12, color: _C.coral)),
           ]),
         ),
       );
@@ -1225,8 +1152,7 @@ class _NiceEmpty extends StatelessWidget {
 class _ErrorView extends StatelessWidget {
   final String error;
   final VoidCallback onRetry;
-  const _ErrorView(
-      {required this.error, required this.onRetry});
+  const _ErrorView({required this.error, required this.onRetry});
   @override
   Widget build(BuildContext context) => Center(
         child: Padding(
@@ -1236,33 +1162,28 @@ class _ErrorView extends StatelessWidget {
             decoration: BoxDecoration(
               color: _C.paper,
               borderRadius: BorderRadius.circular(20),
-              border:
-                  Border.all(color: _C.coralSoft, width: 1.4),
+              border: Border.all(color: _C.coralSoft, width: 1.4),
             ),
-            child:
-                Column(mainAxisSize: MainAxisSize.min, children: [
-              const Text('⚠️',
-                  style: TextStyle(fontSize: 32)),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('⚠️', style: TextStyle(fontSize: 32)),
               const SizedBox(height: 10),
               Text(error,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontSize: 12, color: _C.inkSoft)),
+                  style: const TextStyle(fontSize: 12, color: _C.inkSoft)),
               const SizedBox(height: 16),
               GestureDetector(
                 onTap: onRetry,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 18, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                        colors: [_C.sunshine, _C.coral]),
+                    gradient:
+                        const LinearGradient(colors: [_C.sunshine, _C.coral]),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: const Text('Retry',
                       style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800)),
+                          color: Colors.white, fontWeight: FontWeight.w800)),
                 ),
               ),
             ]),
@@ -1279,18 +1200,15 @@ class _BackgroundBlobs extends StatelessWidget {
           Positioned(
               top: -60,
               right: -70,
-              child: _blob(180,
-                  _C.sunshineGlow.withValues(alpha: 0.55))),
+              child: _blob(180, _C.sunshineGlow.withValues(alpha: 0.55))),
           Positioned(
               top: 140,
               left: -80,
-              child: _blob(
-                  150, _C.blushSoft.withValues(alpha: 0.6))),
+              child: _blob(150, _C.blushSoft.withValues(alpha: 0.6))),
           Positioned(
               bottom: 80,
               right: -60,
-              child: _blob(
-                  140, _C.coralSoft.withValues(alpha: 0.5))),
+              child: _blob(140, _C.coralSoft.withValues(alpha: 0.5))),
         ]),
       );
 
@@ -1299,8 +1217,7 @@ class _BackgroundBlobs extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: RadialGradient(
-              colors: [color, color.withValues(alpha: 0)]),
+          gradient: RadialGradient(colors: [color, color.withValues(alpha: 0)]),
         ),
       );
 }

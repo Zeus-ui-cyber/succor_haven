@@ -13,7 +13,8 @@ import 'features/auth/screens/register_screen.dart' show RegisterScreen;
 // Dashboards
 import 'features/dashboard/student_dashboard_screen.dart' show StudentDashboard;
 import 'features/dashboard/teacher_dashboard_screen.dart' show TeacherDashboard;
-import 'features/dashboard/teacher_pending_screen.dart' show TeacherPendingScreen;
+import 'features/dashboard/teacher_pending_screen.dart'
+    show TeacherPendingScreen;
 import 'features/dashboard/admin_dashboard_screen.dart' show AdminDashboard;
 
 // Models
@@ -70,20 +71,20 @@ class SHTheme {
       useMaterial3: true,
       colorScheme: cs,
       scaffoldBackgroundColor: SHColors.bg,
-      appBarTheme: AppBarTheme(
+      appBarTheme: const AppBarTheme(
         backgroundColor: SHColors.bg,
         foregroundColor: SHColors.ink,
         elevation: 0,
         centerTitle: false,
         surfaceTintColor: Colors.transparent,
         systemOverlayStyle: SystemUiOverlayStyle.dark,
-        titleTextStyle: const TextStyle(
+        titleTextStyle: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w800,
           color: SHColors.ink,
           letterSpacing: -0.4,
         ),
-        iconTheme: const IconThemeData(color: SHColors.ink),
+        iconTheme: IconThemeData(color: SHColors.ink),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -94,7 +95,8 @@ class SHTheme {
           elevation: 4,
           shadowColor: SHColors.magenta.withValues(alpha: 0.35),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           textStyle: const TextStyle(
               fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 0.2),
         ),
@@ -109,7 +111,8 @@ class SHTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: SHColors.magenta,
           side: const BorderSide(color: SHColors.magenta, width: 1.5),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
         ),
       ),
@@ -133,12 +136,10 @@ class SHTheme {
             borderSide: const BorderSide(color: SHColors.magenta, width: 1.8)),
         errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide:
-                const BorderSide(color: Color(0xFFB00020), width: 1.5)),
+            borderSide: const BorderSide(color: Color(0xFFB00020), width: 1.5)),
         focusedErrorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide:
-                const BorderSide(color: Color(0xFFB00020), width: 1.8)),
+            borderSide: const BorderSide(color: Color(0xFFB00020), width: 1.8)),
         errorStyle: const TextStyle(color: Color(0xFFB00020), fontSize: 11.5),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -178,8 +179,8 @@ class SHTheme {
         unselectedLabelStyle:
             TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
       ),
-      dividerTheme: const DividerThemeData(
-          color: SHColors.line, thickness: 1, space: 1),
+      dividerTheme:
+          const DividerThemeData(color: SHColors.line, thickness: 1, space: 1),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: SHColors.ink,
         contentTextStyle: const TextStyle(
@@ -196,9 +197,7 @@ class SHTheme {
         titleTextStyle: TextStyle(
             fontSize: 14, fontWeight: FontWeight.w600, color: SHColors.ink),
         subtitleTextStyle: TextStyle(
-            fontSize: 12,
-            color: SHColors.inkSoft,
-            fontWeight: FontWeight.w500),
+            fontSize: 12, color: SHColors.inkSoft, fontWeight: FontWeight.w500),
       ),
       iconTheme: const IconThemeData(color: SHColors.inkSoft, size: 22),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
