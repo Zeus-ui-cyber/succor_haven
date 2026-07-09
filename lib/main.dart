@@ -17,7 +17,24 @@ import 'features/dashboard/teacher_pending_screen.dart'
     show TeacherPendingScreen;
 import 'features/dashboard/admin_dashboard_screen.dart' show AdminDashboard;
 
+// Settings screens
+import 'features/settings/screens/student/edit_profile_screen.dart'
+    show EditProfileScreen;
+import 'features/settings/screens/student/change_password_screen.dart'
+    show ChangePasswordScreen;
+import 'features/settings/screens/student/phone_settings_screen.dart'
+    show PhoneSettingsScreen; // ← NEW
+import 'features/settings/screens/student/language_settings_screen.dart'
+    show LanguageSettingsScreen; // ← NEW
+import 'features/settings/screens/student/notification_settings_screen.dart'
+    show NotificationSettingsScreen; // ← NEW
+import 'features/settings/screens/student/help_center_screen.dart'
+    show HelpCenterScreen; // ← NEW
+import 'features/settings/screens/student/privacy_policy_screen.dart'
+    show PrivacyPolicyScreen; // ← NEW
+
 // Models
+import 'models/user.dart' show UserModel;
 import 'models/user_role.dart' show UserRole;
 
 // ─── Succor Haven global design tokens ───────────────────────────────────────
@@ -267,6 +284,42 @@ class SuccorHavenApp extends StatelessWidget {
         '/teacher-pending': (_) => const TeacherPendingScreen(),
 
         '/admin-dashboard': (_) => const AdminDashboard(),
+
+        // ── Account Settings ──────────────────────────────────────────────
+        // Expects a UserModel passed as arguments, e.g.:
+        //   Navigator.pushNamed(context, '/settings/edit-profile', arguments: user);
+        '/settings/edit-profile': (context) {
+          final user =
+              ModalRoute.of(context)!.settings.arguments as UserModel;
+          return EditProfileScreen(user: user);
+        },
+
+        // No arguments needed — the backend identifies the user from the
+        // JWT and looks up their own registered phone number.
+        '/settings/change-password': (_) => const ChangePasswordScreen(),
+
+        // No arguments needed — backend identifies the user from the JWT
+        // and looks up their own primary/backup phone numbers.
+        '/settings/phone': (_) => const PhoneSettingsScreen(), // ← NEW
+
+        // Optional String argument for the user's current language
+        // ('en' | 'zh'), e.g.:
+        //   Navigator.pushNamed(context, '/settings/language',
+        //       arguments: user.languagePref);
+        // Defaults to 'en' if no argument is passed.
+        '/settings/language': (context) {
+          final currentLanguage =
+              ModalRoute.of(context)?.settings.arguments as String? ?? 'en';
+          return LanguageSettingsScreen(currentLanguage: currentLanguage);
+        }, // ← NEW
+
+        '/settings/notifications': (_) =>
+            const NotificationSettingsScreen(), // ← NEW
+
+        '/settings/help-center': (_) => const HelpCenterScreen(), // ← NEW
+
+        '/settings/privacy-policy': (_) =>
+            const PrivacyPolicyScreen(), // ← NEW
       },
     );
   }

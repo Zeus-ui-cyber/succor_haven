@@ -15,6 +15,7 @@ class UserModel {
   final int points;
   final DateTime createdAt;
   final bool teacherApproved;
+  final String? profilePictureUrl;
 
   const UserModel({
     required this.id,
@@ -26,6 +27,7 @@ class UserModel {
     this.points = 0,
     required this.createdAt,
     this.teacherApproved = false,
+    this.profilePictureUrl,
   });
 
   // ── Derived helpers (backward-compat with widgets using firstName/lastName)
@@ -79,19 +81,21 @@ class UserModel {
       points:          (json['points']   as num?)?.toInt() ?? 0,
       createdAt:       resolvedDate,
       teacherApproved: json['teacher_approved'] as bool? ?? false,
+      profilePictureUrl: json['profile_picture_url'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'id':               id,
-        'email':            email,
-        'full_name':        fullName,
-        'role':             role,
-        'language_pref':    languagePref,
-        'credits':          credits,
-        'points':           points,
-        'created_at':       createdAt.toIso8601String(),
-        'teacher_approved': teacherApproved,
+        'id':                 id,
+        'email':              email,
+        'full_name':          fullName,
+        'role':               role,
+        'language_pref':      languagePref,
+        'credits':            credits,
+        'points':             points,
+        'created_at':         createdAt.toIso8601String(),
+        'teacher_approved':   teacherApproved,
+        'profile_picture_url': profilePictureUrl,
       };
 
   UserModel copyWith({
@@ -104,6 +108,7 @@ class UserModel {
     int? points,
     DateTime? createdAt,
     bool? teacherApproved,
+    String? profilePictureUrl,
   }) =>
       UserModel(
         id:              id              ?? this.id,
@@ -115,5 +120,6 @@ class UserModel {
         points:          points          ?? this.points,
         createdAt:       createdAt       ?? this.createdAt,
         teacherApproved: teacherApproved ?? this.teacherApproved,
+        profilePictureUrl: profilePictureUrl ?? this.profilePictureUrl,
       );
 }

@@ -12,16 +12,13 @@ import '../controllers/auth_controller.dart';
 import '../../../models/user_role.dart';
 
 class _C {
-  static const magenta = Color(0xFFD64577);
   static const burgundy = Color(0xFF7D002B);
   static const blushPink = Color(0xFFF2C6D6);
   static const softPink = Color(0xFFF9E1EA);
-  static const lightPink = Color(0xFFF7D6E2);
   static const cream = Color(0xFFFFF5F7);
   static const ink = Color(0xFF3B0A1F);
   static const inkSoft = Color(0xFF8A6070);
   static const line = Color(0xFFF0DCE5);
-  static const paper = Color(0xFFFFFFFF);
   static const green = Color(0xFF00C48C);
 }
 

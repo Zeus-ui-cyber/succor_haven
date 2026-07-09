@@ -26,6 +26,9 @@ dependencies:
   url_launcher: ^6.2.6
   dio: ^5.9.2
 
+  # Image selection (Edit Profile → profile picture upload)
+  image_picker: ^1.1.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

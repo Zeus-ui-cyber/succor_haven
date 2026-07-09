@@ -6,6 +6,10 @@ import 'package:http/http.dart' as http;
 import '../auth/controllers/auth_controller.dart';
 import '../auth/repositories/auth_repository.dart';
 import '../../models/user.dart';
+import '../../models/teacher_profile.dart';
+import '../booking/controllers/booking_controller.dart';
+import '../booking/widgets/teacher_card.dart';
+import '../booking/utils/avatar_url.dart';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 class _C {
@@ -25,6 +29,14 @@ class _C {
 }
 
 // ── Providers ─────────────────────────────────────────────────────────────────
+// NOTE: the old `_sTeachersProvider` here parsed raw `/teachers` JSON as
+// `first_name`/`last_name`/`credits_per_session` — none of those fields
+// exist anymore (teachers.controller.js returns `full_name`, and pricing
+// moved off teacher_profiles entirely). It's been removed in favor of
+// `teachersListProvider` from booking_controller.dart, which goes through
+// `BookingRepository` + `TeacherProfileModel.fromJson` and parses the
+// *actual* current API shape. That's also why the teacher list/carousel
+// was rendering empty before.
 final _sRepoProvider = Provider((_) => AuthRepository());
 
 final _sMeProvider =
@@ -35,17 +47,6 @@ final _sBookingsProvider = FutureProvider<List<dynamic>>((ref) async {
   final token = await repo.getAccessToken();
   final res = await http.get(
     Uri.parse('${AuthRepository.baseUrl}/bookings'),
-    headers: {'Authorization': 'Bearer $token'},
-  );
-  if (res.statusCode != 200) return [];
-  return jsonDecode(res.body) as List;
-});
-
-final _sTeachersProvider = FutureProvider<List<dynamic>>((ref) async {
-  final repo = ref.read(_sRepoProvider);
-  final token = await repo.getAccessToken();
-  final res = await http.get(
-    Uri.parse('${AuthRepository.baseUrl}/teachers?limit=6'),
     headers: {'Authorization': 'Bearer $token'},
   );
   if (res.statusCode != 200) return [];
@@ -92,7 +93,7 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
           child: IndexedStack(
             index: _navIndex,
             children: [
-              _HomeTab(user: user),
+              _HomeTab(user: user, onSeeAllTeachers: () => setState(() => _navIndex = 1)),
               _FindTeachersTab(user: user),
               _SessionsTab(user: user),
               _RewardsTab(user: user),
@@ -178,12 +179,14 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
 // ── HOME TAB ──────────────────────────────────────────────────────────────────
 class _HomeTab extends ConsumerWidget {
   final UserModel user;
-  const _HomeTab({required this.user});
+  final VoidCallback onSeeAllTeachers;
+  const _HomeTab({required this.user, required this.onSeeAllTeachers});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bookingsAsync = ref.watch(_sBookingsProvider);
-    final teachersAsync = ref.watch(_sTeachersProvider);
+    // Real teacher directory, backed by BookingRepository + TeacherProfileModel.
+    final teachersAsync = ref.watch(teachersListProvider);
 
     return CustomScrollView(
       slivers: [
@@ -225,17 +228,26 @@ class _HomeTab extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(20, 24, 0, 8),
           sliver: SliverToBoxAdapter(
             child: _SectionRow(
-                en: 'Featured Teachers', zh: '推荐老师', onSeeAll: () {}),
+                en: 'Featured Teachers', zh: '推荐老师', onSeeAll: onSeeAllTeachers),
           ),
         ),
         SliverToBoxAdapter(
           child: teachersAsync.when(
             loading: () => const SizedBox(
-                height: 140,
+                height: 160,
                 child: Center(
                     child: CircularProgressIndicator(color: _C.magenta))),
-            error: (_, __) => const SizedBox.shrink(),
-            data: (teachers) => _TeacherCarousel(teachers: teachers),
+            error: (e, _) => SizedBox(
+              height: 100,
+              child: Center(
+                child: Text('Could not load teachers: $e',
+                    style: const TextStyle(fontSize: 12, color: _C.inkSoft)),
+              ),
+            ),
+            data: (teachers) => _TeacherCarousel(
+              teachers: teachers.take(6).toList(),
+              onSeeAll: onSeeAllTeachers,
+            ),
           ),
         ),
 
@@ -374,6 +386,10 @@ class _HomeTab extends ConsumerWidget {
 }
 
 // ── FIND TEACHERS TAB ─────────────────────────────────────────────────────────
+// Now driven entirely by teachersListProvider / teacherSearchQueryProvider
+// (booking_controller.dart), which hits the real GET /teachers endpoint via
+// BookingRepository. Server does the search filtering; the subject chips
+// filter client-side over whatever page is loaded.
 class _FindTeachersTab extends ConsumerStatefulWidget {
   final UserModel user;
   const _FindTeachersTab({required this.user});
@@ -402,7 +418,7 @@ class _FindTeachersTabState extends ConsumerState<_FindTeachersTab> {
 
   @override
   Widget build(BuildContext context) {
-    final teachersAsync = ref.watch(_sTeachersProvider);
+    final teachersAsync = ref.watch(teachersListProvider);
 
     return Column(children: [
       // Header
@@ -426,12 +442,14 @@ class _FindTeachersTabState extends ConsumerState<_FindTeachersTab> {
               ])),
         ]),
       ),
-      // Search bar
+      // Search bar — pushes into teacherSearchQueryProvider, which
+      // teachersListProvider watches and re-fetches from the server on.
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: TextField(
           controller: _searchCtrl,
-          onChanged: (_) => setState(() {}),
+          onChanged: (v) =>
+              ref.read(teacherSearchQueryProvider.notifier).state = v,
           decoration: InputDecoration(
             hintText: 'Search teachers...',
             prefixIcon: const Icon(Icons.search, color: _C.inkSoft, size: 20),
@@ -444,7 +462,7 @@ class _FindTeachersTabState extends ConsumerState<_FindTeachersTab> {
         ),
       ),
       const SizedBox(height: 12),
-      // Subject filter chips
+      // Subject filter chips (client-side, over the current page of results)
       SizedBox(
         height: 36,
         child: ListView.builder(
@@ -477,24 +495,25 @@ class _FindTeachersTabState extends ConsumerState<_FindTeachersTab> {
         ),
       ),
       const SizedBox(height: 12),
-      // Teacher grid
+      // Teacher list — TeacherProfileModel objects, TeacherCard widget.
       Expanded(
         child: teachersAsync.when(
           loading: () =>
               const Center(child: CircularProgressIndicator(color: _C.magenta)),
-          error: (e, _) => Center(child: Text('$e')),
+          error: (e, _) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text('Could not load teachers: $e',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 13, color: _C.inkSoft)),
+            ),
+          ),
           data: (teachers) {
-            final filtered = teachers.where((t) {
-              final q = _searchCtrl.text.toLowerCase();
-              final name = '${t['first_name']} ${t['last_name']}'.toLowerCase();
-              final subjects =
-                  (t['subjects'] as List?)?.join(' ').toLowerCase() ?? '';
-              final matchSearch =
-                  q.isEmpty || name.contains(q) || subjects.contains(q);
-              final matchSubject = _selected == 'All' ||
-                  (t['subjects'] as List?)?.contains(_selected) == true;
-              return matchSearch && matchSubject;
-            }).toList();
+            final filtered = _selected == 'All'
+                ? teachers
+                : teachers
+                    .where((t) => t.subjects.contains(_selected))
+                    .toList();
 
             if (filtered.isEmpty) {
               return const _EmptyCard(
@@ -505,16 +524,19 @@ class _FindTeachersTabState extends ConsumerState<_FindTeachersTab> {
               );
             }
 
-            return GridView.builder(
+            return ListView.builder(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.75,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-              ),
               itemCount: filtered.length,
-              itemBuilder: (_, i) => _TeacherCard(teacher: filtered[i]),
+              itemBuilder: (_, i) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: TeacherCard(
+                  teacher: filtered[i],
+                  onDetails: () => Navigator.pushNamed(
+                    context,
+                    '/teachers/${filtered[i].id}',
+                  ),
+                ),
+              ),
             );
           },
         ),
@@ -666,13 +688,64 @@ class _RewardsTab extends ConsumerWidget {
 }
 
 // ── PROFILE TAB ───────────────────────────────────────────────────────────────
-class _ProfileTab extends StatelessWidget {
+// NOTE: ConsumerWidget so it can invalidate _sMeProvider after Edit Profile /
+// Language saves, and so it can Navigator.pushNamed to routes in main.dart.
+class _ProfileTab extends ConsumerWidget {
   final UserModel user;
   final VoidCallback onLogout;
   const _ProfileTab({required this.user, required this.onLogout});
 
+  Future<void> _openEditProfile(BuildContext context, WidgetRef ref) async {
+    final result = await Navigator.pushNamed(
+      context,
+      '/settings/edit-profile',
+      arguments: user,
+    );
+    // EditProfileScreen does Navigator.pop(context, true) on success —
+    // refresh the cached profile (first/last name, avatar, etc.) so the
+    // dashboard reflects the change immediately.
+    if (result == true) {
+      ref.invalidate(_sMeProvider);
+    }
+  }
+
+  void _openChangePassword(BuildContext context) {
+    // No arguments needed — backend identifies the user via JWT.
+    Navigator.pushNamed(context, '/settings/change-password');
+  }
+
+  void _openPhoneSettings(BuildContext context) {
+    // No arguments needed — backend identifies the user via JWT.
+    Navigator.pushNamed(context, '/settings/phone');
+  }
+
+  Future<void> _openLanguageSettings(BuildContext context, WidgetRef ref) async {
+    final result = await Navigator.pushNamed(
+      context,
+      '/settings/language',
+      arguments: user.languagePref,
+    );
+    // LanguageSettingsScreen pops with the new language code on success —
+    // refresh the cached profile so the UI reflects the change.
+    if (result != null) {
+      ref.invalidate(_sMeProvider);
+    }
+  }
+
+  void _openNotificationSettings(BuildContext context) {
+    Navigator.pushNamed(context, '/settings/notifications');
+  }
+
+  void _openHelpCenter(BuildContext context) {
+    Navigator.pushNamed(context, '/settings/help-center');
+  }
+
+  void _openPrivacyPolicy(BuildContext context) {
+    Navigator.pushNamed(context, '/settings/privacy-policy');
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
       children: [
@@ -719,21 +792,54 @@ class _ProfileTab extends StatelessWidget {
         const SizedBox(height: 24),
         // Settings list
         _ProfileSection('Account', '账户', [
-          _ProfileTile(Icons.person_outline, 'Edit Profile', '编辑资料', () {}),
-          _ProfileTile(Icons.lock_outline, 'Change Password', '修改密码', () {}),
-          _ProfileTile(Icons.phone_outlined, 'Phone Number', '手机号码', () {}),
+          _ProfileTile(
+            Icons.person_outline,
+            'Edit Profile',
+            '编辑资料',
+            () => _openEditProfile(context, ref),
+          ),
+          _ProfileTile(
+            Icons.lock_outline,
+            'Change Password',
+            '修改密码',
+            () => _openChangePassword(context),
+          ),
+          _ProfileTile(
+            Icons.phone_outlined,
+            'Phone Number',
+            '手机号码',
+            () => _openPhoneSettings(context),
+          ),
         ]),
         const SizedBox(height: 16),
         _ProfileSection('Preferences', '偏好', [
-          _ProfileTile(Icons.language, 'Language', '语言', () {}),
           _ProfileTile(
-              Icons.notifications_outlined, 'Notifications', '通知', () {}),
+            Icons.language,
+            'Language',
+            '语言',
+            () => _openLanguageSettings(context, ref),
+          ),
+          _ProfileTile(
+            Icons.notifications_outlined,
+            'Notifications',
+            '通知',
+            () => _openNotificationSettings(context),
+          ),
         ]),
         const SizedBox(height: 16),
         _ProfileSection('Support', '支持', [
-          _ProfileTile(Icons.help_outline, 'Help Center', '帮助中心', () {}),
           _ProfileTile(
-              Icons.privacy_tip_outlined, 'Privacy Policy', '隐私政策', () {}),
+            Icons.help_outline,
+            'Help Center',
+            '帮助中心',
+            () => _openHelpCenter(context),
+          ),
+          _ProfileTile(
+            Icons.privacy_tip_outlined,
+            'Privacy Policy',
+            '隐私政策',
+            () => _openPrivacyPolicy(context),
+          ),
         ]),
         const SizedBox(height: 24),
         // Logout
@@ -793,6 +899,9 @@ class _PointsProgress extends StatelessWidget {
   }
 }
 
+// ⚠️ FIXED: bookings.controller.js returns `teacher_name` (a single joined
+// full_name column) and `teacher_avatar`, not `teacher_first`/`teacher_last`
+// — those never existed on the response and always evaluated to "null null".
 class _NextSessionBanner extends StatelessWidget {
   final Map<String, dynamic> booking;
   const _NextSessionBanner({required this.booking});
@@ -800,7 +909,7 @@ class _NextSessionBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dt = DateTime.parse(booking['scheduled_at']).toLocal();
-    final name = '${booking['teacher_first']} ${booking['teacher_last']}';
+    final name = (booking['teacher_name'] as String?) ?? 'Your teacher';
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -838,12 +947,25 @@ class _NextSessionBanner extends StatelessWidget {
   }
 }
 
+// Home tab carousel — now consumes real TeacherProfileModel objects. No more
+// `credits_per_session` (removed from teacher_profiles; pricing lives in the
+// `pricing` table and is chosen at booking time, not shown per-teacher here).
 class _TeacherCarousel extends StatelessWidget {
-  final List<dynamic> teachers;
-  const _TeacherCarousel({required this.teachers});
+  final List<TeacherProfileModel> teachers;
+  final VoidCallback onSeeAll;
+  const _TeacherCarousel({required this.teachers, required this.onSeeAll});
 
   @override
   Widget build(BuildContext context) {
+    if (teachers.isEmpty) {
+      return const SizedBox(
+        height: 100,
+        child: Center(
+          child: Text('No teachers available yet',
+              style: TextStyle(fontSize: 12, color: _C.inkSoft)),
+        ),
+      );
+    }
     return SizedBox(
       height: 160,
       child: ListView.builder(
@@ -852,61 +974,76 @@ class _TeacherCarousel extends StatelessWidget {
         itemCount: teachers.length,
         itemBuilder: (_, i) {
           final t = teachers[i];
-          final name = '${t['first_name']} ${t['last_name']}';
-          final subjects = (t['subjects'] as List?)?.take(2).join(', ') ?? '';
-          final rating = (t['rating'] ?? 0).toStringAsFixed(1);
-          return Container(
-            width: 130,
-            margin: const EdgeInsets.only(right: 12),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: _C.paper,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: _C.line),
-            ),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                CircleAvatar(
-                    radius: 18,
-                    backgroundColor: _C.blushPink,
-                    child: Text(name[0],
+          final avatarUrl = resolveAvatarUrl(t.avatarUrl);
+          final subjectsPreview = t.subjects.take(2).join(', ');
+          return GestureDetector(
+            onTap: () =>
+                Navigator.pushNamed(context, '/teachers/${t.id}'),
+            child: Container(
+              width: 130,
+              margin: const EdgeInsets.only(right: 12),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: _C.paper,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: _C.line),
+              ),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: _C.blushPink,
+                        backgroundImage: avatarUrl != null
+                            ? NetworkImage(avatarUrl)
+                            : null,
+                        child: avatarUrl == null
+                            ? Text(t.initials.characters.first,
+                                style: const TextStyle(
+                                    color: _C.burgundy,
+                                    fontWeight: FontWeight.w800))
+                            : null,
+                      ),
+                      const Spacer(),
+                      if (t.hasRating) ...[
+                        const Icon(Icons.star_rounded,
+                            color: Color(0xFFFFC107), size: 14),
+                        const SizedBox(width: 2),
+                        Text(t.rating.toStringAsFixed(1),
+                            style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: _C.ink)),
+                      ],
+                    ]),
+                    const SizedBox(height: 10),
+                    Text(t.fullName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            color: _C.burgundy, fontWeight: FontWeight.w800))),
-                const Spacer(),
-                const Icon(Icons.star_rounded,
-                    color: Color(0xFFFFC107), size: 14),
-                const SizedBox(width: 2),
-                Text(rating,
-                    style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: _C.ink)),
-              ]),
-              const SizedBox(height: 10),
-              Text(name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: _C.ink)),
-              const SizedBox(height: 3),
-              Text(subjects,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 10, color: _C.inkSoft)),
-              const Spacer(),
-              Row(children: [
-                const Icon(Icons.diamond_outlined, size: 11, color: _C.magenta),
-                const SizedBox(width: 3),
-                Text('${t['credits_per_session']} credits',
-                    style: const TextStyle(
-                        fontSize: 10,
-                        color: _C.magenta,
-                        fontWeight: FontWeight.w700)),
-              ]),
-            ]),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: _C.ink)),
+                    const SizedBox(height: 3),
+                    Text(
+                        subjectsPreview.isEmpty
+                            ? 'No subjects listed'
+                            : subjectsPreview,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 10, color: _C.inkSoft)),
+                    const Spacer(),
+                    Text(
+                        t.isNewTeacher
+                            ? 'New teacher'
+                            : '${t.totalSessions} sessions',
+                        style: const TextStyle(
+                            fontSize: 10,
+                            color: _C.magenta,
+                            fontWeight: FontWeight.w700)),
+                  ]),
+            ),
           );
         },
       ),
@@ -914,106 +1051,19 @@ class _TeacherCarousel extends StatelessWidget {
   }
 }
 
-class _TeacherCard extends StatelessWidget {
-  final Map<String, dynamic> teacher;
-  const _TeacherCard({required this.teacher});
-
-  @override
-  Widget build(BuildContext context) {
-    final name = '${teacher['first_name']} ${teacher['last_name']}';
-    final subjects = (teacher['subjects'] as List?)?.take(3).join(' · ') ?? '';
-    final rating = (teacher['rating'] ?? 0).toStringAsFixed(1);
-    final sessions = teacher['total_sessions'] ?? 0;
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _C.paper,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _C.line),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          CircleAvatar(
-              radius: 22,
-              backgroundColor: _C.blushPink,
-              child: Text(name[0],
-                  style: const TextStyle(
-                      color: _C.burgundy,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16))),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-            decoration: BoxDecoration(
-                color: const Color(0xFFFFF3CD),
-                borderRadius: BorderRadius.circular(10)),
-            child: Row(children: [
-              const Icon(Icons.star_rounded,
-                  color: Color(0xFFFFC107), size: 12),
-              const SizedBox(width: 2),
-              Text(rating,
-                  style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF7A5C00))),
-            ]),
-          ),
-        ]),
-        const SizedBox(height: 10),
-        Text(name,
-            style: const TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w800, color: _C.ink)),
-        const SizedBox(height: 3),
-        Text(subjects,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 11, color: _C.inkSoft)),
-        const Spacer(),
-        Row(children: [
-          const Icon(Icons.diamond_outlined, size: 12, color: _C.magenta),
-          const SizedBox(width: 4),
-          Text('${teacher['credits_per_session']} / session',
-              style: const TextStyle(
-                  fontSize: 11,
-                  color: _C.magenta,
-                  fontWeight: FontWeight.w700)),
-        ]),
-        const SizedBox(height: 4),
-        Text('$sessions sessions',
-            style: const TextStyle(fontSize: 10, color: _C.inkSoft)),
-        const SizedBox(height: 10),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () {},
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _C.magenta,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-              elevation: 0,
-              textStyle:
-                  const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-            ),
-            child: const Text('Book Now · 预约'),
-          ),
-        ),
-      ]),
-    );
-  }
-}
-
+// ⚠️ FIXED: `bookings` rows come back with `teacher_name` (single full_name
+// column, per bookings.controller.js), not `teacher_first`/`teacher_last`.
+// Also surfaces `pricing_name` / `session_type` now that those are joined in.
 class _BookingCard extends StatelessWidget {
   final Map<String, dynamic> booking;
   const _BookingCard({required this.booking});
 
   @override
   Widget build(BuildContext context) {
-    final name = '${booking['teacher_first']} ${booking['teacher_last']}';
+    final name = (booking['teacher_name'] as String?) ?? 'Teacher';
     final status = booking['status'] as String;
     final dt = DateTime.parse(booking['scheduled_at']).toLocal();
+    final pricingName = booking['pricing_name'] as String?;
     final statusColor = {
           'confirmed': _C.green,
           'completed': _C.slateBlue,
@@ -1033,7 +1083,7 @@ class _BookingCard extends StatelessWidget {
         CircleAvatar(
             radius: 20,
             backgroundColor: _C.blushPink,
-            child: Text(name[0],
+            child: Text(name.isNotEmpty ? name[0] : '?',
                 style: const TextStyle(
                     color: _C.burgundy, fontWeight: FontWeight.w800))),
         const SizedBox(width: 12),
@@ -1049,7 +1099,10 @@ class _BookingCard extends StatelessWidget {
               '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}',
               style: const TextStyle(fontSize: 11, color: _C.inkSoft)),
           Text(
-              '${booking['credits_cost']} credits · ${booking['duration_mins']} min',
+              [
+                if (pricingName != null && pricingName.isNotEmpty) pricingName,
+                '${booking['credits_cost']} credits · ${booking['duration_mins']} min',
+              ].join(' · '),
               style: const TextStyle(
                   fontSize: 11,
                   color: _C.magenta,

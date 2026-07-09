@@ -6,9 +6,7 @@ import '../../../models/user_role.dart';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 class _C {
-  static const magenta = Color(0xFFD64577);
   static const burgundy = Color(0xFF7D002B);
-  static const blushPink = Color(0xFFF2C6D6);
   static const softPink = Color(0xFFF9E1EA);
   static const cream = Color(0xFFFFF5F7);
   static const ink = Color(0xFF3B0A1F);

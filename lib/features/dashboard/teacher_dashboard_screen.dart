@@ -6,6 +6,10 @@ import 'package:http/http.dart' as http;
 import '../auth/controllers/auth_controller.dart';
 import '../auth/repositories/auth_repository.dart';
 import '../../models/user.dart';
+import '../settings/screens/teacher/edit_bio_subjects_screen.dart';
+import '../settings/screens/teacher/set_availability_screen.dart';
+import '../settings/screens/teacher/credits_per_session_screen.dart';
+import '../settings/screens/student/change_password_screen.dart';
 
 class _C {
   static const slateBlue = Color(0xFF3E678A);
@@ -612,15 +616,44 @@ class _TProfileTab extends ConsumerWidget {
         // Settings
         _TProfileSection('Teaching', '教学', [
           _TProfileTile(
-              Icons.edit_outlined, 'Edit Bio & Subjects', '编辑简介', () {}),
+            Icons.edit_outlined,
+            'Edit Bio & Subjects',
+            '编辑简介',
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const EditBioSubjectsScreen()),
+            ),
+          ),
           _TProfileTile(
-              Icons.schedule_outlined, 'Set Availability', '设置空闲时间', () {}),
+            Icons.schedule_outlined,
+            'Set Availability',
+            '设置空闲时间',
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SetAvailabilityScreen()),
+            ),
+          ),
           _TProfileTile(
-              Icons.diamond_outlined, 'Credits Per Session', '每节课积分', () {}),
+            Icons.diamond_outlined,
+            'Credits Per Session',
+            '每节课积分',
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CreditsPerSessionScreen()),
+            ),
+          ),
         ]),
         const SizedBox(height: 16),
         _TProfileSection('Account', '账户', [
-          _TProfileTile(Icons.lock_outline, 'Change Password', '修改密码', () {}),
+          _TProfileTile(
+            Icons.lock_outline,
+            'Change Password',
+            '修改密码',
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
+            ),
+          ),
           _TProfileTile(
               Icons.notifications_outlined, 'Notifications', '通知', () {}),
         ]),
