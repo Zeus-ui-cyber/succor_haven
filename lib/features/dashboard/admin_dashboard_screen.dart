@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import '../auth/controllers/auth_controller.dart';
 import '../auth/repositories/auth_repository.dart';
+import 'admin/create_teacher_account_screen.dart';
 
 class _C {
   static const burgundy = Color(0xFF7D002B);
@@ -336,95 +337,155 @@ class _TeachersTab extends ConsumerWidget {
     }
   }
 
+  Future<void> _openCreateTeacher(BuildContext ctx, WidgetRef ref) async {
+    final created = await Navigator.push<bool>(
+      ctx,
+      MaterialPageRoute(builder: (_) => const CreateTeacherAccountScreen()),
+    );
+    if (created == true) {
+      ref.invalidate(_pendingTeachersProvider);
+      ref.invalidate(_allUsersProvider);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(_pendingTeachersProvider);
 
-    return async.when(
-      loading: () =>
-          const Center(child: CircularProgressIndicator(color: _C.burgundy)),
-      error: (e, _) => Center(child: Text('$e')),
-      data: (teachers) {
-        if (teachers.isEmpty) {
-          return const Center(
-            child:
-                Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.check_circle_outline, size: 48, color: _C.green),
-              SizedBox(height: 12),
-              Text('All teachers approved!',
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: _C.ink)),
-              Text('· 所有老师已审核', style: TextStyle(color: _C.inkSoft)),
-            ]),
-          );
-        }
-        return ListView.separated(
-          padding: const EdgeInsets.all(20),
-          itemCount: teachers.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 10),
-          itemBuilder: (_, i) {
-            final t = teachers[i];
-            return Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: _C.paper,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _C.line),
-              ),
-              child: Row(children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: _C.blushPink,
-                  child: Text(
-                    '${t['first_name'][0]}${t['last_name'][0]}',
-                    style: const TextStyle(
-                        color: _C.burgundy,
+    return Column(
+      children: [
+        // ── "Add Teacher" header ─────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text('Pending Approvals · 待审核',
+                    style: TextStyle(
+                        fontSize: 14,
                         fontWeight: FontWeight.w800,
-                        fontSize: 13),
+                        color: _C.ink)),
+              ),
+              GestureDetector(
+                onTap: () => _openCreateTeacher(context, ref),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: _C.burgundy,
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      Text('${t['first_name']} ${t['last_name']}',
-                          style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: _C.ink)),
-                      Text(t['email'] ?? t['phone'] ?? '',
-                          style:
-                              const TextStyle(fontSize: 12, color: _C.inkSoft)),
-                      const Text('Pending approval · 待审核',
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.person_add_alt_1_rounded,
+                          size: 15, color: Colors.white),
+                      SizedBox(width: 6),
+                      Text('Add Teacher',
                           style: TextStyle(
-                              fontSize: 11,
-                              color: _C.magenta,
-                              fontWeight: FontWeight.w600)),
-                    ])),
-                GestureDetector(
-                  onTap: () => _approve(context, ref, t['id']),
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: _C.green,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text('Approve',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700)),
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700)),
+                    ],
                   ),
                 ),
-              ]),
-            );
-          },
-        );
-      },
+              ),
+            ],
+          ),
+        ),
+
+        // ── Pending list ──────────────────────────────────────────────────
+        Expanded(
+          child: async.when(
+            loading: () => const Center(
+                child: CircularProgressIndicator(color: _C.burgundy)),
+            error: (e, _) => Center(child: Text('$e')),
+            data: (teachers) {
+              if (teachers.isEmpty) {
+                return const Center(
+                  child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.check_circle_outline,
+                            size: 48, color: _C.green),
+                        SizedBox(height: 12),
+                        Text('All teachers approved!',
+                            style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: _C.ink)),
+                        Text('· 所有老师已审核', style: TextStyle(color: _C.inkSoft)),
+                      ]),
+                );
+              }
+              return ListView.separated(
+                padding: const EdgeInsets.all(20),
+                itemCount: teachers.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (_, i) {
+                  final t = teachers[i];
+                  return Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: _C.paper,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: _C.line),
+                    ),
+                    child: Row(children: [
+                      CircleAvatar(
+                        radius: 22,
+                        backgroundColor: _C.blushPink,
+                        child: Text(
+                          '${t['first_name'][0]}${t['last_name'][0]}',
+                          style: const TextStyle(
+                              color: _C.burgundy,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                            Text('${t['first_name']} ${t['last_name']}',
+                                style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: _C.ink)),
+                            Text(t['email'] ?? t['phone'] ?? '',
+                                style: const TextStyle(
+                                    fontSize: 12, color: _C.inkSoft)),
+                            const Text('Pending approval · 待审核',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: _C.magenta,
+                                    fontWeight: FontWeight.w600)),
+                          ])),
+                      GestureDetector(
+                        onTap: () => _approve(context, ref, t['id']),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: _C.green,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text('Approve',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                    ]),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

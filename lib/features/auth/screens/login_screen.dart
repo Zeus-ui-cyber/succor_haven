@@ -175,7 +175,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         ),
       );
     } else if (authState.user != null) {
-      Navigator.pushReplacementNamed(context, _selectedRole.routeOnLogin);
+      final route = _selectedRole.routeForTeacher(
+        authState.user!.teacherApproved,
+      );
+      Navigator.pushReplacementNamed(context, route);
     }
   }
 
@@ -199,8 +202,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             role: _selectedRole,
             zhMode: _zhMode,
             onSuccess: () {
-              Navigator.pushReplacementNamed(
-                  context, _selectedRole.routeOnLogin);
+              final user = ref.read(authControllerProvider).user;
+              final route = _selectedRole.routeForTeacher(
+                user?.teacherApproved ?? false,
+              );
+              Navigator.pushReplacementNamed(context, route);
             },
           ),
         ),
@@ -294,7 +300,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           _buildMethodTabs(),
                         ],
 
-                        if (_selectedRole != UserRole.admin) ...[
+                        // Only students can self-register. Teacher accounts
+                        // are created by an Admin via the Teacher Management
+                        // panel, and Admins use built-in credentials only —
+                        // so neither role should see "Create your account".
+                        if (_selectedRole == UserRole.student) ...[
                           const SizedBox(height: 20),
                           _buildDivider(),
                           const SizedBox(height: 20),
@@ -370,7 +380,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             height: 132,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _accent.withValues(alpha: 0.14),
+              color: _accent.withOpacity(0.14),
             ),
           ),
 
@@ -389,7 +399,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 color: _C.paper,
                 boxShadow: [
                   BoxShadow(
-                    color: _accent.withValues(alpha: 0.28),
+                    color: _accent.withOpacity(0.28),
                     blurRadius: 12,
                     offset: const Offset(0, 10),
                   ),
@@ -431,7 +441,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       decoration: BoxDecoration(
         color: _accentPale,
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: _accent.withValues(alpha: 0.25)),
+        border: Border.all(color: _accent.withOpacity(0.25)),
       ),
       child: Row(
         children: [
@@ -496,14 +506,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isActive
-                        ? _accent.withValues(alpha: 0.35)
+                        ? _accent.withOpacity(0.35)
                         : Colors.transparent,
                     width: 1.5,
                   ),
                   boxShadow: isActive
                       ? [
                           BoxShadow(
-                            color: _accent.withValues(alpha: 0.15),
+                            color: _accent.withOpacity(0.15),
                             blurRadius: 12,
                             offset: const Offset(0, 3),
                           ),
@@ -677,13 +687,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           gradient: LinearGradient(
-            colors: [_accent, _accent.withValues(alpha: 0.75)],
+            colors: [_accent, _accent.withOpacity(0.75)],
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
           ),
           boxShadow: [
             BoxShadow(
-              color: _accent.withValues(alpha: 0.35),
+              color: _accent.withOpacity(0.35),
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),
@@ -819,7 +829,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       border: Border.all(color: _C.line, width: 1),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
+                          color: Colors.black.withOpacity(0.05),
                           blurRadius: 12,
                           offset: const Offset(0, 2),
                         ),
@@ -988,14 +998,14 @@ class _RoleSelector extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isActive
-                        ? role.accent.withValues(alpha: 0.35)
+                        ? role.accent.withOpacity(0.35)
                         : Colors.transparent,
                     width: 1.5,
                   ),
                   boxShadow: isActive
                       ? [
                           BoxShadow(
-                            color: role.accent.withValues(alpha: 0.15),
+                            color: role.accent.withOpacity(0.15),
                             blurRadius: 12,
                             offset: const Offset(0, 3),
                           ),
@@ -1023,8 +1033,8 @@ class _RoleSelector extends StatelessWidget {
                         fontSize: 10.5,
                         fontWeight: FontWeight.w500,
                         color: isActive
-                            ? role.accent.withValues(alpha: 0.55)
-                            : const Color(0xFF8A6070).withValues(alpha: 0.45),
+                            ? role.accent.withOpacity(0.55)
+                            : const Color(0xFF8A6070).withOpacity(0.45),
                       ),
                       child: Text('· ${role.labelCn}'),
                     ),
@@ -1055,7 +1065,7 @@ class _SparklePainter extends CustomPainter {
       final dy = (baseY - progress * size.height * 0.5) % size.height;
       final r = 1.0 + rnd.nextDouble() * 1.6;
       final twinkle = (sin((progress * 2 * pi) + i * 1.15) + 1) / 2;
-      paint.color = color.withValues(alpha: 0.08 + twinkle * 0.22);
+      paint.color = color.withOpacity(0.08 + twinkle * 0.22);
       canvas.drawCircle(Offset(dx, dy), r, paint);
     }
   }
@@ -1087,7 +1097,7 @@ class _TranslationToggle extends StatelessWidget {
               color: zhMode ? accent : const Color(0xFFF0DCE5), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: accent.withValues(alpha: 0.15),
+              color: accent.withOpacity(0.15),
               blurRadius: 12,
               offset: const Offset(0, 3),
             ),
@@ -1118,7 +1128,7 @@ class _TranslationToggle extends StatelessWidget {
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: zhMode
-                    ? Colors.white.withValues(alpha: 0.7)
+                    ? Colors.white.withOpacity(0.7)
                     : const Color(0xFF8A6070),
               ),
             ),

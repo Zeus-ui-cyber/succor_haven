@@ -211,7 +211,7 @@ router.patch("/admin/users/:id/toggle", ...admin, adminCtrl.toggleUser);
 router.delete("/admin/users/:id", ...admin, adminCtrl.deleteUser);
 router.patch("/admin/users/:id/credits", ...admin, adminCtrl.adjustCredits);
 router.patch("/admin/users/:id/points", ...admin, adminCtrl.adjustPoints);
-router.patch("/admin/teachers/:id/approve", ...admin, adminCtrl.approveTeacher);
+router.post("/admin/teachers", ...admin, adminCtrl.createTeacher);
 router.get("/admin/teachers/:id/bookings", ...admin, adminCtrl.teacherSchedule);
 router.get("/admin/bookings", ...admin, adminCtrl.listBookings);
 router.patch("/admin/bookings/:id/cancel", ...admin, adminCtrl.cancelBooking);

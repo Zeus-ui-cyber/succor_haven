@@ -1,4 +1,5 @@
 // src/controllers/admin.controller.js
+const bcrypt = require("bcrypt");
 const pool = require("../db/pool");
 
 // ── GET /admin/dashboard ──────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ exports.listUsers = async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Failed to fetch users" });
   }
 };
@@ -71,6 +73,78 @@ exports.approveTeacher = async (req, res) => {
     res.json({ message: "Teacher approved" });
   } catch (err) {
     res.status(500).json({ error: "Approval failed" });
+  }
+};
+
+// ── POST /admin/teachers — Admin creates a Teacher account directly ───────────
+// Mirrors auth.controller.js's register() logic (same bcrypt hashing, same
+// users + teacher_profiles insert shape), but:
+//   • is admin-only (route should be behind requireAdmin middleware)
+//   • does NOT issue tokens/sessions — this creates an account for someone
+//     else, it must never touch the requesting admin's own session
+//   • sets teacher_profiles.is_approved = true immediately, since the Admin
+//     is vouching for the account (no separate approval step needed)
+exports.createTeacher = async (req, res) => {
+  const {
+    firstName,
+    lastName,
+    email,
+    password,
+    phone,
+    bio,
+    subjects,
+    availability,
+    creditsPerSession,
+  } = req.body;
+
+  if (!email) return res.status(400).json({ error: "Email required" });
+  if (!password) return res.status(400).json({ error: "Password required" });
+  if (!firstName) return res.status(400).json({ error: "First name required" });
+  if (!lastName) return res.status(400).json({ error: "Last name required" });
+
+  try {
+    const hash = await bcrypt.hash(password, 10);
+
+    await pool.query("BEGIN");
+
+    const { rows } = await pool.query(
+      `INSERT INTO users (email, password_hash, first_name, last_name, role, phone)
+       VALUES ($1,$2,$3,$4,'teacher',$5)
+       RETURNING *`,
+      [email, hash, firstName, lastName, phone || null],
+    );
+    const user = rows[0];
+
+    await pool.query(
+      `INSERT INTO teacher_profiles
+         (user_id, bio, subjects, availability, credits_per_session, is_approved)
+       VALUES ($1,$2,$3,$4,$5,true)`,
+      [
+        user.id,
+        bio || "",
+        subjects || [],
+        availability || [],
+        creditsPerSession ?? 6,
+      ],
+    );
+
+    await pool.query("COMMIT");
+
+    const { password_hash, ...publicUser } = user;
+    res.status(201).json(publicUser);
+  } catch (err) {
+    await pool.query("ROLLBACK");
+    console.error(err);
+
+    if (err.code === "23505") {
+      const field =
+        err.constraint && err.constraint.includes("phone")
+          ? "Phone number"
+          : "Email";
+      return res.status(409).json({ error: `${field} already registered` });
+    }
+
+    res.status(500).json({ error: "Failed to create teacher account" });
   }
 };
 
@@ -97,14 +171,17 @@ exports.deleteUser = async (req, res) => {
   const { id } = req.params;
 
   if (String(req.user.sub) === String(id))
-    return res.status(400).json({ error: "You cannot delete your own account" });
+    return res
+      .status(400)
+      .json({ error: "You cannot delete your own account" });
 
   try {
     const { rows: existing } = await pool.query(
       `SELECT id FROM users WHERE id = $1`,
       [id],
     );
-    if (!existing.length) return res.status(404).json({ error: "User not found" });
+    if (!existing.length)
+      return res.status(404).json({ error: "User not found" });
 
     const { rows: activity } = await pool.query(
       `SELECT COUNT(*) FROM bookings
@@ -206,7 +283,8 @@ exports.updateReward = async (req, res) => {
         req.params.id,
       ],
     );
-    if (!rows.length) return res.status(404).json({ error: "Reward not found" });
+    if (!rows.length)
+      return res.status(404).json({ error: "Reward not found" });
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: "Update failed" });
@@ -242,11 +320,15 @@ exports.adjustCredits = async (req, res) => {
       [id],
     );
     if (!sp.length)
-      return res.status(404).json({ error: "User has no credit balance (not a student)" });
+      return res
+        .status(404)
+        .json({ error: "User has no credit balance (not a student)" });
 
     const newBalance = sp[0].credits + delta;
     if (newBalance < 0)
-      return res.status(400).json({ error: "Adjustment would result in negative credits" });
+      return res
+        .status(400)
+        .json({ error: "Adjustment would result in negative credits" });
 
     await pool.query("BEGIN");
     const { rows } = await pool.query(
@@ -284,11 +366,15 @@ exports.adjustPoints = async (req, res) => {
       [id],
     );
     if (!sp.length)
-      return res.status(404).json({ error: "User has no points balance (not a student)" });
+      return res
+        .status(404)
+        .json({ error: "User has no points balance (not a student)" });
 
     const newBalance = sp[0].points + delta;
     if (newBalance < 0)
-      return res.status(400).json({ error: "Adjustment would result in negative points" });
+      return res
+        .status(400)
+        .json({ error: "Adjustment would result in negative points" });
 
     await pool.query("BEGIN");
     const { rows } = await pool.query(
@@ -340,7 +426,8 @@ exports.cancelBooking = async (req, res) => {
     const { rows } = await pool.query(`SELECT * FROM bookings WHERE id = $1`, [
       id,
     ]);
-    if (!rows.length) return res.status(404).json({ error: "Booking not found" });
+    if (!rows.length)
+      return res.status(404).json({ error: "Booking not found" });
     const b = rows[0];
 
     if (!["pending", "confirmed"].includes(b.status))

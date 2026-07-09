@@ -26,27 +26,20 @@ class AuthRepository {
 
   // login/register/otp-verify all return the same shape:
   // { accessToken, refreshToken, user: {...} }
-  // Note: this `user` payload is the raw users-table row (see auth.controller's
-  // userPublic()) — it does NOT include credits/points/teacher_approved, since
-  // those only come from the joined /auth/me query. Defaults are fine here;
-  // call getMe() right after login if you need the full profile immediately.
   //
-  // ⚠️ FIXED: UserModel's real constructor takes `fullName` (required), not
-  // firstName/lastName/phone/isActive — the users table has one full_name
-  // column. firstName/lastName are derived getters on UserModel now, computed
-  // from fullName.
+  // UserModel.fromJson() is already defensive — it accepts either
+  // `first_name`/`last_name` (the real users-table columns) or a legacy
+  // `full_name` shape, and reads `teacher_approved` when the backend joins
+  // teacher_profiles (login/verifyOtp now do this — see auth.controller.js).
+  //
+  // Previously this method hand-built a UserModel and only ever read
+  // `full_name`, so `teacher_approved` was silently dropped and always
+  // defaulted to false — which is why an Admin-approved teacher still saw
+  // the "Account Under Review" pending screen after logging in. Just
+  // delegate to fromJson() instead of duplicating (and drifting from) its
+  // parsing logic.
   UserModel _parseAuthUser(Map<String, dynamic> data) {
-    final u = data['user'] as Map<String, dynamic>;
-    return UserModel(
-      id: u['id'].toString(),
-      email: u['email'] ?? '',
-      fullName: u['full_name'] ?? '',
-      role: u['role'] ?? 'student',
-      createdAt: DateTime.parse(u['created_at']),
-      // languagePref / credits / points / teacherApproved are left at their
-      // UserModel defaults here — call getMe() right after login/register/
-      // otp-verify if you need those populated immediately.
-    );
+    return UserModel.fromJson(data['user'] as Map<String, dynamic>);
   }
 
   // ── Email + Password Login ────────────────────────────────────────────────
@@ -56,7 +49,8 @@ class AuthRepository {
       data: {'email': email, 'password': password},
       authenticated: false,
     );
-    await _api.saveTokens(access: data['accessToken'], refresh: data['refreshToken']);
+    await _api.saveTokens(
+        access: data['accessToken'], refresh: data['refreshToken']);
     return _parseAuthUser(data);
   }
 
@@ -86,7 +80,8 @@ class AuthRepository {
       data: {'target': email, 'code': otp, 'type': 'email'},
       authenticated: false,
     );
-    await _api.saveTokens(access: data['accessToken'], refresh: data['refreshToken']);
+    await _api.saveTokens(
+        access: data['accessToken'], refresh: data['refreshToken']);
     return _parseAuthUser(data);
   }
 
@@ -96,7 +91,8 @@ class AuthRepository {
       data: {'target': phone, 'code': otp, 'type': 'sms'},
       authenticated: false,
     );
-    await _api.saveTokens(access: data['accessToken'], refresh: data['refreshToken']);
+    await _api.saveTokens(
+        access: data['accessToken'], refresh: data['refreshToken']);
     return _parseAuthUser(data);
   }
 
@@ -107,20 +103,19 @@ class AuthRepository {
   }
 
   // ── Register ──────────────────────────────────────────────────────────────
-  // ⚠️ FIXED: backend (auth.controller.js) expects a single `fullName` field
-  // (users table has one full_name column, no first_name/last_name split).
-  // We still collect firstName/lastName separately in the UI for nicer UX,
-  // but combine them here before sending, so the request actually matches
-  // what the server reads — previously it sent firstName/lastName only,
-  // which the backend never looked at, always failing with
-  // "Full name required" regardless of input.
+  // The users table has separate `first_name` / `last_name` columns (see
+  // src/db/schema.sql), and auth.controller.js's register() now reads
+  // `firstName`/`lastName` directly from the request body — so send them
+  // as-is instead of combining into a single `fullName` string.
   //
-  // `phone` is now sent too — the users table has a phone column and the
+  // `phone` is sent too — the users table has a phone column and the
   // backend persists it, needed for Phone OTP login/registration.
   //
-  // Dropped 'creditsPerSession' — session cost now comes from the pricing
-  // table, not a per-teacher column. Sending it is harmless (backend just
-  // ignores unknown fields) but removed for clarity.
+  // `creditsPerSession` is intentionally not sent here — a self-registering
+  // teacher doesn't get to set their own per-session credit cost;
+  // teacher_profiles.credits_per_session defaults to 6 and can be adjusted
+  // by an Admin later (or set explicitly when an Admin creates the account
+  // via CreateTeacherAccountScreen).
   Future<UserModel> register({
     required String email,
     required String password,
@@ -142,7 +137,8 @@ class AuthRepository {
       data: {
         'email': email,
         'password': password,
-        'fullName': '$firstName $lastName'.trim(),
+        'firstName': firstName,
+        'lastName': lastName,
         'role': role.apiValue,
         'phone': phone,
         'bio': bio,
@@ -153,7 +149,8 @@ class AuthRepository {
         'level': level,
       },
     );
-    await _api.saveTokens(access: data['accessToken'], refresh: data['refreshToken']);
+    await _api.saveTokens(
+        access: data['accessToken'], refresh: data['refreshToken']);
     return _parseAuthUser(data);
   }
 

@@ -28,12 +28,20 @@ async function issueTokens(user) {
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /auth/register
 // ─────────────────────────────────────────────────────────────────────────────
+// FIX: the `users` table has separate `first_name` / `last_name` columns
+// (see src/db/schema.sql), not a single `full_name` column. This previously
+// destructured `fullName` from req.body and inserted it into a `full_name`
+// column that doesn't exist — every registration (student self-signup, and
+// previously teacher self-signup) was failing with a SQL error ("column
+// full_name does not exist"). Now accepts firstName/lastName directly,
+// matching what the Flutter side (AuthController.register()) actually sends.
 
 exports.register = async (req, res) => {
   const {
     email,
     password,
-    fullName,
+    firstName,
+    lastName,
     role,
     phone,
 
@@ -60,8 +68,8 @@ exports.register = async (req, res) => {
     return res.status(400).json({ error: "Password required" });
   }
 
-  if (!fullName) {
-    return res.status(400).json({ error: "Full name required" });
+  if (!firstName || !lastName) {
+    return res.status(400).json({ error: "First and last name required" });
   }
 
   try {
@@ -72,17 +80,34 @@ exports.register = async (req, res) => {
       INSERT INTO users (
         email,
         password_hash,
-        full_name,
+        first_name,
+        last_name,
         role,
         phone
       )
-      VALUES ($1,$2,$3,$4,$5)
+      VALUES ($1,$2,$3,$4,$5,$6)
       RETURNING *
       `,
-      [email, hash, fullName, role, phone || null]
+      [email, hash, firstName, lastName, role, phone || null],
     );
 
     const user = rows[0];
+
+    if (role === "student") {
+      await pool.query(
+        `
+        INSERT INTO student_profiles
+        (
+          user_id,
+          native_language,
+          learning_goals,
+          level
+        )
+        VALUES ($1,$2,$3,$4)
+        `,
+        [user.id, nativeLanguage || "", learningGoals || [], level || ""],
+      );
+    }
 
     if (role === "teacher") {
       await pool.query(
@@ -96,12 +121,7 @@ exports.register = async (req, res) => {
         )
         VALUES ($1,$2,$3,$4)
         `,
-        [
-          user.id,
-          bio || "",
-          subjects || [],
-          availability || [],
-        ]
+        [user.id, bio || "", subjects || [], availability || []],
       );
     }
 
@@ -113,9 +133,10 @@ exports.register = async (req, res) => {
       // Unique violation — could be email or phone depending on which
       // constraint fired. err.constraint gives the constraint name if you
       // want to disambiguate further later (e.g. 'users_phone_key').
-      const field = err.constraint && err.constraint.includes("phone")
-        ? "Phone number"
-        : "Email";
+      const field =
+        err.constraint && err.constraint.includes("phone")
+          ? "Phone number"
+          : "Email";
       return res.status(409).json({
         error: `${field} already registered`,
       });
@@ -142,8 +163,11 @@ exports.login = async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      `SELECT * FROM users WHERE email = $1`,
-      [email]
+      `SELECT u.*, tp.is_approved AS teacher_approved
+       FROM users u
+       LEFT JOIN teacher_profiles tp ON tp.user_id = u.id
+       WHERE u.email = $1`,
+      [email],
     );
 
     if (!rows.length) {
@@ -154,10 +178,7 @@ exports.login = async (req, res) => {
 
     const user = rows[0];
 
-    const match = await bcrypt.compare(
-      password,
-      user.password_hash || ""
-    );
+    const match = await bcrypt.compare(password, user.password_hash || "");
 
     if (!match) {
       return res.status(401).json({
@@ -233,8 +254,11 @@ exports.verifyOtp = async (req, res) => {
     const column = type === "sms" ? "phone" : "email";
 
     const { rows } = await pool.query(
-      `SELECT * FROM users WHERE ${column} = $1`,
-      [target]
+      `SELECT u.*, tp.is_approved AS teacher_approved
+       FROM users u
+       LEFT JOIN teacher_profiles tp ON tp.user_id = u.id
+       WHERE u.${column} = $1`,
+      [target],
     );
 
     if (!rows.length) {
@@ -284,10 +308,9 @@ exports.logout = async (req, res) => {
   const { refreshToken } = req.body;
 
   if (refreshToken) {
-    await pool.query(
-      `DELETE FROM refresh_tokens WHERE token = $1`,
-      [refreshToken]
-    );
+    await pool.query(`DELETE FROM refresh_tokens WHERE token = $1`, [
+      refreshToken,
+    ]);
   }
 
   res.json({
@@ -312,6 +335,7 @@ exports.me = async (req, res) => {
         tp.bio,
         tp.subjects,
         tp.availability,
+        tp.credits_per_session,
         tp.is_approved AS teacher_approved,
         tp.rating,
         tp.total_sessions
@@ -343,7 +367,7 @@ exports.me = async (req, res) => {
 
       WHERE u.id = $1
       `,
-      [req.user.sub]
+      [req.user.sub],
     );
 
     if (!rows.length) {
