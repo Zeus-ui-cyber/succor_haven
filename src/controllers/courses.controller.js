@@ -1,4 +1,16 @@
 // src/controllers/courses.controller.js
+//
+// ⚠️ SCHEMA NOTE: `courses` is confirmed to exist in the live database
+// (via pgAdmin table list against the correctly-connected Neon server),
+// but its exact column list has not been independently verified the way
+// credit_rules, pricing, and milestones were. This file's queries are
+// internally consistent and don't touch `users` (the table responsible
+// for every other bug found this session), so risk is lower than usual —
+// but if any endpoint here throws "column does not exist," run:
+//   SELECT column_name, data_type FROM information_schema.columns
+//   WHERE table_name = 'courses';
+// against Neon and compare.
+
 const pool = require("../db/pool");
 
 // ── GET /courses — browse, filterable by category/search ──────────────────────
@@ -72,6 +84,8 @@ exports.getOne = async (req, res) => {
 };
 
 // ── POST /admin/courses — admin creates a course ────────────────────────────────
+// ⚠️ HARDENED: an invalid pricingId (typo, deleted tier) previously fell
+// through to a generic 500 with no explanation. Now caught explicitly.
 exports.create = async (req, res) => {
   const {
     title, titleCn, category, ageGroup, difficulty,
@@ -97,11 +111,15 @@ exports.create = async (req, res) => {
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error(err);
+    if (err.code === "23503") {
+      return res.status(400).json({ error: "The selected pricing tier does not exist." });
+    }
     res.status(500).json({ error: "Failed to create course" });
   }
 };
 
 // ── PATCH /admin/courses/:id ─────────────────────────────────────────────────
+// ⚠️ HARDENED: same FK-violation handling as create() above.
 exports.update = async (req, res) => {
   const { id } = req.params;
   const {
@@ -136,6 +154,9 @@ exports.update = async (req, res) => {
     res.json(rows[0]);
   } catch (err) {
     console.error(err);
+    if (err.code === "23503") {
+      return res.status(400).json({ error: "The selected pricing tier does not exist." });
+    }
     res.status(500).json({ error: "Failed to update course" });
   }
 };

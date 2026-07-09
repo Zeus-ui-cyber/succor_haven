@@ -4,6 +4,15 @@
 //   Shape A (old): { first_name, last_name, ... }
 //   Shape B (new): { full_name, ... }
 // So the app works whether or not you've migrated the DB column.
+//
+// ⚠️ FIXED: avatar image was read from `profile_picture_url`, but the
+// real column (confirmed against the live Neon schema) is `avatar_url` —
+// settings.controller.js and auth.controller.js were already corrected to
+// use avatar_url, this model just hadn't been updated to match, so every
+// response silently had a null avatar despite the backend sending real
+// data under a different key. Property name kept as `profilePictureUrl`
+// (in case other files reference it) — only the JSON key it reads from
+// changed.
 
 class UserModel {
   final String id;
@@ -81,7 +90,7 @@ class UserModel {
       points:          (json['points']   as num?)?.toInt() ?? 0,
       createdAt:       resolvedDate,
       teacherApproved: json['teacher_approved'] as bool? ?? false,
-      profilePictureUrl: json['profile_picture_url'] as String?,
+      profilePictureUrl: json['avatar_url'] as String?,
     );
   }
 
@@ -95,7 +104,7 @@ class UserModel {
         'points':             points,
         'created_at':         createdAt.toIso8601String(),
         'teacher_approved':   teacherApproved,
-        'profile_picture_url': profilePictureUrl,
+        'avatar_url':         profilePictureUrl,
       };
 
   UserModel copyWith({

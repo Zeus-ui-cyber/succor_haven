@@ -17,14 +17,27 @@
 // getCreditsSummary, update it to use teachCtrl instead — those exports no
 // longer exist here.
 //
-// ─────────────────────────────────────────────────────────────────────────
-// TEMP DEBUG: updateProfile below logs current_database()/inet_server_addr()
-// right before the UPDATE that's failing with "column full_name does not
-// exist" — even though pgAdmin confirms the column exists on the `public`
-// schema. This almost always means Node is connected to a different
-// database/host than the one you're browsing in pgAdmin. Remove the
-// "TEMP DEBUG" block once you've confirmed the connection target.
-// ─────────────────────────────────────────────────────────────────────────
+// ⚠️ FIXED (this pass): the previous version wrote to a `full_name` column
+// on UPDATE, based on a comment claiming pgAdmin confirmed that column
+// exists. That check was run against the LOCAL succor_haven Postgres
+// instance, not neondb — confirmed via runtime log (`DB CHECK: {
+// current_database: 'neondb', ... }`) followed immediately by `error:
+// column "full_name" does not exist`. The real columns are first_name /
+// last_name, same as every other table in this app. Rewritten below.
+//
+// ⚠️ ALSO FIXED: `profile_picture_url` was referenced throughout (in the
+// UPDATE ... RETURNING clause here, and as the column name in
+// uploadProfilePicture below). This was untested — the full_name error
+// above happened first in the same query, so profile_picture_url's
+// correctness was never actually exercised. Per the confirmed live schema
+// (teachers.controller.js hit a real runtime error whose Postgres hint
+// read `Perhaps you meant to reference the column "u.avatar_url"`), the
+// real column on `users` is `avatar_url`, not `profile_picture_url`.
+// Renamed throughout. If this turns out wrong, run:
+//   SELECT column_name FROM information_schema.columns WHERE table_name = 'users';
+// against neondb (via psql, Neon's own web SQL editor, or a correctly
+// re-registered pgAdmin connection — not the local server) and tell me
+// the real name.
 
 const bcrypt = require("bcrypt"); // swap for require("bcryptjs") if that's what auth.controller.js uses
 const path = require("path");
@@ -52,21 +65,12 @@ exports.updateProfile = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "First name and last name are required." });
   }
 
-  const fullName = `${firstName.trim()} ${lastName.trim()}`;
-
-  // --- TEMP DEBUG: confirm which DB Node is actually hitting ---
-  const check = await pool.query(
-    `SELECT current_database(), inet_server_addr(), inet_server_port()`,
-  );
-  console.log("DB CHECK:", check.rows[0]);
-  // --- END TEMP DEBUG ---
-
   const result = await pool.query(
     `UPDATE users
-        SET full_name = $1
-      WHERE id = $2
-      RETURNING id, email, full_name, role, profile_picture_url, created_at`,
-    [fullName, userId],
+        SET first_name = $1, last_name = $2
+      WHERE id = $3
+      RETURNING id, email, first_name, last_name, role, avatar_url, created_at`,
+    [firstName.trim(), lastName.trim(), userId],
   );
 
   if (result.rowCount === 0) {
@@ -90,12 +94,12 @@ exports.uploadProfilePicture = asyncHandler(async (req, res) => {
   const relativeUrl = `/uploads/profile-pictures/${req.file.filename}`;
 
   const existing = await pool.query(
-    `SELECT profile_picture_url FROM users WHERE id = $1`,
+    `SELECT avatar_url FROM users WHERE id = $1`,
     [userId],
   );
-  const oldUrl = existing.rows[0]?.profile_picture_url;
+  const oldUrl = existing.rows[0]?.avatar_url;
 
-  await pool.query(`UPDATE users SET profile_picture_url = $1 WHERE id = $2`, [
+  await pool.query(`UPDATE users SET avatar_url = $1 WHERE id = $2`, [
     relativeUrl,
     userId,
   ]);
@@ -107,7 +111,7 @@ exports.uploadProfilePicture = asyncHandler(async (req, res) => {
 
   return res.status(200).json({
     message: "Profile picture updated successfully.",
-    profilePictureUrl: relativeUrl,
+    avatarUrl: relativeUrl,
   });
 });
 
@@ -259,6 +263,13 @@ const SUPPORTED_LANGUAGES = ["en", "zh"];
 
 // PATCH /settings/language
 // body: { language }
+// ⚠️ UNVERIFIED: language_pref column not yet confirmed against neondb —
+// no runtime error has been observed on this endpoint yet, but that could
+// mean it's correct OR simply that it hasn't been exercised. Same caution
+// applies to backup_phone, notify_upcoming_session, notify_session_reminder,
+// notify_student_booking, notify_general_announcement below — none of
+// these have thrown yet, but "hasn't thrown yet" is not the same as
+// "confirmed correct," per this session's track record.
 exports.updateLanguage = asyncHandler(async (req, res) => {
   const userId = req.user.sub;
   const { language } = req.body;

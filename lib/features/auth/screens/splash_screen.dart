@@ -16,7 +16,6 @@ class _C {
   static const magenta = Color(0xFFD64577);
   static const burgundy = Color(0xFF7D002B);
   static const mauve = Color(0xFFE08AB2);
-  static const cream = Color(0xFFFFF5F7);
 }
 
 class SplashScreen extends StatefulWidget {

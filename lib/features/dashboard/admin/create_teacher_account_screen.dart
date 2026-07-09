@@ -33,8 +33,6 @@ import '../../auth/repositories/auth_repository.dart';
 // ─── Palette (matches admin_dashboard_screen.dart) ─────────────────────────────
 class _C {
   static const burgundy = Color(0xFF7D002B);
-  static const magenta = Color(0xFFD64577);
-  static const blushPink = Color(0xFFF2C6D6);
   static const softPink = Color(0xFFF9E1EA);
   static const slateBlue = Color(0xFF3E678A);
   static const cream = Color(0xFFFFF5F7);
@@ -43,7 +41,6 @@ class _C {
   static const line = Color(0xFFF0DCE5);
   static const paper = Color(0xFFFFFFFF);
   static const green = Color(0xFF00C48C);
-  static const greenPale = Color(0xFFDCF7EE);
 }
 
 final _adminRepoProvider = Provider((_) => AuthRepository());
@@ -518,8 +515,8 @@ class _SuccessDialog extends StatelessWidget {
     return AlertDialog(
       backgroundColor: _C.paper,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Row(
-        children: const [
+      title: const Row(
+        children: [
           Icon(Icons.check_circle_rounded, color: _C.green),
           SizedBox(width: 8),
           Text('Account created', style: TextStyle(color: _C.ink)),

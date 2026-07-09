@@ -7,10 +7,8 @@ class _C {
   static const violetPale = Color(0xFFEFEAFE);
   static const amberPale = Color(0xFFFFF0DC);
   static const coral = Color(0xFFFF8FA3);
-  static const coralPale = Color(0xFFFFE9ED);
   static const teal = Color(0xFF3FC6BD);
   static const tealPale = Color(0xFFE2F8F6);
-  static const cream = Color(0xFFFFF8F0);
   static const ink = Color(0xFF2D2A4A);
   static const inkSoft = Color(0xFF7A769B);
   static const line = Color(0xFFECE7F7);

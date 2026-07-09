@@ -28,13 +28,15 @@ async function issueTokens(user) {
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /auth/register
 // ─────────────────────────────────────────────────────────────────────────────
-// FIX: the `users` table has separate `first_name` / `last_name` columns
-// (see src/db/schema.sql), not a single `full_name` column. This previously
-// destructured `fullName` from req.body and inserted it into a `full_name`
-// column that doesn't exist — every registration (student self-signup, and
-// previously teacher self-signup) was failing with a SQL error ("column
-// full_name does not exist"). Now accepts firstName/lastName directly,
-// matching what the Flutter side (AuthController.register()) actually sends.
+// ⚠️ FIXED: the previous "audit" comment here claimed `users.full_name is
+// the real column` — that was checked against the LOCAL succor_haven
+// Postgres instance, not neondb (the database this app's DATABASE_URL
+// actually points to). Confirmed via runtime error: every registration
+// attempt was failing with `column "full_name" does not exist` against
+// neondb. The real columns are first_name / last_name, same as every
+// other table. Still accepts firstName/lastName from the client — no
+// Flutter changes needed — but now inserts them as separate columns
+// instead of concatenating into a full_name string that has nowhere to go.
 
 exports.register = async (req, res) => {
   const {
@@ -48,9 +50,10 @@ exports.register = async (req, res) => {
     // teacher fields
     bio,
     subjects,
-    availability,
 
-    // accepted but currently not persisted
+    // accepted but NOT persisted — no student_profiles table exists to
+    // hold these. If you want them stored, tell me where (e.g. new columns
+    // on users) and I'll add a migration + wire it up.
     nativeLanguage,
     learningGoals,
     level,
@@ -88,26 +91,14 @@ exports.register = async (req, res) => {
       VALUES ($1,$2,$3,$4,$5,$6)
       RETURNING *
       `,
-      [email, hash, firstName, lastName, role, phone || null],
+      [email, hash, firstName.trim(), lastName.trim(), role, phone || null],
     );
 
     const user = rows[0];
 
-    if (role === "student") {
-      await pool.query(
-        `
-        INSERT INTO student_profiles
-        (
-          user_id,
-          native_language,
-          learning_goals,
-          level
-        )
-        VALUES ($1,$2,$3,$4)
-        `,
-        [user.id, nativeLanguage || "", learningGoals || [], level || ""],
-      );
-    }
+    // No student_profiles table — students don't get a profile row here.
+    // Their credits/points start at 0 implicitly (no credits_ledger rows
+    // yet), same convention as everywhere else in the codebase.
 
     if (role === "teacher") {
       await pool.query(
@@ -116,12 +107,11 @@ exports.register = async (req, res) => {
         (
           user_id,
           bio,
-          subjects,
-          availability
+          subjects
         )
-        VALUES ($1,$2,$3,$4)
+        VALUES ($1,$2,$3)
         `,
-        [user.id, bio || "", subjects || [], availability || []],
+        [user.id, bio || "", subjects || []],
       );
     }
 
@@ -321,6 +311,8 @@ exports.logout = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /auth/me
 // ─────────────────────────────────────────────────────────────────────────────
+// avatar_url comes through via `SELECT u.*` above (it lives on `users`,
+// not `teacher_profiles` — confirmed in teachers.controller.js).
 
 exports.me = async (req, res) => {
   try {
@@ -334,8 +326,6 @@ exports.me = async (req, res) => {
 
         tp.bio,
         tp.subjects,
-        tp.availability,
-        tp.credits_per_session,
         tp.is_approved AS teacher_approved,
         tp.rating,
         tp.total_sessions

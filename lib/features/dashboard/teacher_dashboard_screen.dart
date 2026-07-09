@@ -13,7 +13,6 @@ import '../settings/screens/student/change_password_screen.dart';
 
 class _C {
   static const slateBlue = Color(0xFF3E678A);
-  static const dustyBlue = Color(0xFFA7BCCB);
   static const bluePale = Color(0xFFDCEBF5);
   static const magenta = Color(0xFFD64577);
   static const burgundy = Color(0xFF7D002B);
@@ -26,7 +25,6 @@ class _C {
   static const paper = Color(0xFFFFFFFF);
   static const green = Color(0xFF00C48C);
   static const greenPale = Color(0xFFDCF7EE);
-  static const amber = Color(0xFFFFB347);
 }
 
 final _tRepoProvider = Provider((_) => AuthRepository());

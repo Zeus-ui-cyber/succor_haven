@@ -61,6 +61,14 @@ exports.create = async (req, res) => {
 };
 
 // ── PATCH /admin/credit-rules/:id ─────────────────────────────────────────────
+// ⚠️ HARDENED: `amount ?? existing.amount` only preserves the old value
+// when the client sends `null` — a literal `0` or empty string is treated
+// as a real value and would overwrite silently. The Flutter admin screen
+// (credit_rules_screen.dart) already blocks submitting a blank amount
+// client-side, so this couldn't happen through that UI today, but adding
+// a server-side check too means any other caller of this endpoint
+// (scripts, future admin tools) gets the same protection without relying
+// on client-side validation alone.
 exports.update = async (req, res) => {
   const { id } = req.params;
   const {
@@ -73,6 +81,16 @@ exports.update = async (req, res) => {
     applies_to,
     is_active,
   } = req.body;
+
+  if (amount !== undefined && amount !== null && Number(amount) < 0) {
+    return res.status(400).json({ error: "amount must be a non-negative number" });
+  }
+  if (type !== undefined && !["earn", "spend"].includes(type)) {
+    return res.status(400).json({ error: "type must be 'earn' or 'spend'" });
+  }
+  if (currency !== undefined && !["credits", "points"].includes(currency)) {
+    return res.status(400).json({ error: "currency must be 'credits' or 'points'" });
+  }
 
   try {
     const { rows: existingRows } = await pool.query(

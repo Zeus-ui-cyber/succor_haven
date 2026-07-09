@@ -18,6 +18,7 @@ const creditRulesCtrl = require("../controllers/creditRules.controller");
 const pricingCtrl = require("../controllers/pricing.controller");
 const milestonesCtrl = require("../controllers/milestones.controller");
 const settingsCtrl = require("../controllers/settings.controller");
+const studentsAdminCtrl = require("../controllers/studentsAdmin.controller");
 
 const router = express.Router();
 
@@ -219,6 +220,21 @@ router.get("/admin/rewards", ...admin, adminCtrl.listRewards);
 router.post("/admin/rewards", ...admin, adminCtrl.createReward);
 router.patch("/admin/rewards/:id", ...admin, adminCtrl.updateReward);
 router.delete("/admin/rewards/:id", ...admin, adminCtrl.deleteReward);
+
+// ── Admin · Students List ──────────────────────────────────────────────────────
+// Activate/deactivate and delete are NOT duplicated here — the Flutter
+// Student Detail screen calls the existing adminCtrl.toggleUser /
+// adminCtrl.deleteUser endpoints above (PATCH/DELETE /admin/users/:id...),
+// since those already operate generically on any user id.
+router.get("/admin/students", ...admin, studentsAdminCtrl.list);
+router.get("/admin/students/summary", ...admin, studentsAdminCtrl.summary);
+router.get("/admin/students/:id", ...admin, studentsAdminCtrl.getOne);
+router.patch("/admin/students/:id", ...admin, studentsAdminCtrl.update);
+router.post(
+  "/admin/students/:id/reset-password",
+  ...admin,
+  studentsAdminCtrl.resetPassword,
+);
 
 // ── Admin · Credit Rules ──────────────────────────────────────────────────────
 router.get("/admin/credit-rules", ...admin, creditRulesCtrl.list);

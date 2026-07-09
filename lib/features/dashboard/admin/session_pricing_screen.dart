@@ -3,10 +3,12 @@
 // Admin screen — Session Pricing (课程定价)
 // Manages pricing tiers / packages. The admin can set a base credit cost per
 // session type and create special "packages" (e.g. 10 sessions for 80 credits
-// instead of 100 = 20 % discount). Teachers' own creditsPerSession values
-// can be overridden here by pinning a fixed price to a session type.
+// instead of 100 = 20 % discount).
 //
-// API assumed endpoints
+// API endpoints (wired to pricing.controller.js, which queries the `pricing`
+// table from 0001_credit_rules_and_pricing.sql — confirmed via pgAdmin as
+// the only pricing-related table in the database; no `session_pricing`
+// table exists)
 //   GET    /admin/pricing             → List<PricingTier>
 //   POST   /admin/pricing             → PricingTier   (body: PricingPayload)
 //   PATCH  /admin/pricing/:id         → PricingTier
@@ -21,11 +23,18 @@
 //   "credits_per_session": 10,
 //   "sessions_in_package": 1,          // > 1 → it's a bundle
 //   "total_credits": 10,               // credits_per_session * sessions_in_package (may differ for discount)
-//   "discount_pct": 0,                 // 0-100
+//   "discount_pct": 0,                 // 0-100 — backend casts to float8, but
+//                                      // parsed defensively below via _asNum()
+//                                      // in case any query path returns it as
+//                                      // a NUMERIC string instead (Postgres's
+//                                      // default node-pg behavior).
 //   "applies_to": "student" | "teacher" | "all",
 //   "is_active": true,
 //   "created_at": "ISO8601"
 // }
+//
+// Pricing is confirmed TIER-based, not per-teacher: cost and point-earn
+// rate come from session_type, not which teacher taught the session.
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -39,7 +48,6 @@ class _C {
   static const sunshineDeep = Color(0xFFFFB100);
   static const sunshineGlow = Color(0xFFFFE49A);
   static const navy = Color(0xFF142850);
-  static const navySoft = Color(0xFF274472);
   static const coral = Color(0xFFFF6F61);
   static const coralSoft = Color(0xFFFFD9CC);
   static const blushSoft = Color(0xFFFCE0E6);
@@ -51,6 +59,17 @@ class _C {
   static const greenPale = Color(0xFFDFFBEF);
   static const teal = Color(0xFF0097A7);
   static const tealPale = Color(0xFFE0F7FA);
+}
+
+// Postgres NUMERIC columns (like discount_pct) can arrive as strings
+// depending on how a query casts them. This parses either shape instead of
+// assuming `as num?` will always succeed — a plain cast throws the moment
+// any tier has a non-null discount returned as a string.
+num _asNum(dynamic v, [num fallback = 0]) {
+  if (v == null) return fallback;
+  if (v is num) return v;
+  if (v is String) return num.tryParse(v) ?? fallback;
+  return fallback;
 }
 
 // ── Providers ────────────────────────────────────────────────────────────────
@@ -104,8 +123,14 @@ class _SessionPricingScreenState extends ConsumerState<SessionPricingScreen> {
       headers: await _headers(repo),
     );
     if (mounted) {
+      String message = res.statusCode == 200 ? 'Tier deleted' : 'Failed';
+      if (res.statusCode == 409) {
+        try {
+          message = jsonDecode(res.body)['error'] ?? message;
+        } catch (_) {}
+      }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(res.statusCode == 200 ? 'Tier deleted' : 'Failed'),
+        content: Text(message),
         backgroundColor: res.statusCode == 200 ? _C.green : _C.coral,
       ));
       if (res.statusCode == 200) ref.invalidate(_pricingProvider);
@@ -175,7 +200,7 @@ class _SessionPricingScreenState extends ConsumerState<SessionPricingScreen> {
                 final totalActive =
                     tiers.where((t) => t['is_active'] == true).length;
                 final bundles = tiers
-                    .where((t) => (t['sessions_in_package'] as num? ?? 1) > 1)
+                    .where((t) => _asNum(t['sessions_in_package'], 1) > 1)
                     .length;
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -324,10 +349,10 @@ class _PricingCard extends StatelessWidget {
     final t = tier;
     final active = t['is_active'] as bool? ?? true;
     final sessionType = t['session_type'] as String? ?? 'standard';
-    final creditsPerSes = t['credits_per_session'] as num? ?? 0;
-    final sessionsInPkg = t['sessions_in_package'] as num? ?? 1;
-    final totalCredits = t['total_credits'] as num? ?? creditsPerSes;
-    final discountPct = t['discount_pct'] as num? ?? 0;
+    final creditsPerSes = _asNum(t['credits_per_session']);
+    final sessionsInPkg = _asNum(t['sessions_in_package'], 1);
+    final totalCredits = _asNum(t['total_credits'], creditsPerSes);
+    final discountPct = _asNum(t['discount_pct']);
     final isBundle = sessionsInPkg > 1;
 
     final typeColor = _typeColor(sessionType);
@@ -375,7 +400,7 @@ class _PricingCard extends StatelessWidget {
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
                             color: _C.navy)),
-                    if ((t['name_cn'] ?? '').isNotEmpty)
+                    if ((t['name_cn'] ?? '').toString().isNotEmpty)
                       Text(t['name_cn'],
                           style: const TextStyle(
                               fontSize: 11,
@@ -415,7 +440,7 @@ class _PricingCard extends StatelessWidget {
                                 fontSize: 10,
                                 color: typeColor,
                                 fontWeight: FontWeight.w700)),
-                        Text('$creditsPerSes 💎',
+                        Text('${creditsPerSes.toInt()} 💎',
                             style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w900,
@@ -430,12 +455,12 @@ class _PricingCard extends StatelessWidget {
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('$sessionsInPkg-session bundle',
+                          Text('${sessionsInPkg.toInt()}-session bundle',
                               style: const TextStyle(
                                   fontSize: 10,
                                   color: _C.inkSoft,
                                   fontWeight: FontWeight.w700)),
-                          Text('$totalCredits 💎 total',
+                          Text('${totalCredits.toInt()} 💎 total',
                               style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w900,
@@ -450,7 +475,7 @@ class _PricingCard extends StatelessWidget {
                         color: _C.green,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Text('-$discountPct%',
+                      child: Text('-${discountPct.toInt()}%',
                           style: const TextStyle(
                               fontSize: 11,
                               color: Colors.white,
@@ -602,13 +627,13 @@ class _PricingSheetState extends ConsumerState<_PricingSheet> {
     if (e != null) {
       _nameCtrl.text = e['name'] ?? '';
       _nameCnCtrl.text = e['name_cn'] ?? '';
-      _creditsCtrl.text = '${e['credits_per_session'] ?? ''}';
-      _sessionsCtrl.text = '${e['sessions_in_package'] ?? 1}';
-      _totalCtrl.text = '${e['total_credits'] ?? ''}';
-      _discountCtrl.text = '${e['discount_pct'] ?? 0}';
+      _creditsCtrl.text = '${_asNum(e['credits_per_session']).toInt()}';
+      _sessionsCtrl.text = '${_asNum(e['sessions_in_package'], 1).toInt()}';
+      _totalCtrl.text = '${_asNum(e['total_credits']).toInt()}';
+      _discountCtrl.text = '${_asNum(e['discount_pct'])}';
       _sessionType = e['session_type'] ?? 'standard';
       _appliesTo = e['applies_to'] ?? 'all';
-      _isBundle = (e['sessions_in_package'] as num? ?? 1) > 1;
+      _isBundle = _asNum(e['sessions_in_package'], 1) > 1;
     }
     // Auto-compute total when credits or sessions change
     _creditsCtrl.addListener(_autoTotal);
@@ -678,10 +703,16 @@ class _PricingSheetState extends ConsumerState<_PricingSheet> {
         );
       }
       if (mounted) {
+        String message = res.statusCode < 300
+            ? (widget.existing != null ? 'Tier updated ✓' : 'Tier created ✓')
+            : 'Failed (${res.statusCode})';
+        if (res.statusCode >= 400) {
+          try {
+            message = jsonDecode(res.body)['error'] ?? message;
+          } catch (_) {}
+        }
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(res.statusCode < 300
-              ? (widget.existing != null ? 'Tier updated ✓' : 'Tier created ✓')
-              : 'Failed (${res.statusCode})'),
+          content: Text(message),
           backgroundColor: res.statusCode < 300 ? _C.green : _C.coral,
         ));
         if (res.statusCode < 300) {

@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:fl_chart/fl_chart.dart';
 import '../auth/controllers/auth_controller.dart';
 import '../auth/repositories/auth_repository.dart';
 import 'admin/create_teacher_account_screen.dart';
+import 'admin/students_list_screen.dart';
 
 class _C {
   static const burgundy = Color(0xFF7D002B);
@@ -19,7 +21,18 @@ class _C {
   static const line = Color(0xFFF0DCE5);
   static const paper = Color(0xFFFFFFFF);
   static const green = Color(0xFF00C48C);
-  static const greenPale = Color(0xFFDCF7EE);
+}
+
+// Backend now returns a single computed `full_name` field (first + last
+// concatenated server-side), not separate first_name/last_name — see
+// admin.controller.js listUsers(). This derives initials safely from that,
+// handling null, empty, and single-word names instead of assuming exactly
+// two parts always exist.
+String _initials(String? fullName) {
+  if (fullName == null || fullName.trim().isEmpty) return '?';
+  final parts = fullName.trim().split(RegExp(r'\s+'));
+  if (parts.length == 1) return parts[0][0].toUpperCase();
+  return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
 }
 
 final _adminRepoProvider = Provider((_) => AuthRepository());
@@ -38,7 +51,10 @@ final _dashboardProvider = FutureProvider<Map<String, dynamic>>((ref) async {
     Uri.parse('${AuthRepository.baseUrl}/admin/dashboard'),
     headers: await _adminHeaders(repo),
   );
-  if (res.statusCode != 200) throw Exception('Failed to load dashboard');
+  if (res.statusCode != 200) {
+    throw Exception(
+        'Failed to load dashboard (${res.statusCode}): ${res.body}');
+  }
   return jsonDecode(res.body) as Map<String, dynamic>;
 });
 
@@ -78,7 +94,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this);
+    _tabs = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -159,6 +175,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard>
                   Tab(text: 'Overview'),
                   Tab(text: 'Teachers'),
                   Tab(text: 'Users'),
+                  Tab(text: 'Students'),
                 ],
               ),
             ),
@@ -172,6 +189,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard>
                   _OverviewTab(),
                   _TeachersTab(),
                   _UsersTab(),
+                  StudentsListScreen(asTab: true),
                 ],
               ),
             ),
@@ -218,11 +236,18 @@ class _OverviewTab extends ConsumerWidget {
           }
         }
 
+        final students = countByRole('student');
+        final teachers = countByRole('teacher');
+        final totalUsers = students + teachers + countByRole('admin');
+        final active = countByStatus('confirmed');
+        final completed = countByStatus('completed');
+        final cancelled = countByStatus('cancelled');
+
         return SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            // Revenue card
+            // Revenue hero card
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -233,16 +258,28 @@ class _OverviewTab extends ConsumerWidget {
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: _C.burgundy.withValues(alpha: 0.25),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Total Revenue · 总收入',
-                        style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
+                    Row(children: [
+                      const Icon(Icons.payments_rounded,
+                          color: Colors.white70, size: 18),
+                      const SizedBox(width: 8),
+                      const Text('Total Revenue · 总收入',
+                          style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600)),
+                    ]),
+                    const SizedBox(height: 10),
                     Text('₱ ${revenue.toStringAsFixed(2)}',
                         style: const TextStyle(
                             color: Colors.white,
@@ -255,7 +292,7 @@ class _OverviewTab extends ConsumerWidget {
             // Pending approval banner
             if (pending > 0)
               Container(
-                margin: const EdgeInsets.only(bottom: 16),
+                margin: const EdgeInsets.only(bottom: 20),
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFF3CD),
@@ -277,40 +314,228 @@ class _OverviewTab extends ConsumerWidget {
                 ]),
               ),
 
-            // User counts
-            const Text('Users · 用户',
+            // ── KPI Cards grid ─────────────────────────────────────────────
+            const Text('Overview · 概览',
                 style: TextStyle(
                     fontSize: 14, fontWeight: FontWeight.w800, color: _C.ink)),
             const SizedBox(height: 10),
-            Row(children: [
-              Expanded(
-                  child: _AdminStat('${countByRole('student')}', 'Students\n学生',
-                      _C.magenta, _C.softPink)),
-              const SizedBox(width: 10),
-              Expanded(
-                  child: _AdminStat('${countByRole('teacher')}', 'Teachers\n老师',
-                      _C.slateBlue, const Color(0xFFDCEBF5))),
-            ]),
-            const SizedBox(height: 20),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 1.5,
+              children: [
+                _KpiCard(
+                  icon: Icons.groups_rounded,
+                  value: '$totalUsers',
+                  label: 'Total Users\n用户总数',
+                  color: _C.burgundy,
+                  pale: _C.blushPink,
+                ),
+                _KpiCard(
+                  icon: Icons.school_rounded,
+                  value: '$students',
+                  label: 'Students\n学生',
+                  color: _C.magenta,
+                  pale: _C.softPink,
+                ),
+                _KpiCard(
+                  icon: Icons.person_rounded,
+                  value: '$teachers',
+                  label: 'Teachers\n老师',
+                  color: _C.slateBlue,
+                  pale: const Color(0xFFDCEBF5),
+                ),
+                _KpiCard(
+                  icon: Icons.hourglass_top_rounded,
+                  value: '$pending',
+                  label: 'Pending Approvals\n待审核',
+                  color: const Color(0xFFB8860B),
+                  pale: const Color(0xFFFFF3CD),
+                ),
+                _KpiCard(
+                  icon: Icons.event_available_rounded,
+                  value: '$active',
+                  label: 'Active Sessions\n进行中',
+                  color: _C.green,
+                  pale: const Color(0xFFDCF7EE),
+                ),
+                _KpiCard(
+                  icon: Icons.check_circle_rounded,
+                  value: '$completed',
+                  label: 'Completed\n已完成',
+                  color: _C.burgundy,
+                  pale: _C.blushPink,
+                ),
+                _KpiCard(
+                  icon: Icons.event_busy_rounded,
+                  value: '$cancelled',
+                  label: 'Cancelled\n已取消',
+                  color: _C.inkSoft,
+                  pale: _C.softPink,
+                ),
+                _KpiCard(
+                  icon: Icons.payments_rounded,
+                  value: '₱${revenue.toStringAsFixed(0)}',
+                  label: 'Revenue\n收入',
+                  color: _C.slateBlue,
+                  pale: const Color(0xFFDCEBF5),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
 
-            // Booking counts
-            const Text('Bookings · 预约',
+            // ── User distribution donut chart ───────────────────────────────
+            const Text('User Distribution · 用户分布',
                 style: TextStyle(
                     fontSize: 14, fontWeight: FontWeight.w800, color: _C.ink)),
             const SizedBox(height: 10),
-            Row(children: [
-              Expanded(
-                  child: _AdminStat('${countByStatus('confirmed')}',
-                      'Active\n进行中', _C.green, const Color(0xFFDCF7EE))),
-              const SizedBox(width: 10),
-              Expanded(
-                  child: _AdminStat('${countByStatus('completed')}',
-                      'Done\n已完成', _C.burgundy, _C.blushPink)),
-              const SizedBox(width: 10),
-              Expanded(
-                  child: _AdminStat('${countByStatus('cancelled')}',
-                      'Cancelled\n已取消', _C.inkSoft, _C.softPink)),
-            ]),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _C.paper,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _C.line),
+              ),
+              child: (students + teachers) == 0
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 30),
+                      child: Center(
+                          child: Text('No user data yet',
+                              style: TextStyle(color: _C.inkSoft))),
+                    )
+                  : SizedBox(
+                      height: 160,
+                      child: Row(children: [
+                        Expanded(
+                          child: PieChart(
+                            PieChartData(
+                              sectionsSpace: 3,
+                              centerSpaceRadius: 34,
+                              sections: [
+                                PieChartSectionData(
+                                  value: students.toDouble(),
+                                  color: _C.magenta,
+                                  title: '$students',
+                                  radius: 42,
+                                  titleStyle: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white),
+                                ),
+                                PieChartSectionData(
+                                  value: teachers.toDouble(),
+                                  color: _C.slateBlue,
+                                  title: '$teachers',
+                                  radius: 42,
+                                  titleStyle: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _LegendDot(color: _C.magenta, label: 'Students'),
+                            const SizedBox(height: 10),
+                            _LegendDot(color: _C.slateBlue, label: 'Teachers'),
+                          ],
+                        ),
+                      ]),
+                    ),
+            ),
+            const SizedBox(height: 24),
+
+            // ── Booking status bar chart ────────────────────────────────────
+            const Text('Booking Status · 预约状态',
+                style: TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w800, color: _C.ink)),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.fromLTRB(12, 20, 12, 8),
+              decoration: BoxDecoration(
+                color: _C.paper,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _C.line),
+              ),
+              child: (active + completed + cancelled) == 0
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 30),
+                      child: Center(
+                          child: Text('No booking data yet',
+                              style: TextStyle(color: _C.inkSoft))),
+                    )
+                  : SizedBox(
+                      height: 160,
+                      child: BarChart(
+                        BarChartData(
+                          alignment: BarChartAlignment.spaceAround,
+                          maxY: [active, completed, cancelled]
+                                  .reduce((a, b) => a > b ? a : b) *
+                                  1.25 +
+                              1,
+                          gridData: const FlGridData(show: false),
+                          borderData: FlBorderData(show: false),
+                          titlesData: FlTitlesData(
+                            leftTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false)),
+                            topTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false)),
+                            rightTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false)),
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                getTitlesWidget: (v, meta) {
+                                  const labels = ['Active', 'Done', 'Cancelled'];
+                                  final i = v.toInt();
+                                  if (i < 0 || i > 2) return const SizedBox();
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Text(labels[i],
+                                        style: const TextStyle(
+                                            fontSize: 10, color: _C.inkSoft)),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                          barGroups: [
+                            BarChartGroupData(x: 0, barRods: [
+                              BarChartRodData(
+                                  toY: active.toDouble(),
+                                  color: _C.green,
+                                  width: 28,
+                                  borderRadius: BorderRadius.circular(6)),
+                            ]),
+                            BarChartGroupData(x: 1, barRods: [
+                              BarChartRodData(
+                                  toY: completed.toDouble(),
+                                  color: _C.burgundy,
+                                  width: 28,
+                                  borderRadius: BorderRadius.circular(6)),
+                            ]),
+                            BarChartGroupData(x: 2, barRods: [
+                              BarChartRodData(
+                                  toY: cancelled.toDouble(),
+                                  color: _C.inkSoft,
+                                  width: 28,
+                                  borderRadius: BorderRadius.circular(6)),
+                            ]),
+                          ],
+                        ),
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 12),
           ]),
         );
       },
@@ -424,6 +649,7 @@ class _TeachersTab extends ConsumerWidget {
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (_, i) {
                   final t = teachers[i];
+                  final fullName = t['full_name'] as String?;
                   return Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
@@ -436,7 +662,7 @@ class _TeachersTab extends ConsumerWidget {
                         radius: 22,
                         backgroundColor: _C.blushPink,
                         child: Text(
-                          '${t['first_name'][0]}${t['last_name'][0]}',
+                          _initials(fullName),
                           style: const TextStyle(
                               color: _C.burgundy,
                               fontWeight: FontWeight.w800,
@@ -448,7 +674,7 @@ class _TeachersTab extends ConsumerWidget {
                           child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                            Text('${t['first_name']} ${t['last_name']}',
+                            Text(fullName ?? 'Unnamed',
                                 style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
@@ -524,6 +750,7 @@ class _UsersTab extends ConsumerWidget {
         separatorBuilder: (_, __) => const SizedBox(height: 8),
         itemBuilder: (_, i) {
           final u = users[i];
+          final fullName = u['full_name'] as String?;
           final role = u['role'] as String;
           final active = u['is_active'] as bool;
           final roleColor = role == 'student'
@@ -544,7 +771,7 @@ class _UsersTab extends ConsumerWidget {
                 radius: 18,
                 backgroundColor: roleColor.withValues(alpha: 0.15),
                 child: Text(
-                  u['first_name'][0],
+                  _initials(fullName),
                   style:
                       TextStyle(color: roleColor, fontWeight: FontWeight.w800),
                 ),
@@ -554,7 +781,7 @@ class _UsersTab extends ConsumerWidget {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                    Text('${u['first_name']} ${u['last_name']}',
+                    Text(fullName ?? 'Unnamed',
                         style: const TextStyle(
                             fontSize: 13.5,
                             fontWeight: FontWeight.w700,
@@ -593,31 +820,66 @@ class _UsersTab extends ConsumerWidget {
   }
 }
 
-// ── Shared stat card ──────────────────────────────────────────────────────────
-class _AdminStat extends StatelessWidget {
+// ── KPI card ─────────────────────────────────────────────────────────────────
+class _KpiCard extends StatelessWidget {
+  final IconData icon;
   final String value, label;
   final Color color, pale;
-  const _AdminStat(this.value, this.label, this.color, this.pale);
+  const _KpiCard({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.color,
+    required this.pale,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: pale,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(value,
-            style: TextStyle(
-                fontSize: 26, fontWeight: FontWeight.w900, color: color)),
-        Text(label,
-            style: const TextStyle(
-                fontSize: 10,
-                color: _C.inkSoft,
-                fontWeight: FontWeight.w600,
-                height: 1.4)),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 6),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 22, fontWeight: FontWeight.w900, color: color)),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 10,
+                  color: _C.inkSoft,
+                  fontWeight: FontWeight.w600,
+                  height: 1.3)),
+        ],
+      ),
     );
+  }
+}
+
+// ── Legend dot for pie chart ────────────────────────────────────────────────
+class _LegendDot extends StatelessWidget {
+  final Color color;
+  final String label;
+  const _LegendDot({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      ),
+      const SizedBox(width: 6),
+      Text(label,
+          style: const TextStyle(
+              fontSize: 12, color: _C.ink, fontWeight: FontWeight.w600)),
+    ]);
   }
 }

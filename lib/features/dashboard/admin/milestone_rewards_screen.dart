@@ -25,6 +25,18 @@
 //   "is_active": true,
 //   "created_at": "ISO8601"
 // }
+//
+// ⚠️ UNVERIFIED: milestones.controller.js and the migration that created
+// this table have not been reviewed yet. Every other admin screen in this
+// codebase turned out to have at least one column-name or type mismatch
+// against the real schema (full_name vs first_name/last_name, avatar_url
+// on the wrong table, discount_pct arriving as a NUMERIC string instead of
+// a number, a pricing controller pointed at a table that didn't exist).
+// Given that track record, treat this screen as unconfirmed until the
+// backend controller and the milestones table schema are checked directly
+// — run `SELECT column_name, data_type FROM information_schema.columns
+// WHERE table_name = 'milestones';` against Neon and compare against the
+// field names used below.
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -38,7 +50,6 @@ class _C {
   static const sunshineDeep = Color(0xFFFFB100);
   static const sunshineGlow = Color(0xFFFFE49A);
   static const navy = Color(0xFF142850);
-  static const navySoft = Color(0xFF274472);
   static const coral = Color(0xFFFF6F61);
   static const coralSoft = Color(0xFFFFD9CC);
   static const blushSoft = Color(0xFFFCE0E6);
@@ -50,6 +61,18 @@ class _C {
   static const greenPale = Color(0xFFDFFBEF);
   static const purple = Color(0xFF7C5CBF);
   static const purplePale = Color(0xFFEDE7FF);
+}
+
+// Defensive numeric parser — same pattern applied to session_pricing_screen.dart
+// after discount_pct there turned out to arrive as a NUMERIC string rather
+// than a number. Applied pre-emptively here since threshold/reward_credits/
+// reward_points could hit the same issue depending on the real column types
+// in `milestones`, which haven't been confirmed yet.
+num _asNum(dynamic v, [num fallback = 0]) {
+  if (v == null) return fallback;
+  if (v is num) return v;
+  if (v is String) return num.tryParse(v) ?? fallback;
+  return fallback;
 }
 
 // ── Providers ────────────────────────────────────────────────────────────────
@@ -242,9 +265,9 @@ class _MilestoneCard extends StatelessWidget {
     final m = milestone;
     final active = m['is_active'] as bool? ?? true;
     final emoji = m['emoji'] as String? ?? '🏅';
-    final credits = m['reward_credits'] as num? ?? 0;
-    final points = m['reward_points'] as num? ?? 0;
-    final threshold = m['threshold'] as num? ?? 1;
+    final credits = _asNum(m['reward_credits']);
+    final points = _asNum(m['reward_points']);
+    final threshold = _asNum(m['threshold'], 1);
     final metric = m['metric'] as String? ?? 'sessions_completed';
     final appliesTo = m['applies_to'] as String? ?? 'all';
 
@@ -299,13 +322,13 @@ class _MilestoneCard extends StatelessWidget {
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
                               color: _C.navy)),
-                      if ((m['title_cn'] ?? '').isNotEmpty)
+                      if ((m['title_cn'] ?? '').toString().isNotEmpty)
                         Text(m['title_cn'],
                             style: const TextStyle(
                                 fontSize: 11,
                                 color: _C.coral,
                                 fontWeight: FontWeight.w700)),
-                      if ((m['description'] ?? '').isNotEmpty) ...[
+                      if ((m['description'] ?? '').toString().isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Text(m['description'],
                             maxLines: 2,
@@ -331,7 +354,7 @@ class _MilestoneCard extends StatelessWidget {
               child: Row(children: [
                 if (credits > 0) ...[
                   _RewardBadge(
-                      label: '+$credits credits',
+                      label: '+${credits.toInt()} credits',
                       icon: Icons.diamond_rounded,
                       color: _C.navy,
                       pale: _C.sunshineGlow),
@@ -339,12 +362,12 @@ class _MilestoneCard extends StatelessWidget {
                 ],
                 if (points > 0)
                   _RewardBadge(
-                      label: '+$points pts',
+                      label: '+${points.toInt()} pts',
                       icon: Icons.emoji_events_rounded,
                       color: _C.coral,
                       pale: _C.coralSoft),
                 const Spacer(),
-                _MetaBadge(label: '$threshold× ${_metricLabel(metric)}'),
+                _MetaBadge(label: '${threshold.toInt()}× ${_metricLabel(metric)}'),
               ]),
             ),
             // ── Footer ───────────────────────────────────────────────────
@@ -528,9 +551,9 @@ class _MilestoneSheetState extends ConsumerState<_MilestoneSheet> {
       _titleCtrl.text = e['title'] ?? '';
       _titleCnCtrl.text = e['title_cn'] ?? '';
       _descCtrl.text = e['description'] ?? '';
-      _creditsCtrl.text = '${e['reward_credits'] ?? ''}';
-      _pointsCtrl.text = '${e['reward_points'] ?? ''}';
-      _threshCtrl.text = '${e['threshold'] ?? '1'}';
+      _creditsCtrl.text = '${_asNum(e['reward_credits']).toInt()}';
+      _pointsCtrl.text = '${_asNum(e['reward_points']).toInt()}';
+      _threshCtrl.text = '${_asNum(e['threshold'], 1).toInt()}';
       _metric = e['metric'] ?? 'sessions_completed';
       _appliesTo = e['applies_to'] ?? 'all';
       _emoji = e['emoji'] ?? '🏅';
@@ -589,12 +612,18 @@ class _MilestoneSheetState extends ConsumerState<_MilestoneSheet> {
         );
       }
       if (mounted) {
+        String message = res.statusCode < 300
+            ? (widget.existing != null
+                ? 'Milestone updated ✓'
+                : 'Milestone created ✓')
+            : 'Failed (${res.statusCode})';
+        if (res.statusCode >= 400) {
+          try {
+            message = jsonDecode(res.body)['error'] ?? message;
+          } catch (_) {}
+        }
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(res.statusCode < 300
-              ? (widget.existing != null
-                  ? 'Milestone updated ✓'
-                  : 'Milestone created ✓')
-              : 'Failed (${res.statusCode})'),
+          content: Text(message),
           backgroundColor: res.statusCode < 300 ? _C.green : _C.coral,
         ));
         if (res.statusCode < 300) {

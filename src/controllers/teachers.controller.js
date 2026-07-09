@@ -63,6 +63,13 @@ async function getOwnProfileRow(userId) {
 // if the teacher card UI needs availability data, it should be fetched
 // separately per teacher (or joined in once we settle the availability
 // controller conventions), not pulled from teacher_profiles.
+//
+// ⚠️ FIXED (audit, round 3): `u.full_name` also does not exist — live
+// error was "column u.full_name does not exist". The real columns are
+// u.first_name / u.last_name (same ones studentsAdmin.controller.js has
+// been querying successfully all along). Concatenating them in SQL and
+// aliasing back to `full_name` so the JSON response shape — and therefore
+// the Flutter side — doesn't need to change.
 exports.browse = async (req, res) => {
   const { subject, search, page = 1, limit = 20 } = req.query;
   const offset = (Number(page) - 1) * Number(limit);
@@ -75,13 +82,13 @@ exports.browse = async (req, res) => {
   }
   if (search) {
     params.push(`%${search}%`);
-    where += ` AND (u.full_name ILIKE $${params.length} OR tp.bio ILIKE $${params.length})`;
+    where += ` AND ((u.first_name || ' ' || u.last_name) ILIKE $${params.length} OR tp.bio ILIKE $${params.length})`;
   }
 
   params.push(limit, offset);
   try {
     const { rows } = await pool.query(
-      `SELECT u.id, u.full_name, u.email,
+      `SELECT u.id, (u.first_name || ' ' || u.last_name) AS full_name, u.email,
               tp.bio, tp.subjects, tp.avatar_url,
               tp.rating, tp.total_sessions
        FROM users u
@@ -99,11 +106,12 @@ exports.browse = async (req, res) => {
 };
 
 // ── GET /teachers/:id — single teacher profile ────────────────────────────────
-// ⚠️ FIXED: same tp.availability removal as browse() above.
+// ⚠️ FIXED: same tp.availability removal as browse() above, plus the same
+// u.full_name → first_name/last_name concatenation fix.
 exports.getOne = async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT u.id, u.full_name, u.email, u.created_at,
+      `SELECT u.id, (u.first_name || ' ' || u.last_name) AS full_name, u.email, u.created_at,
               tp.bio, tp.subjects, tp.avatar_url,
               tp.rating, tp.total_sessions
        FROM users u
@@ -323,6 +331,12 @@ exports.removeSubject = async (req, res) => {
 // teacher-side "Set Availability" screen will work. Share
 // availability.controller.js (used by the student booking flow) and I'll
 // rewrite these to match the same conventions.
+//
+// Also note: these functions call validateSlotShape({ day, startTime,
+// endTime }) and findOverlap(..., { day, startTime, endTime }, ...), but
+// both helper functions are defined above to expect { slotDate, slotTime,
+// durationMins } instead — a second, separate mismatch from the schema
+// issue. This will need to be reconciled in the same rewrite.
 // ═══════════════════════════════════════════════════════════════════════
 
 // GET /teachers/profile/availability
@@ -454,6 +468,8 @@ exports.deleteAvailabilitySlot = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════
 
 // GET /teachers/profile/credits
+// ⚠️ FIXED (audit, round 3): u.full_name → first_name/last_name
+// concatenation, same as browse()/getOne() above.
 exports.getCreditsSummary = async (req, res) => {
   const { sub } = req.user;
   try {
@@ -461,7 +477,7 @@ exports.getCreditsSummary = async (req, res) => {
       `SELECT b.id,
               b.credits_cost AS credits,
               b.scheduled_at AS date,
-              u.full_name    AS "studentName"
+              (u.first_name || ' ' || u.last_name) AS "studentName"
          FROM bookings b
          JOIN users u ON u.id = b.student_id
         WHERE b.teacher_id = $1 AND b.status = 'completed'

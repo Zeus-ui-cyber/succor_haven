@@ -2,6 +2,17 @@
 const bcrypt = require("bcrypt");
 const pool = require("../db/pool");
 
+// Shared pagination sanitizer — page/limit arrive as query strings with no
+// bounds. page=0 or negative produces a negative OFFSET (Postgres error,
+// not a clean 400); an unbounded limit lets a caller pull the whole table
+// in one request. Clamped here instead of duplicating the same guard in
+// every paginated endpoint.
+function parsePagination(page, limit, { maxLimit = 100, defaultLimit = 30 } = {}) {
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const limitNum = Math.min(maxLimit, Math.max(1, parseInt(limit, 10) || defaultLimit));
+  return { pageNum, limitNum, offset: (pageNum - 1) * limitNum };
+}
+
 // ── GET /admin/dashboard ──────────────────────────────────────────────────────
 exports.dashboard = async (req, res) => {
   try {
@@ -28,9 +39,14 @@ exports.dashboard = async (req, res) => {
 };
 
 // ── GET /admin/users ──────────────────────────────────────────────────────────
+// users has first_name + last_name (not full_name) — confirmed directly
+// against the Neon database via information_schema.columns. There is no
+// student_profiles table — credits/points balances are derived from
+// credits_ledger, summed by currency ('credits' | 'points'), same
+// convention bookings.controller.js already uses.
 exports.listUsers = async (req, res) => {
-  const { role, search, page = 1, limit = 30 } = req.query;
-  const offset = (page - 1) * limit;
+  const { role, search } = req.query;
+  const { pageNum, limitNum, offset } = parsePagination(req.query.page, req.query.limit);
   const params = [];
   let where = "1=1";
   if (role) {
@@ -39,18 +55,25 @@ exports.listUsers = async (req, res) => {
   }
   if (search) {
     params.push(`%${search}%`);
-    where += ` AND (u.first_name ILIKE $${params.length} OR u.last_name ILIKE $${params.length} OR u.email ILIKE $${params.length})`;
+    where += ` AND ((u.first_name || ' ' || u.last_name) ILIKE $${params.length} OR u.email ILIKE $${params.length})`;
   }
-  params.push(limit, offset);
+  params.push(limitNum, offset);
   try {
     const { rows } = await pool.query(
-      `SELECT u.id, u.email, u.phone, u.first_name, u.last_name,
+      `SELECT u.id, u.email, u.phone,
+              (u.first_name || ' ' || u.last_name) AS full_name,
               u.role, u.is_active, u.created_at,
               tp.is_approved AS teacher_approved,
-              sp.credits, sp.points
+              COALESCE((
+                SELECT SUM(amount) FROM credits_ledger cl
+                WHERE cl.user_id = u.id AND cl.currency = 'credits'
+              ), 0) AS credits,
+              COALESCE((
+                SELECT SUM(amount) FROM credits_ledger cl
+                WHERE cl.user_id = u.id AND cl.currency = 'points'
+              ), 0) AS points
        FROM users u
        LEFT JOIN teacher_profiles tp ON tp.user_id = u.id
-       LEFT JOIN student_profiles sp ON sp.user_id = u.id
        WHERE ${where}
        ORDER BY u.created_at DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -72,18 +95,18 @@ exports.approveTeacher = async (req, res) => {
     );
     res.json({ message: "Teacher approved" });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Approval failed" });
   }
 };
 
 // ── POST /admin/teachers — Admin creates a Teacher account directly ───────────
-// Mirrors auth.controller.js's register() logic (same bcrypt hashing, same
-// users + teacher_profiles insert shape), but:
-//   • is admin-only (route should be behind requireAdmin middleware)
-//   • does NOT issue tokens/sessions — this creates an account for someone
-//     else, it must never touch the requesting admin's own session
-//   • sets teacher_profiles.is_approved = true immediately, since the Admin
-//     is vouching for the account (no separate approval step needed)
+// teacher_profiles only has: bio, subjects, avatar_url, is_approved,
+// rating, total_sessions. Availability lives in the separate
+// teacher_availability table; session cost comes from the `pricing` table,
+// not a per-teacher rate. Still accepts availability/creditsPerSession in
+// the request body (so the Flutter Create Teacher form doesn't need to
+// change yet) but does not persist them here.
 exports.createTeacher = async (req, res) => {
   const {
     firstName,
@@ -93,8 +116,11 @@ exports.createTeacher = async (req, res) => {
     phone,
     bio,
     subjects,
-    availability,
-    creditsPerSession,
+    // availability, creditsPerSession — accepted but not persisted here.
+    // availability: create rows in teacher_availability separately once
+    // this form is wired to that table's conventions.
+    // creditsPerSession: no longer a thing; cost is set via the pricing
+    // table at booking time.
   } = req.body;
 
   if (!email) return res.status(400).json({ error: "Email required" });
@@ -111,21 +137,15 @@ exports.createTeacher = async (req, res) => {
       `INSERT INTO users (email, password_hash, first_name, last_name, role, phone)
        VALUES ($1,$2,$3,$4,'teacher',$5)
        RETURNING *`,
-      [email, hash, firstName, lastName, phone || null],
+      [email, hash, firstName.trim(), lastName.trim(), phone || null],
     );
     const user = rows[0];
 
     await pool.query(
       `INSERT INTO teacher_profiles
-         (user_id, bio, subjects, availability, credits_per_session, is_approved)
-       VALUES ($1,$2,$3,$4,$5,true)`,
-      [
-        user.id,
-        bio || "",
-        subjects || [],
-        availability || [],
-        creditsPerSession ?? 6,
-      ],
+         (user_id, bio, subjects, is_approved)
+       VALUES ($1,$2,$3,true)`,
+      [user.id, bio || "", subjects || []],
     );
 
     await pool.query("COMMIT");
@@ -137,6 +157,10 @@ exports.createTeacher = async (req, res) => {
     console.error(err);
 
     if (err.code === "23505") {
+      // ⚠️ Fragile: relies on the constraint name containing "phone".
+      // If your actual constraint is named differently, this always
+      // reports "Email" regardless of which field conflicted. Confirm
+      // your unique constraint names on `users` if this ever misreports.
       const field =
         err.constraint && err.constraint.includes("phone")
           ? "Phone number"
@@ -158,15 +182,12 @@ exports.toggleUser = async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: "User not found" });
     res.json({ isActive: rows[0].is_active });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Toggle failed" });
   }
 };
 
 // ── DELETE /admin/users/:id — permanently delete a user ───────────────────────
-// Blocked if the user has any non-cancelled bookings, to avoid orphaning
-// booking/payment history. Admins should deactivate (toggle) instead if the
-// user has activity — this is for cleaning up genuinely unused accounts
-// (e.g. spam signups, accidental duplicates).
 exports.deleteUser = async (req, res) => {
   const { id } = req.params;
 
@@ -206,20 +227,20 @@ exports.deleteUser = async (req, res) => {
 
 // ── GET /admin/bookings ───────────────────────────────────────────────────────
 exports.listBookings = async (req, res) => {
-  const { status, page = 1, limit = 30 } = req.query;
-  const offset = (page - 1) * limit;
+  const { status } = req.query;
+  const { limitNum, offset } = parsePagination(req.query.page, req.query.limit);
   const params = [];
   let where = "1=1";
   if (status) {
     params.push(status);
     where += ` AND b.status = $${params.length}`;
   }
-  params.push(limit, offset);
+  params.push(limitNum, offset);
   try {
     const { rows } = await pool.query(
       `SELECT b.*,
-         s.first_name AS student_first, s.last_name AS student_last,
-         t.first_name AS teacher_first, t.last_name AS teacher_last
+         (s.first_name || ' ' || s.last_name) AS student_name,
+         (t.first_name || ' ' || t.last_name) AS teacher_name
        FROM bookings b
        JOIN users s ON s.id = b.student_id
        JOIN users t ON t.id = b.teacher_id
@@ -230,16 +251,27 @@ exports.listBookings = async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Failed to fetch bookings" });
   }
 };
 
 // ── GET /admin/rewards ────────────────────────────────────────────────────────
+// ⚠️ PENDING CONFIRMATION: ordering by `points_required` to match the
+// insert/update columns below. Verify this against Neon directly —
+// `SELECT column_name FROM information_schema.columns WHERE table_name =
+// 'rewards';` — before trusting this in production. If the real column is
+// `points_cost`, this (and createReward/updateReward) need reverting.
 exports.listRewards = async (req, res) => {
-  const { rows } = await pool.query(
-    `SELECT * FROM rewards ORDER BY points_cost`,
-  );
-  res.json(rows);
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM rewards ORDER BY points_required`,
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch rewards" });
+  }
 };
 
 // ── POST /admin/rewards ───────────────────────────────────────────────────────
@@ -254,6 +286,7 @@ exports.createReward = async (req, res) => {
     );
     res.status(201).json(rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Failed to create reward" });
   }
 };
@@ -287,6 +320,7 @@ exports.updateReward = async (req, res) => {
       return res.status(404).json({ error: "Reward not found" });
     res.json(rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Update failed" });
   }
 };
@@ -300,12 +334,18 @@ exports.deleteReward = async (req, res) => {
     if (!rowCount) return res.status(404).json({ error: "Reward not found" });
     res.json({ deleted: true });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Delete failed" });
   }
 };
 
 // ── PATCH /admin/users/:id/credits — admin adjusts a student's credit balance ─
 // body: { amount: number (can be negative), reason?: string }
+// No student_profiles table. Balance is SUM(credits_ledger.amount)
+// where currency='credits' — same convention as bookings.controller.js.
+// ⚠️ FIXED: this fetched `role` but never checked it, so it would silently
+// let an admin write credits_ledger rows for a teacher or another admin
+// account, despite the function (and its name) being student-scoped.
 exports.adjustCredits = async (req, res) => {
   const { id } = req.params;
   const { amount, reason } = req.body;
@@ -315,36 +355,37 @@ exports.adjustCredits = async (req, res) => {
     return res.status(400).json({ error: "amount must be a non-zero number" });
 
   try {
-    const { rows: sp } = await pool.query(
-      `SELECT credits FROM student_profiles WHERE user_id = $1`,
+    const { rows: userRows } = await pool.query(
+      `SELECT role FROM users WHERE id = $1`,
       [id],
     );
-    if (!sp.length)
+    if (!userRows.length)
+      return res.status(404).json({ error: "User not found" });
+    if (userRows[0].role !== "student")
       return res
-        .status(404)
-        .json({ error: "User has no credit balance (not a student)" });
+        .status(400)
+        .json({ error: "Credit adjustments only apply to student accounts" });
 
-    const newBalance = sp[0].credits + delta;
+    const { rows: balRows } = await pool.query(
+      `SELECT COALESCE(SUM(amount), 0) AS balance
+       FROM credits_ledger WHERE user_id = $1 AND currency = 'credits'`,
+      [id],
+    );
+    const currentBalance = Number(balRows[0].balance);
+    const newBalance = currentBalance + delta;
     if (newBalance < 0)
       return res
         .status(400)
         .json({ error: "Adjustment would result in negative credits" });
 
-    await pool.query("BEGIN");
-    const { rows } = await pool.query(
-      `UPDATE student_profiles SET credits = credits + $1 WHERE user_id = $2 RETURNING credits`,
-      [delta, id],
-    );
     await pool.query(
-      `INSERT INTO credits_ledger (user_id, amount, reason, created_by)
-       VALUES ($1,$2,$3,$4)`,
-      [id, delta, reason || "", req.user.sub],
+      `INSERT INTO credits_ledger (user_id, amount, reason, currency)
+       VALUES ($1, $2, $3, 'credits')`,
+      [id, delta, reason || (delta > 0 ? "Admin credit" : "Admin deduction")],
     );
-    await pool.query("COMMIT");
 
-    res.json({ credits: rows[0].credits });
+    res.json({ credits: newBalance });
   } catch (err) {
-    await pool.query("ROLLBACK");
     console.error(err);
     res.status(500).json({ error: "Failed to adjust credits" });
   }
@@ -352,6 +393,10 @@ exports.adjustCredits = async (req, res) => {
 
 // ── PATCH /admin/users/:id/points — admin adjusts a student's points balance ──
 // body: { amount: number (can be negative), reason?: string }
+// No points_ledger table. Points are credits_ledger rows with
+// currency='points', same convention as bookings.controller.js complete()
+// awarding points on session completion.
+// ⚠️ FIXED: same role-scope gap as adjustCredits above.
 exports.adjustPoints = async (req, res) => {
   const { id } = req.params;
   const { amount, reason } = req.body;
@@ -361,36 +406,37 @@ exports.adjustPoints = async (req, res) => {
     return res.status(400).json({ error: "amount must be a non-zero number" });
 
   try {
-    const { rows: sp } = await pool.query(
-      `SELECT points FROM student_profiles WHERE user_id = $1`,
+    const { rows: userRows } = await pool.query(
+      `SELECT role FROM users WHERE id = $1`,
       [id],
     );
-    if (!sp.length)
+    if (!userRows.length)
+      return res.status(404).json({ error: "User not found" });
+    if (userRows[0].role !== "student")
       return res
-        .status(404)
-        .json({ error: "User has no points balance (not a student)" });
+        .status(400)
+        .json({ error: "Point adjustments only apply to student accounts" });
 
-    const newBalance = sp[0].points + delta;
+    const { rows: balRows } = await pool.query(
+      `SELECT COALESCE(SUM(amount), 0) AS balance
+       FROM credits_ledger WHERE user_id = $1 AND currency = 'points'`,
+      [id],
+    );
+    const currentBalance = Number(balRows[0].balance);
+    const newBalance = currentBalance + delta;
     if (newBalance < 0)
       return res
         .status(400)
         .json({ error: "Adjustment would result in negative points" });
 
-    await pool.query("BEGIN");
-    const { rows } = await pool.query(
-      `UPDATE student_profiles SET points = points + $1 WHERE user_id = $2 RETURNING points`,
-      [delta, id],
-    );
     await pool.query(
-      `INSERT INTO points_ledger (user_id, booking_id, points, reason)
-       VALUES ($1, NULL, $2, $3)`,
+      `INSERT INTO credits_ledger (user_id, amount, reason, currency)
+       VALUES ($1, $2, $3, 'points')`,
       [id, delta, reason || (delta > 0 ? "Admin credit" : "Admin deduction")],
     );
-    await pool.query("COMMIT");
 
-    res.json({ points: rows[0].points });
+    res.json({ points: newBalance });
   } catch (err) {
-    await pool.query("ROLLBACK");
     console.error(err);
     res.status(500).json({ error: "Failed to adjust points" });
   }
@@ -402,8 +448,8 @@ exports.teacherSchedule = async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT b.*,
-         s.first_name AS student_first, s.last_name AS student_last,
-         t.first_name AS teacher_first, t.last_name AS teacher_last
+         (s.first_name || ' ' || s.last_name) AS student_name,
+         (t.first_name || ' ' || t.last_name) AS teacher_name
        FROM bookings b
        JOIN users s ON s.id = b.student_id
        JOIN users t ON t.id = b.teacher_id
@@ -438,8 +484,9 @@ exports.cancelBooking = async (req, res) => {
       id,
     ]);
     await pool.query(
-      `UPDATE student_profiles SET credits = credits + $1 WHERE user_id = $2`,
-      [b.credits_cost, b.student_id],
+      `INSERT INTO credits_ledger (user_id, amount, reason, currency)
+       VALUES ($1, $2, $3, 'credits')`,
+      [b.student_id, b.credits_cost, `Refund for cancelled booking ${id} (admin)`],
     );
     await pool.query("COMMIT");
 
