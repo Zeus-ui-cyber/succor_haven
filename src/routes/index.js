@@ -25,7 +25,13 @@ const router = express.Router();
 // ── Settings · profile picture upload config ──────────────────────────────────
 // Stored outside src/ at project-root/uploads/profile-pictures. Served
 // statically via `app.use("/uploads", express.static(...))` in app.js.
-const profilePictureDir = path.join(__dirname, "..", "..", "uploads", "profile-pictures");
+const profilePictureDir = path.join(
+  __dirname,
+  "..",
+  "..",
+  "uploads",
+  "profile-pictures",
+);
 fs.mkdirSync(profilePictureDir, { recursive: true });
 
 const profilePictureStorage = multer.diskStorage({
@@ -152,12 +158,7 @@ router.post(
   requireRole("teacher"),
   teachCtrl.addAvailabilitySlot,
 );
-router.patch(
-  "/teachers/profile/availability/:id",
-  authenticate,
-  requireRole("teacher"),
-  teachCtrl.updateAvailabilitySlot,
-);
+
 router.delete(
   "/teachers/profile/availability/:id",
   authenticate,
@@ -185,17 +186,41 @@ router.post(
   settingsCtrl.uploadProfilePicture,
 );
 
-router.post("/settings/password/otp/send", authenticate, settingsCtrl.sendPasswordChangeOtp);
-router.post("/settings/password/change", authenticate, settingsCtrl.changePassword);
+router.post(
+  "/settings/password/otp/send",
+  authenticate,
+  settingsCtrl.sendPasswordChangeOtp,
+);
+router.post(
+  "/settings/password/change",
+  authenticate,
+  settingsCtrl.changePassword,
+);
 
 router.get("/settings/phone", authenticate, settingsCtrl.getPhones);
-router.post("/settings/phone/otp/send", authenticate, settingsCtrl.sendPhoneOtp);
-router.patch("/settings/phone/primary", authenticate, settingsCtrl.updatePrimaryPhone);
-router.patch("/settings/phone/backup", authenticate, settingsCtrl.updateBackupPhone);
+router.post(
+  "/settings/phone/otp/send",
+  authenticate,
+  settingsCtrl.sendPhoneOtp,
+);
+router.patch(
+  "/settings/phone/primary",
+  authenticate,
+  settingsCtrl.updatePrimaryPhone,
+);
+router.patch(
+  "/settings/phone/backup",
+  authenticate,
+  settingsCtrl.updateBackupPhone,
+);
 
 router.patch("/settings/language", authenticate, settingsCtrl.updateLanguage);
 
-router.get("/settings/notifications", authenticate, settingsCtrl.getNotificationPreferences);
+router.get(
+  "/settings/notifications",
+  authenticate,
+  settingsCtrl.getNotificationPreferences,
+);
 router.patch(
   "/settings/notifications",
   authenticate,

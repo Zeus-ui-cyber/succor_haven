@@ -28,15 +28,18 @@ async function issueTokens(user) {
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /auth/register
 // ─────────────────────────────────────────────────────────────────────────────
-// ⚠️ FIXED: the previous "audit" comment here claimed `users.full_name is
-// the real column` — that was checked against the LOCAL succor_haven
-// Postgres instance, not neondb (the database this app's DATABASE_URL
-// actually points to). Confirmed via runtime error: every registration
-// attempt was failing with `column "full_name" does not exist` against
-// neondb. The real columns are first_name / last_name, same as every
-// other table. Still accepts firstName/lastName from the client — no
-// Flutter changes needed — but now inserts them as separate columns
-// instead of concatenating into a full_name string that has nowhere to go.
+// ⚠️ FIXED (this pass): student_profiles DOES exist (confirmed live via
+// check_schema.js) and is the authoritative source for a student's
+// credits/points balance — see bookings.controller.js create()/complete()/
+// cancel(), which reads/writes student_profiles.credits directly. This
+// function previously never inserted a student_profiles row for new
+// students (based on a stale comment claiming the table didn't exist),
+// which meant every new student would hit bookings.controller.js's
+// `SELECT credits FROM student_profiles WHERE user_id = $1` and get zero
+// rows back — permanently failing with "Insufficient credits" even before
+// checking the actual balance. Fixed by inserting a student_profiles row
+// (credits/points both default to 0 via the table's own DEFAULT) whenever
+// role === "student".
 
 exports.register = async (req, res) => {
   const {
@@ -51,9 +54,7 @@ exports.register = async (req, res) => {
     bio,
     subjects,
 
-    // accepted but NOT persisted — no student_profiles table exists to
-    // hold these. If you want them stored, tell me where (e.g. new columns
-    // on users) and I'll add a migration + wire it up.
+    // student_profiles has real columns for these now — persisted below.
     nativeLanguage,
     learningGoals,
     level,
@@ -96,9 +97,15 @@ exports.register = async (req, res) => {
 
     const user = rows[0];
 
-    // No student_profiles table — students don't get a profile row here.
-    // Their credits/points start at 0 implicitly (no credits_ledger rows
-    // yet), same convention as everywhere else in the codebase.
+    if (role === "student") {
+      // credits/points default to 0 via the column DEFAULTs on
+      // student_profiles — no need to pass them explicitly here.
+      await pool.query(
+        `INSERT INTO student_profiles (user_id, native_language, learning_goals, level)
+         VALUES ($1, $2, $3, $4)`,
+        [user.id, nativeLanguage || "", learningGoals || [], level || ""],
+      );
+    }
 
     if (role === "teacher") {
       await pool.query(
@@ -311,9 +318,15 @@ exports.logout = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /auth/me
 // ─────────────────────────────────────────────────────────────────────────────
-// avatar_url comes through via `SELECT u.*` above (it lives on `users`,
-// not `teacher_profiles` — confirmed in teachers.controller.js).
-
+// ⚠️ FIXED (this pass): previously computed credits/points as
+// SUM(credits_ledger.amount) grouped by currency. That diverges from
+// student_profiles.credits/points — the authoritative balance that
+// bookings.controller.js actually reads and writes — because
+// credits_ledger is only ever an audit trail (a new student's initial
+// balance is never logged there, only deltas from bookings/admin
+// adjustments are). Switched to reading student_profiles directly.
+// Teachers don't have a student_profiles row, so credits/points are
+// simply 0 for them via COALESCE, same behavior as before.
 exports.me = async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -321,8 +334,8 @@ exports.me = async (req, res) => {
       SELECT
         u.*,
 
-        COALESCE(credits.total, 0)::int AS credits,
-        COALESCE(points.total, 0)::int AS points,
+        COALESCE(sp.credits, 0)::int AS credits,
+        COALESCE(sp.points, 0)::int AS points,
 
         tp.bio,
         tp.subjects,
@@ -335,25 +348,8 @@ exports.me = async (req, res) => {
       LEFT JOIN teacher_profiles tp
         ON tp.user_id = u.id
 
-      LEFT JOIN (
-        SELECT
-          user_id,
-          SUM(amount)::int AS total
-        FROM credits_ledger
-        WHERE currency = 'credits'
-        GROUP BY user_id
-      ) credits
-        ON credits.user_id = u.id
-
-      LEFT JOIN (
-        SELECT
-          user_id,
-          SUM(amount)::int AS total
-        FROM credits_ledger
-        WHERE currency = 'points'
-        GROUP BY user_id
-      ) points
-        ON points.user_id = u.id
+      LEFT JOIN student_profiles sp
+        ON sp.user_id = u.id
 
       WHERE u.id = $1
       `,

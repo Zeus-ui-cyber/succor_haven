@@ -637,7 +637,8 @@ class _TProfileTab extends ConsumerWidget {
             '每节课积分',
             () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const CreditsPerSessionScreen()),
+              MaterialPageRoute(
+                  builder: (_) => const CreditsPerSessionScreen()),
             ),
           ),
         ]),
@@ -735,7 +736,7 @@ class _TNextSessionBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dt = DateTime.parse(booking['scheduled_at']).toLocal();
-    final name = '${booking['student_first']} ${booking['student_last']}';
+    final name = (booking['student_name'] as String?) ?? 'Student';
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -802,7 +803,7 @@ class _TBookingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = '${booking['student_first']} ${booking['student_last']}';
+    final name = (booking['student_name'] as String?) ?? 'Student';
     final status = booking['status'] as String;
     final dt = DateTime.parse(booking['scheduled_at']).toLocal();
 
@@ -876,7 +877,7 @@ class _TScheduleCard extends StatelessWidget {
   const _TScheduleCard({required this.booking});
   @override
   Widget build(BuildContext context) {
-    final name = '${booking['student_first']} ${booking['student_last']}';
+    final name = (booking['student_name'] as String?) ?? 'Student';
     final dt = DateTime.parse(booking['scheduled_at']).toLocal();
     final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return Container(
@@ -944,7 +945,7 @@ class _EarningRow extends StatelessWidget {
   const _EarningRow({required this.booking});
   @override
   Widget build(BuildContext context) {
-    final name = '${booking['student_first']} ${booking['student_last']}';
+    final name = (booking['student_name'] as String?) ?? 'Student';
     final credits = booking['credits_cost'] as int? ?? 0;
     final dt = DateTime.parse(booking['scheduled_at']).toLocal();
     return Container(

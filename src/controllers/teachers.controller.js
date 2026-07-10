@@ -1,49 +1,12 @@
 // src/controllers/teachers.controller.js
-const crypto = require("crypto");
 const pool = require("../db/pool");
 
 const MAX_BIO_LENGTH = 500;
 
-// slot_time comes back from pg as "HH:MM:SS" — accept either that or "HH:MM"
-// on the way in, and just read the first two colon-separated parts.
-function timeToMinutes(t) {
-  const [h, m] = t.split(":").map(Number);
-  return h * 60 + m;
-}
-
-function validateSlotShape({ slotDate, slotTime, durationMins }) {
-  if (!slotDate || !/^\d{4}-\d{2}-\d{2}$/.test(slotDate)) {
-    return "slotDate must be in YYYY-MM-DD format.";
-  }
-  if (!slotTime || !/^\d{2}:\d{2}(:\d{2})?$/.test(slotTime)) {
-    return "slotTime must be in HH:MM format.";
-  }
-  if (!Number.isInteger(durationMins) || durationMins <= 0) {
-    return "durationMins must be a positive integer.";
-  }
-  return null;
-}
-
-// existingSlots: rows from teacher_availability (slot_date, slot_time, duration_mins)
-function findOverlap(existingSlots, { slotDate, slotTime, durationMins }, excludeId) {
-  const newStart = timeToMinutes(slotTime);
-  const newEnd = newStart + durationMins;
-
-  return existingSlots.find((slot) => {
-    if (slot.id === excludeId) return false;
-    // slot_date from pg is a Date object or ISO string depending on driver
-    // config — compare as strings sliced to YYYY-MM-DD to avoid TZ drift.
-    const slotDateStr =
-      slot.slot_date instanceof Date
-        ? slot.slot_date.toISOString().slice(0, 10)
-        : String(slot.slot_date).slice(0, 10);
-    if (slotDateStr !== slotDate) return false;
-
-    const existingStart = timeToMinutes(slot.slot_time);
-    const existingEnd = existingStart + slot.duration_mins;
-    return newStart < existingEnd && existingStart < newEnd;
-  });
-}
+// Valid weekday tokens used across the app (matches
+// create_teacher_account_screen.dart's day chips and admin.controller.js's
+// createTeacher `availability` array).
+const VALID_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 async function getOwnProfileRow(userId) {
   const { rows } = await pool.query(
@@ -54,22 +17,18 @@ async function getOwnProfileRow(userId) {
 }
 
 // ── GET /teachers — browse approved teachers ──────────────────────────────────
-// ⚠️ FIXED: teacher_profiles has no `availability` column (confirmed via
-// pgAdmin — it only has bio, subjects, avatar_url, is_approved, rating,
-// total_sessions). Availability lives in a separate `teacher_availability`
-// table (id, teacher_id, slot_date, slot_time, duration_mins, is_booked).
-// Selecting tp.availability here was throwing "column does not exist" and
-// breaking the student dashboard's teacher list. Dropped from this query —
-// if the teacher card UI needs availability data, it should be fetched
-// separately per teacher (or joined in once we settle the availability
-// controller conventions), not pulled from teacher_profiles.
+// Confirmed live via check_schema.js: teacher_profiles.availability IS a
+// real column (plain TEXT[] of day names, e.g. {'Mon','Wed'}) and
+// credits_per_session IS a real column too (default 6) — both are included
+// here. users has first_name/last_name (not full_name); concatenated into
+// full_name in the response so the Flutter side's existing parsing
+// (TeacherProfileModel.fromJson) doesn't need to change.
 //
-// ⚠️ FIXED (audit, round 3): `u.full_name` also does not exist — live
-// error was "column u.full_name does not exist". The real columns are
-// u.first_name / u.last_name (same ones studentsAdmin.controller.js has
-// been querying successfully all along). Concatenating them in SQL and
-// aliasing back to `full_name` so the JSON response shape — and therefore
-// the Flutter side — doesn't need to change.
+// NOTE: tp.rating is cast to ::float8 because Postgres NUMERIC/DECIMAL
+// columns are serialized as strings (e.g. "0.00") by the pg driver by
+// default. TeacherProfileModel.fromJson does `json['rating'] as num?`,
+// which throws on a String. Casting to float8 here makes it come back as
+// a real JSON number instead.
 exports.browse = async (req, res) => {
   const { subject, search, page = 1, limit = 20 } = req.query;
   const offset = (Number(page) - 1) * Number(limit);
@@ -88,9 +47,9 @@ exports.browse = async (req, res) => {
   params.push(limit, offset);
   try {
     const { rows } = await pool.query(
-      `SELECT u.id, (u.first_name || ' ' || u.last_name) AS full_name, u.email,
-              tp.bio, tp.subjects, tp.avatar_url,
-              tp.rating, tp.total_sessions
+      `SELECT u.id, (u.first_name || ' ' || u.last_name) AS full_name, u.email, u.avatar_url,
+              tp.bio, tp.subjects, tp.availability,
+              tp.credits_per_session, tp.rating::float8, tp.total_sessions
        FROM users u
        JOIN teacher_profiles tp ON tp.user_id = u.id
        WHERE u.role = 'teacher' AND ${where}
@@ -106,14 +65,14 @@ exports.browse = async (req, res) => {
 };
 
 // ── GET /teachers/:id — single teacher profile ────────────────────────────────
-// ⚠️ FIXED: same tp.availability removal as browse() above, plus the same
-// u.full_name → first_name/last_name concatenation fix.
+// Same ::float8 cast as browse() above — without it, opening a teacher's
+// profile page would throw the identical TypeError the list did.
 exports.getOne = async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT u.id, (u.first_name || ' ' || u.last_name) AS full_name, u.email, u.created_at,
-              tp.bio, tp.subjects, tp.avatar_url,
-              tp.rating, tp.total_sessions
+      `SELECT u.id, (u.first_name || ' ' || u.last_name) AS full_name, u.email, u.created_at, u.avatar_url,
+              tp.bio, tp.subjects, tp.availability,
+              tp.credits_per_session, tp.rating::float8, tp.total_sessions
        FROM users u
        JOIN teacher_profiles tp ON tp.user_id = u.id
        WHERE u.id = $1 AND u.role = 'teacher' AND tp.is_approved = true`,
@@ -128,8 +87,9 @@ exports.getOne = async (req, res) => {
   }
 };
 
-// ── PATCH /teachers/profile — full-object update (kept as-is, unused by the
-//    new granular Settings screens below, but left for any other caller) ──────
+// ── PATCH /teachers/profile — full-object update ───────────────────────────────
+// `avatar_url` lives on `users`, not `teacher_profiles` — updated with a
+// separate statement in the same transaction.
 exports.updateProfile = async (req, res) => {
   const { sub } = req.user;
   const { bio, subjects, availability, avatarUrl } = req.body;
@@ -138,21 +98,32 @@ exports.updateProfile = async (req, res) => {
     if (!existing)
       return res.status(404).json({ error: "Teacher profile not found" });
 
+    await pool.query("BEGIN");
+
     const { rows } = await pool.query(
       `UPDATE teacher_profiles
-       SET bio = $1, subjects = $2, avatar_url = $3,
-           updated_at = now()
+       SET bio = $1, subjects = $2, availability = $3
        WHERE user_id = $4
        RETURNING *`,
       [
         bio ?? existing.bio,
         subjects ?? existing.subjects,
-        avatarUrl ?? existing.avatar_url,
+        availability ?? existing.availability,
         sub,
       ],
     );
+
+    if (avatarUrl !== undefined) {
+      await pool.query(`UPDATE users SET avatar_url = $1 WHERE id = $2`, [
+        avatarUrl,
+        sub,
+      ]);
+    }
+
+    await pool.query("COMMIT");
     res.json(rows[0]);
   } catch (err) {
+    await pool.query("ROLLBACK");
     console.error(err);
     res.status(500).json({ error: "Update failed" });
   }
@@ -191,7 +162,9 @@ exports.updateBio = async (req, res) => {
     return res.status(400).json({ error: "Bio must be a string." });
   }
   if (bio.length > MAX_BIO_LENGTH) {
-    return res.status(400).json({ error: `Bio must be ${MAX_BIO_LENGTH} characters or fewer.` });
+    return res
+      .status(400)
+      .json({ error: `Bio must be ${MAX_BIO_LENGTH} characters or fewer.` });
   }
 
   try {
@@ -200,7 +173,7 @@ exports.updateBio = async (req, res) => {
       return res.status(404).json({ error: "Teacher profile not found" });
 
     await pool.query(
-      `UPDATE teacher_profiles SET bio = $1, updated_at = now() WHERE user_id = $2`,
+      `UPDATE teacher_profiles SET bio = $1 WHERE user_id = $2`,
       [bio.trim(), sub],
     );
     res.json({ message: "Bio updated successfully." });
@@ -230,15 +203,19 @@ exports.addSubject = async (req, res) => {
 
     const current = existing.subjects || [];
     if (current.some((s) => s.toLowerCase() === trimmed.toLowerCase())) {
-      return res.status(409).json({ error: "This subject has already been added." });
+      return res
+        .status(409)
+        .json({ error: "This subject has already been added." });
     }
 
     const updated = [...current, trimmed];
     await pool.query(
-      `UPDATE teacher_profiles SET subjects = $1, updated_at = now() WHERE user_id = $2`,
+      `UPDATE teacher_profiles SET subjects = $1 WHERE user_id = $2`,
       [updated, sub],
     );
-    res.status(201).json({ message: "Subject added successfully.", subjects: updated });
+    res
+      .status(201)
+      .json({ message: "Subject added successfully.", subjects: updated });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to add subject." });
@@ -252,7 +229,9 @@ exports.updateSubject = async (req, res) => {
   const { oldSubject, newSubject } = req.body;
 
   if (!oldSubject?.trim() || !newSubject?.trim()) {
-    return res.status(400).json({ error: "oldSubject and newSubject are required." });
+    return res
+      .status(400)
+      .json({ error: "oldSubject and newSubject are required." });
   }
 
   try {
@@ -261,7 +240,9 @@ exports.updateSubject = async (req, res) => {
       return res.status(404).json({ error: "Teacher profile not found" });
 
     const current = existing.subjects || [];
-    const index = current.findIndex((s) => s.toLowerCase() === oldSubject.trim().toLowerCase());
+    const index = current.findIndex(
+      (s) => s.toLowerCase() === oldSubject.trim().toLowerCase(),
+    );
     if (index === -1) {
       return res.status(404).json({ error: "Subject not found." });
     }
@@ -270,7 +251,7 @@ exports.updateSubject = async (req, res) => {
     updated[index] = newSubject.trim();
 
     await pool.query(
-      `UPDATE teacher_profiles SET subjects = $1, updated_at = now() WHERE user_id = $2`,
+      `UPDATE teacher_profiles SET subjects = $1 WHERE user_id = $2`,
       [updated, sub],
     );
     res.json({ message: "Subject updated successfully.", subjects: updated });
@@ -296,14 +277,16 @@ exports.removeSubject = async (req, res) => {
       return res.status(404).json({ error: "Teacher profile not found" });
 
     const current = existing.subjects || [];
-    const updated = current.filter((s) => s.toLowerCase() !== subject.trim().toLowerCase());
+    const updated = current.filter(
+      (s) => s.toLowerCase() !== subject.trim().toLowerCase(),
+    );
 
     if (updated.length === current.length) {
       return res.status(404).json({ error: "Subject not found." });
     }
 
     await pool.query(
-      `UPDATE teacher_profiles SET subjects = $1, updated_at = now() WHERE user_id = $2`,
+      `UPDATE teacher_profiles SET subjects = $1 WHERE user_id = $2`,
       [updated, sub],
     );
     res.json({ message: "Subject removed successfully.", subjects: updated });
@@ -314,32 +297,18 @@ exports.removeSubject = async (req, res) => {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-// SETTINGS: AVAILABILITY (granular — used by Set Availability screen)
+// SETTINGS: AVAILABILITY (used by Set Availability screen)
 //
-// ⚠️ NOT YET RECONCILED WITH SCHEMA: these functions still read/write a
-// `teacher_profiles.availability` JSONB column that does NOT exist in the
-// real database. The real availability data lives in a separate
-// `teacher_availability` table (id, teacher_id, slot_date, slot_time,
-// duration_mins, is_booked) — a completely different shape (date+time
-// slots vs. day-of-week + startTime/endTime JSONB blob).
-//
-// These four endpoints (getAvailability / addAvailabilitySlot /
-// updateAvailabilitySlot / deleteAvailabilitySlot) will throw "column
-// availability does not exist" the moment they're called, same as browse()
-// did. They're left as-is for now since they weren't the reported bug —
-// but they need a rewrite against `teacher_availability` before the
-// teacher-side "Set Availability" screen will work. Share
-// availability.controller.js (used by the student booking flow) and I'll
-// rewrite these to match the same conventions.
-//
-// Also note: these functions call validateSlotShape({ day, startTime,
-// endTime }) and findOverlap(..., { day, startTime, endTime }, ...), but
-// both helper functions are defined above to expect { slotDate, slotTime,
-// durationMins } instead — a second, separate mismatch from the schema
-// issue. This will need to be reconciled in the same rewrite.
+// teacher_profiles.availability is a plain TEXT[] of weekday names (e.g.
+// {'Mon','Wed','Fri'}) — confirmed live via check_schema.js. There is no
+// separate teacher_availability table and no per-slot start/end time; a
+// teacher is simply available or not on a given weekday. This matches
+// create_teacher_account_screen.dart's day-toggle chips and
+// admin.controller.js's createTeacher, which already use this exact shape.
 // ═══════════════════════════════════════════════════════════════════════
 
 // GET /teachers/profile/availability
+// Returns the plain array of day names, e.g. ["Mon", "Wed", "Fri"].
 exports.getAvailability = async (req, res) => {
   const { sub } = req.user;
   try {
@@ -355,13 +324,16 @@ exports.getAvailability = async (req, res) => {
 };
 
 // POST /teachers/profile/availability
-// body: { day, startTime, endTime }
+// body: { day } — one of VALID_DAYS, e.g. "Mon"
 exports.addAvailabilitySlot = async (req, res) => {
   const { sub } = req.user;
-  const { day, startTime, endTime } = req.body;
+  const { day } = req.body;
 
-  const validationError = validateSlotShape({ day, startTime, endTime });
-  if (validationError) return res.status(400).json({ error: validationError });
+  if (!VALID_DAYS.includes(day)) {
+    return res.status(400).json({
+      error: `day must be one of: ${VALID_DAYS.join(", ")}`,
+    });
+  }
 
   try {
     const existing = await getOwnProfileRow(sub);
@@ -369,73 +341,32 @@ exports.addAvailabilitySlot = async (req, res) => {
       return res.status(404).json({ error: "Teacher profile not found" });
 
     const current = existing.availability || [];
-    const conflict = findOverlap(current, { day, startTime, endTime }, null);
-    if (conflict) {
-      return res.status(409).json({
-        error: `This overlaps with an existing slot (${conflict.startTime}-${conflict.endTime}) on that day.`,
-      });
+    if (current.includes(day)) {
+      return res
+        .status(409)
+        .json({ error: "That day is already marked available." });
     }
 
-    const newSlot = { id: crypto.randomUUID(), day, startTime, endTime };
-    const updated = [...current, newSlot];
-
+    const updated = [...current, day];
     await pool.query(
-      `UPDATE teacher_profiles SET availability = $1, updated_at = now() WHERE user_id = $2`,
-      [JSON.stringify(updated), sub],
+      `UPDATE teacher_profiles SET availability = $1 WHERE user_id = $2`,
+      [updated, sub],
     );
-    res.status(201).json({ message: "Availability added successfully.", slot: newSlot });
+    res.status(201).json({
+      message: "Availability added successfully.",
+      availability: updated,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to add availability." });
   }
 };
 
-// PATCH /teachers/profile/availability/:id
-// body: { day, startTime, endTime }
-exports.updateAvailabilitySlot = async (req, res) => {
-  const { sub } = req.user;
-  const { id } = req.params;
-  const { day, startTime, endTime } = req.body;
-
-  const validationError = validateSlotShape({ day, startTime, endTime });
-  if (validationError) return res.status(400).json({ error: validationError });
-
-  try {
-    const existing = await getOwnProfileRow(sub);
-    if (!existing)
-      return res.status(404).json({ error: "Teacher profile not found" });
-
-    const current = existing.availability || [];
-    const index = current.findIndex((s) => s.id === id);
-    if (index === -1) {
-      return res.status(404).json({ error: "Availability slot not found." });
-    }
-
-    const conflict = findOverlap(current, { day, startTime, endTime }, id);
-    if (conflict) {
-      return res.status(409).json({
-        error: `This overlaps with an existing slot (${conflict.startTime}-${conflict.endTime}) on that day.`,
-      });
-    }
-
-    const updated = [...current];
-    updated[index] = { id, day, startTime, endTime };
-
-    await pool.query(
-      `UPDATE teacher_profiles SET availability = $1, updated_at = now() WHERE user_id = $2`,
-      [JSON.stringify(updated), sub],
-    );
-    res.json({ message: "Availability updated successfully.", slot: updated[index] });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to update availability." });
-  }
-};
-
-// DELETE /teachers/profile/availability/:id
+// DELETE /teachers/profile/availability
+// body: { day }
 exports.deleteAvailabilitySlot = async (req, res) => {
   const { sub } = req.user;
-  const { id } = req.params;
+  const { day } = req.body;
 
   try {
     const existing = await getOwnProfileRow(sub);
@@ -443,17 +374,22 @@ exports.deleteAvailabilitySlot = async (req, res) => {
       return res.status(404).json({ error: "Teacher profile not found" });
 
     const current = existing.availability || [];
-    const updated = current.filter((s) => s.id !== id);
+    const updated = current.filter((d) => d !== day);
 
     if (updated.length === current.length) {
-      return res.status(404).json({ error: "Availability slot not found." });
+      return res
+        .status(404)
+        .json({ error: "That day was not in the availability list." });
     }
 
     await pool.query(
-      `UPDATE teacher_profiles SET availability = $1, updated_at = now() WHERE user_id = $2`,
-      [JSON.stringify(updated), sub],
+      `UPDATE teacher_profiles SET availability = $1 WHERE user_id = $2`,
+      [updated, sub],
     );
-    res.json({ message: "Availability slot removed successfully." });
+    res.json({
+      message: "Availability removed successfully.",
+      availability: updated,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to remove availability." });
@@ -461,18 +397,25 @@ exports.deleteAvailabilitySlot = async (req, res) => {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-// SETTINGS: CREDITS PER SESSION (read-only — used by Credits Per Session
-// screen). No per-teacher rate exists anymore; session cost is set via the
-// `pricing` table at booking time and already reflected in
-// bookings.credits_cost, so this is purely a summary of completed sessions.
+// SETTINGS: CREDITS PER SESSION
+// teacher_profiles.credits_per_session is a real column (default 6) — a
+// teacher can view/update their own rate. Session history/summary uses
+// bookings.credits_cost, which is captured at booking time from whatever
+// the rate was then (so past sessions keep their original price even if
+// the teacher changes their rate later).
 // ═══════════════════════════════════════════════════════════════════════
 
 // GET /teachers/profile/credits
-// ⚠️ FIXED (audit, round 3): u.full_name → first_name/last_name
-// concatenation, same as browse()/getOne() above.
 exports.getCreditsSummary = async (req, res) => {
   const { sub } = req.user;
   try {
+    const { rows: profileRows } = await pool.query(
+      `SELECT credits_per_session FROM teacher_profiles WHERE user_id = $1`,
+      [sub],
+    );
+    if (!profileRows.length)
+      return res.status(404).json({ error: "Teacher profile not found" });
+
     const { rows } = await pool.query(
       `SELECT b.id,
               b.credits_cost AS credits,
@@ -488,6 +431,7 @@ exports.getCreditsSummary = async (req, res) => {
     const totalCredits = rows.reduce((sum, s) => sum + (s.credits || 0), 0);
 
     res.json({
+      creditsPerSession: profileRows[0].credits_per_session,
       totalCredits,
       totalSessions: rows.length,
       sessions: rows,
@@ -495,5 +439,33 @@ exports.getCreditsSummary = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch credits summary." });
+  }
+};
+
+// PATCH /teachers/profile/credits
+// body: { creditsPerSession }
+exports.updateCreditsPerSession = async (req, res) => {
+  const { sub } = req.user;
+  const { creditsPerSession } = req.body;
+
+  if (!Number.isInteger(creditsPerSession) || creditsPerSession < 0) {
+    return res
+      .status(400)
+      .json({ error: "creditsPerSession must be a non-negative integer." });
+  }
+
+  try {
+    const existing = await getOwnProfileRow(sub);
+    if (!existing)
+      return res.status(404).json({ error: "Teacher profile not found" });
+
+    await pool.query(
+      `UPDATE teacher_profiles SET credits_per_session = $1 WHERE user_id = $2`,
+      [creditsPerSession, sub],
+    );
+    res.json({ message: "Rate updated successfully.", creditsPerSession });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to update rate." });
   }
 };

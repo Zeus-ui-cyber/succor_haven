@@ -2,34 +2,26 @@
 //
 // Admin > Students List feature.
 //
-// Corrected schema assumptions (per live pgAdmin check):
-//   - There is NO student_profiles table.
-//   - course / year_level live directly on users (u.course, u.year_level).
-//   - credits / points are NOT stored anywhere directly — derived from
-//     credits_ledger, summed by currency ('credits' | 'points'), same
-//     convention as admin.controller.js's listUsers/adjustCredits/adjustPoints.
+// Confirmed live schema (check_schema.js):
+//   - student_profiles IS a real table (user_id, credits, points,
+//     native_language, learning_goals, level) — it's the authoritative
+//     balance source, same as bookings.controller.js already uses.
+//   - course / year_level live directly on users (u.course, u.year_level)
+//     — added via migration_001.sql.
 //
-// ⚠️ FIXED (audit, round 2): removed all references to `u.phone_verified`.
-// Live error: "column u.phone_verified does not exist". Note that
-// u.first_name, u.last_name, u.avatar_url, and u.is_active are NOT flagged
-// as errors even though they appear earlier in the same SELECT, which
-// confirms those columns are real — only phone_verified is wrong.
+// ⚠️ FIXED (this pass): list()/getOne() previously computed credits/points
+// as SUM(credits_ledger.amount) grouped by currency. credits_ledger is
+// only ever an audit trail of deltas (bookings, admin adjustments) — a
+// new student's starting balance is never written there — so summing it
+// diverges from student_profiles.credits/points, the number
+// bookings.controller.js actually checks/updates when a student books a
+// session. Switched both to read student_profiles directly.
 //
-// I don't know the real column name (if a "verified" concept exists on
-// `users` at all — it might live elsewhere, e.g. an OTP/verification log
-// table). Rather than guess and reintroduce another broken column, the
-// `verified`/`unverified` filter and the field are disabled for now with
-// a TODO. Run `\d users` in psql (or check pgAdmin) and tell me the real
-// column name and I'll wire the filter back in.
-//
-// ⚠️ NOTE: the Flutter side (student_detail_screen.dart, students_list_
-// screen.dart) still reads profile['phone_verified'] to render a Verified/
-// Unverified badge. Since this field no longer exists in the API response,
-// that badge will always render "Unverified" — not a crash, just
-// misleading until the real column is confirmed and wired back in on both
-// ends. Same applies to the "Verified" filter dropdown in
-// students_list_screen.dart — it currently sends a `verified` query param
-// that this controller silently ignores.
+// ⚠️ STILL OPEN: no `phone_verified` column exists on `users`. The
+// verified/unverified filter and field remain disabled below with a TODO,
+// same as before — if a "verified" concept exists at all it likely lives
+// elsewhere (e.g. an OTP/verification log table). Confirm the real column
+// name if/when this needs wiring up.
 
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
@@ -37,7 +29,13 @@ const pool = require("../db/pool");
 
 // ── GET /admin/students ───────────────────────────────────────────────────────
 exports.list = async (req, res) => {
-  const { search, status, /* verified, */ course, page = 1, limit = 20 } = req.query;
+  const {
+    search,
+    status,
+    /* verified, */ course,
+    page = 1,
+    limit = 20,
+  } = req.query;
 
   const params = [];
   let where = `u.role = 'student'`;
@@ -72,19 +70,14 @@ exports.list = async (req, res) => {
          u.id, u.first_name, u.last_name, u.email, u.phone,
          u.avatar_url, u.is_active, u.created_at,
          u.course, u.year_level,
-         COALESCE((
-           SELECT SUM(amount) FROM credits_ledger cl
-           WHERE cl.user_id = u.id AND cl.currency = 'credits'
-         ), 0) AS credits,
-         COALESCE((
-           SELECT SUM(amount) FROM credits_ledger cl
-           WHERE cl.user_id = u.id AND cl.currency = 'points'
-         ), 0) AS points,
+         COALESCE(sp.credits, 0) AS credits,
+         COALESCE(sp.points, 0) AS points,
          COUNT(*) OVER() AS total_count,
          (SELECT COUNT(*) FROM bookings b
             WHERE b.student_id = u.id AND b.status IN ('pending','confirmed')
               AND b.scheduled_at > now()) AS upcoming_sessions
        FROM users u
+       LEFT JOIN student_profiles sp ON sp.user_id = u.id
        WHERE ${where}
        ORDER BY u.created_at DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -146,15 +139,10 @@ exports.getOne = async (req, res) => {
       `SELECT u.id, u.first_name, u.last_name, u.email, u.phone,
               u.avatar_url, u.is_active, u.created_at,
               u.course, u.year_level,
-              COALESCE((
-                SELECT SUM(amount) FROM credits_ledger cl
-                WHERE cl.user_id = u.id AND cl.currency = 'credits'
-              ), 0) AS credits,
-              COALESCE((
-                SELECT SUM(amount) FROM credits_ledger cl
-                WHERE cl.user_id = u.id AND cl.currency = 'points'
-              ), 0) AS points
+              COALESCE(sp.credits, 0) AS credits,
+              COALESCE(sp.points, 0) AS points
        FROM users u
+       LEFT JOIN student_profiles sp ON sp.user_id = u.id
        WHERE u.id = $1 AND u.role = 'student'`,
       [id],
     );
@@ -172,11 +160,9 @@ exports.getOne = async (req, res) => {
 
     const { rows: sessions } = await pool.query(
       `SELECT b.id, b.scheduled_at, b.duration_mins, b.status, b.credits_cost,
-              t.first_name AS teacher_first, t.last_name AS teacher_last,
-              pr.name AS pricing_name
+              t.first_name AS teacher_first, t.last_name AS teacher_last
        FROM bookings b
        JOIN users t ON t.id = b.teacher_id
-       LEFT JOIN pricing pr ON pr.id = b.pricing_id
        WHERE b.student_id = $1
        ORDER BY b.scheduled_at DESC
        LIMIT 100`,
@@ -209,8 +195,8 @@ exports.getOne = async (req, res) => {
           s.status === "completed"
             ? "session_completed"
             : s.status === "cancelled"
-            ? "session_cancelled"
-            : "session_booked",
+              ? "session_cancelled"
+              : "session_booked",
         at: s.scheduled_at,
         label: `Session with ${s.teacher_first} ${s.teacher_last} — ${s.status}`,
       })),
@@ -225,7 +211,6 @@ exports.getOne = async (req, res) => {
         durationMins: s.duration_mins,
         status: s.status,
         creditsCost: s.credits_cost,
-        pricingName: s.pricing_name,
         teacherName: `${s.teacher_first} ${s.teacher_last}`,
         teacherNotes: null,
       })),
@@ -239,20 +224,12 @@ exports.getOne = async (req, res) => {
 };
 
 // ── PATCH /admin/students/:id ─────────────────────────────────────────────────
-// ⚠️ FIXED: COALESCE($n, column) only skips a parameter when it's SQL NULL,
-// not an empty string. The Flutter edit sheet always sends every field as
-// a string (never null, to avoid a TextEditingController crash on missing
-// data), so an untouched, previously-empty field like email/phone would
-// get explicitly overwritten with '' instead of being left alone.
-// firstName/lastName/email/phone are treated as required — a blank
-// submission for these means "unchanged," not "clear it." course/
-// yearLevel are optional fields where an intentional blank ("no longer
-// enrolled") is valid, so those are left able to be cleared.
 exports.update = async (req, res) => {
   const { id } = req.params;
   let { firstName, lastName, email, phone, course, yearLevel } = req.body;
 
-  if (typeof firstName === "string" && firstName.trim() === "") firstName = null;
+  if (typeof firstName === "string" && firstName.trim() === "")
+    firstName = null;
   if (typeof lastName === "string" && lastName.trim() === "") lastName = null;
   if (typeof email === "string" && email.trim() === "") email = null;
   if (typeof phone === "string" && phone.trim() === "") phone = null;
@@ -281,7 +258,6 @@ exports.update = async (req, res) => {
 };
 
 // ── POST /admin/students/:id/reset-password ───────────────────────────────────
-// (unchanged)
 exports.resetPassword = async (req, res) => {
   const { id } = req.params;
   try {

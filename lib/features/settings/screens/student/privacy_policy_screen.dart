@@ -118,7 +118,8 @@ class _Header extends StatelessWidget {
                 ),
               ],
             ),
-            child: const Icon(Icons.shield_rounded, color: Colors.white, size: 30),
+            child:
+                const Icon(Icons.shield_rounded, color: Colors.white, size: 30),
           ),
           const SizedBox(height: 12),
           const Text('Privacy Policy',
@@ -127,7 +128,9 @@ class _Header extends StatelessWidget {
           const SizedBox(height: 2),
           const Text('隐私政策',
               style: TextStyle(
-                  fontSize: 12, color: _C.burgundy, fontWeight: FontWeight.w600)),
+                  fontSize: 12,
+                  color: _C.burgundy,
+                  fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -213,7 +216,8 @@ class _AboutThisPolicyState extends State<_AboutThisPolicy> {
     (
       title: 'Introduction',
       titleCn: '简介',
-      body: 'Placeholder introduction text describing the purpose of this policy.',
+      body:
+          'Placeholder introduction text describing the purpose of this policy.',
     ),
     (
       title: 'Data Collection',
@@ -273,8 +277,9 @@ class _AboutThisPolicyState extends State<_AboutThisPolicy> {
           ),
           AnimatedCrossFade(
             duration: const Duration(milliseconds: 220),
-            crossFadeState:
-                _expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+            crossFadeState: _expanded
+                ? CrossFadeState.showFirst
+                : CrossFadeState.showSecond,
             firstChild: Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Column(
@@ -317,7 +322,8 @@ class _DetailSection extends StatelessWidget {
         ]),
         const SizedBox(height: 6),
         Text(body,
-            style: const TextStyle(fontSize: 12.5, color: _C.inkSoft, height: 1.5)),
+            style: const TextStyle(
+                fontSize: 12.5, color: _C.inkSoft, height: 1.5)),
       ],
     );
   }

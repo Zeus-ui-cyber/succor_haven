@@ -17,14 +17,22 @@
 // it without first confirming where session pricing actually comes from
 // (likely a `pricing`/`sessions` table or endpoint).
 //
-// FIXED: `availability` was previously typed as `List<String>` (e.g.
-// ['Mon','Wed','Fri']), but teacher_profiles.availability is actually a
-// JSONB array of *slot objects* — { id, day, startTime, endTime } — as
-// written by teachers.controller.js's addAvailabilitySlot/updateAvailabilitySlot
-// (see VALID_DAYS / validateSlotShape there). The old fromJson called
-// `.toString()` on each slot map, which produced garbage strings like
-// "{id: ..., day: monday, startTime: 08:00, endTime: 12:00}" instead of a
-// real schedule. `availability` is now `List<TeacherAvailabilitySlot>`.
+// FIXED (again): `availability` is a plain TEXT[] of weekday name strings
+// on the live DB (e.g. ['Mon', 'Wed', 'Fri']) — confirmed by
+// teachers.controller.js's VALID_DAYS / addAvailabilitySlot /
+// getAvailability, and by admin.controller.js's createTeacher, which all
+// agree on this exact shape. There is no per-slot id/startTime/endTime;
+// a teacher is simply available or not on a given weekday. A previous
+// version of this model treated each entry as a { id, day, startTime,
+// endTime } object and called `TeacherAvailabilitySlot.fromJson(e as
+// Map<String, dynamic>)` on it, which crashed the moment any teacher had
+// a non-empty availability array, since the real payload is a list of
+// plain strings like "Mon", not maps. `availability` is now
+// `List<String>` to match the DB. `TeacherAvailabilitySlot` and
+// `groupedAvailability` are kept below (unused by fromJson) only in case
+// some other screen still references the type — but they no longer
+// reflect the live data shape and should be removed/replaced with plain
+// day-string handling if anything else depends on them.
 
 const List<String> kWeekdayOrder = [
   'monday',
@@ -36,9 +44,10 @@ const List<String> kWeekdayOrder = [
   'sunday',
 ];
 
-/// One recurring weekly availability slot, as configured by the teacher in
-/// Settings > Set Availability. `day` is lowercase ('monday'..'sunday');
-/// `startTime`/`endTime` are 'HH:MM' 24-hour strings, exactly as stored.
+/// Kept for backward-compat only — the live API does NOT return slot
+/// objects, just plain day-name strings (see note above). Do not use this
+/// in new code; use the plain `List<String> availability` on
+/// TeacherProfileModel instead.
 class TeacherAvailabilitySlot {
   final String id;
   final String day;
@@ -93,7 +102,7 @@ class TeacherProfileModel {
   final String? avatarUrl;
   final String? bio;
   final List<String> subjects;
-  final List<TeacherAvailabilitySlot> availability;
+  final List<String> availability;
   final double rating;
   final int totalSessions;
   final DateTime? createdAt; // only present on getOne()
@@ -132,22 +141,6 @@ class TeacherProfileModel {
   bool get isNewTeacher => totalSessions == 0;
   bool get hasRating => rating > 0;
 
-  /// Availability grouped by day and sorted Monday → Sunday, each day's
-  /// slots sorted by start time. Convenience for display widgets.
-  Map<String, List<TeacherAvailabilitySlot>> get groupedAvailability {
-    final grouped = <String, List<TeacherAvailabilitySlot>>{};
-    for (final slot in availability) {
-      grouped.putIfAbsent(slot.day, () => []).add(slot);
-    }
-    for (final slots in grouped.values) {
-      slots.sort((a, b) => a.startTime.compareTo(b.startTime));
-    }
-    return {
-      for (final day in kWeekdayOrder)
-        if (grouped.containsKey(day)) day: grouped[day]!,
-    };
-  }
-
   // ── Serialization ───────────────────────────────────────────────────────
   factory TeacherProfileModel.fromJson(Map<String, dynamic> json) {
     // Accept full_name OR first_name + last_name, same defensive pattern
@@ -169,11 +162,12 @@ class TeacherProfileModel {
               .toList() ??
           const [],
       availability: (json['availability'] as List<dynamic>?)
-              ?.map((e) =>
-                  TeacherAvailabilitySlot.fromJson(e as Map<String, dynamic>))
+              ?.map((e) => e.toString())
               .toList() ??
           const [],
-      rating: (json['rating'] as num?)?.toDouble() ?? 0,
+      rating: (json['rating'] is String)
+          ? double.tryParse(json['rating'] as String) ?? 0
+          : (json['rating'] as num?)?.toDouble() ?? 0,
       totalSessions: (json['total_sessions'] as num?)?.toInt() ?? 0,
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'] as String)
@@ -187,7 +181,7 @@ class TeacherProfileModel {
         'avatar_url': avatarUrl,
         'bio': bio,
         'subjects': subjects,
-        'availability': availability.map((s) => s.toJson()).toList(),
+        'availability': availability,
         'rating': rating,
         'total_sessions': totalSessions,
         'created_at': createdAt?.toIso8601String(),
@@ -199,7 +193,7 @@ class TeacherProfileModel {
     String? avatarUrl,
     String? bio,
     List<String>? subjects,
-    List<TeacherAvailabilitySlot>? availability,
+    List<String>? availability,
     double? rating,
     int? totalSessions,
     DateTime? createdAt,
