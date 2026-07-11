@@ -28,6 +28,17 @@ class _C {
   static const greenPale = Color(0xFFDCF7EE);
 }
 
+// Guards against an empty firstName string (e.g. a malformed/blank name
+// somehow slipping through) crashing on ''[0]. Cheap safety net matching
+// the _initials() pattern used across the admin screens this session.
+String _avatarLetter(UserModel user) {
+  final f = user.firstName.trim();
+  if (f.isNotEmpty) return f[0].toUpperCase();
+  final l = user.lastName.trim();
+  if (l.isNotEmpty) return l[0].toUpperCase();
+  return '?';
+}
+
 // ── Providers ─────────────────────────────────────────────────────────────────
 // NOTE: the old `_sTeachersProvider` here parsed raw `/teachers` JSON as
 // `first_name`/`last_name`/`credits_per_session` — none of those fields
@@ -53,11 +64,17 @@ final _sBookingsProvider = FutureProvider<List<dynamic>>((ref) async {
   return jsonDecode(res.body) as List;
 });
 
+// ⚠️ FIXED: this previously hit /admin/rewards, which requires
+// requireRole("admin") server-side — every student request got a 403
+// Forbidden (visible in the debug console screenshots throughout this
+// session). Points to the new /rewards route (added to routes/index.js,
+// reusing adminCtrl.listRewards without the admin gate — it's a read-only
+// SELECT, safe to expose to any authenticated user).
 final _sRewardsProvider = FutureProvider<List<dynamic>>((ref) async {
   final repo = ref.read(_sRepoProvider);
   final token = await repo.getAccessToken();
   final res = await http.get(
-    Uri.parse('${AuthRepository.baseUrl}/admin/rewards'),
+    Uri.parse('${AuthRepository.baseUrl}/rewards'),
     headers: {'Authorization': 'Bearer $token'},
   );
   if (res.statusCode != 200) return [];
@@ -294,7 +311,7 @@ class _HomeTab extends ConsumerWidget {
         CircleAvatar(
           radius: 22,
           backgroundColor: _C.blushPink,
-          child: Text(user.firstName[0].toUpperCase(),
+          child: Text(_avatarLetter(user),
               style: const TextStyle(
                   color: _C.burgundy,
                   fontWeight: FontWeight.w800,
@@ -755,7 +772,7 @@ class _ProfileTab extends ConsumerWidget {
           CircleAvatar(
             radius: 42,
             backgroundColor: _C.blushPink,
-            child: Text(user.firstName[0].toUpperCase(),
+            child: Text(_avatarLetter(user),
                 style: const TextStyle(
                     fontSize: 36,
                     color: _C.burgundy,

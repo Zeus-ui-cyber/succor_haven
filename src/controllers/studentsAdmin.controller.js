@@ -9,13 +9,15 @@
 //   - course / year_level live directly on users (u.course, u.year_level)
 //     — added via migration_001.sql.
 //
-// ⚠️ FIXED (this pass): list()/getOne() previously computed credits/points
-// as SUM(credits_ledger.amount) grouped by currency. credits_ledger is
-// only ever an audit trail of deltas (bookings, admin adjustments) — a
-// new student's starting balance is never written there — so summing it
-// diverges from student_profiles.credits/points, the number
-// bookings.controller.js actually checks/updates when a student books a
-// session. Switched both to read student_profiles directly.
+// ⚠️ FIXED (this pass): all raw COUNT(*) subqueries now cast to ::int.
+// Postgres's COUNT(*) returns type bigint, and node-postgres deliberately
+// returns bigint values as JS strings (not numbers) to avoid precision
+// loss on values larger than Number.MAX_SAFE_INTEGER. That meant
+// upcoming_sessions came back as the string "0", not the number 0 — the
+// Flutter side's `(student['upcoming_sessions'] ?? 0) as int` only
+// substitutes on null, so a non-null string sailed past the ?? and the
+// `as int` cast threw: TypeError: "0": type 'String' is not a subtype of
+// type 'int'. This is what broke the entire Students tab.
 //
 // ⚠️ STILL OPEN: no `phone_verified` column exists on `users`. The
 // verified/unverified filter and field remain disabled below with a TODO,
@@ -73,7 +75,7 @@ exports.list = async (req, res) => {
          COALESCE(sp.credits, 0) AS credits,
          COALESCE(sp.points, 0) AS points,
          COUNT(*) OVER() AS total_count,
-         (SELECT COUNT(*) FROM bookings b
+         (SELECT COUNT(*)::int FROM bookings b
             WHERE b.student_id = u.id AND b.status IN ('pending','confirmed')
               AND b.scheduled_at > now()) AS upcoming_sessions
        FROM users u
@@ -103,7 +105,13 @@ exports.list = async (req, res) => {
 };
 
 // ── GET /admin/students/summary ───────────────────────────────────────────────
-// (unchanged — this one never referenced student_profiles or phone_verified)
+// Same bigint-as-string issue applies here — every raw COUNT(*) is a
+// potential ::int fix. These were already wrapped in Number(...) on the
+// way out, which does correctly coerce the string "0" to 0 — so this
+// endpoint was never actually broken, just relying on JS's Number()
+// coercion instead of an explicit Postgres cast. Left as-is since it
+// works, but noting the pattern for consistency: Number(x.rows[0].count)
+// is a safe way to handle a bigint-as-string result too.
 exports.summary = async (req, res) => {
   try {
     const [total, active, inactive, upcoming] = await Promise.all([

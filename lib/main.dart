@@ -23,19 +23,28 @@ import 'features/settings/screens/student/edit_profile_screen.dart'
 import 'features/settings/screens/student/change_password_screen.dart'
     show ChangePasswordScreen;
 import 'features/settings/screens/student/phone_settings_screen.dart'
-    show PhoneSettingsScreen; // ← NEW
+    show PhoneSettingsScreen;
 import 'features/settings/screens/student/language_settings_screen.dart'
-    show LanguageSettingsScreen; // ← NEW
+    show LanguageSettingsScreen;
 import 'features/settings/screens/student/notification_settings_screen.dart'
-    show NotificationSettingsScreen; // ← NEW
+    show NotificationSettingsScreen;
 import 'features/settings/screens/student/help_center_screen.dart'
-    show HelpCenterScreen; // ← NEW
+    show HelpCenterScreen;
 import 'features/settings/screens/student/privacy_policy_screen.dart'
-    show PrivacyPolicyScreen; // ← NEW
+    show PrivacyPolicyScreen;
+
+// Booking / Teacher detail
+import 'features/booking/screens/teacher_detail_screen.dart'
+    show TeacherDetailScreen; // ← NEW
+
+// Appointments
+import 'features/appointments/screens/request_appointment_screen.dart'
+    show RequestAppointmentScreen; // ← NEW
 
 // Models
 import 'models/user.dart' show UserModel;
 import 'models/user_role.dart' show UserRole;
+import 'models/teacher_profile.dart' show TeacherProfileModel; // ← NEW
 
 // ─── Succor Haven global design tokens ───────────────────────────────────────
 class SHColors {
@@ -300,7 +309,7 @@ class SuccorHavenApp extends StatelessWidget {
 
         // No arguments needed — backend identifies the user from the JWT
         // and looks up their own primary/backup phone numbers.
-        '/settings/phone': (_) => const PhoneSettingsScreen(), // ← NEW
+        '/settings/phone': (_) => const PhoneSettingsScreen(),
 
         // Optional String argument for the user's current language
         // ('en' | 'zh'), e.g.:
@@ -311,15 +320,61 @@ class SuccorHavenApp extends StatelessWidget {
           final currentLanguage =
               ModalRoute.of(context)?.settings.arguments as String? ?? 'en';
           return LanguageSettingsScreen(currentLanguage: currentLanguage);
-        }, // ← NEW
+        },
 
         '/settings/notifications': (_) =>
-            const NotificationSettingsScreen(), // ← NEW
+            const NotificationSettingsScreen(),
 
-        '/settings/help-center': (_) => const HelpCenterScreen(), // ← NEW
+        '/settings/help-center': (_) => const HelpCenterScreen(),
 
         '/settings/privacy-policy': (_) =>
-            const PrivacyPolicyScreen(), // ← NEW
+            const PrivacyPolicyScreen(),
+
+        // ── Appointments ───────────────────────────────────────────────────
+        // Expects a TeacherProfileModel passed as arguments, e.g.:
+        //   Navigator.pushNamed(context, '/appointments/request',
+        //       arguments: teacher);
+        '/appointments/request': (context) {
+          final teacher = ModalRoute.of(context)!.settings.arguments
+              as TeacherProfileModel;
+          return RequestAppointmentScreen(teacher: teacher);
+        }, // ← NEW
+      },
+      // ── Dynamic routes ───────────────────────────────────────────────────
+      // Handles paths the `routes:` map above can't match, since it only
+      // does exact string comparison — no path-parameter support. Right
+      // now this covers /teachers/:id (tapped from Find Teachers / teacher
+      // cards). Without this, Navigator.pushNamed(context,
+      // '/teachers/$id') fails with "Could not find a generator for
+      // route" and silently does nothing from the user's perspective.
+      onGenerateRoute: (settings) {
+        final uri = Uri.parse(settings.name ?? '');
+        final segments = uri.pathSegments;
+
+        if (segments.length == 2 && segments[0] == 'teachers') {
+          final teacherId = segments[1];
+          return MaterialPageRoute(
+            settings: settings,
+            builder: (_) => TeacherDetailScreen(teacherId: teacherId),
+          );
+        }
+
+        // No match — fall through to onUnknownRoute instead of returning
+        // null, which would silently no-op the navigation.
+        return null;
+      },
+      // Safety net: if onGenerateRoute also can't resolve it, show an
+      // explicit error screen instead of a raw console-only error with no
+      // UI feedback for the person using the app.
+      onUnknownRoute: (settings) {
+        return MaterialPageRoute(
+          builder: (_) => Scaffold(
+            appBar: AppBar(title: const Text('Page not found')),
+            body: Center(
+              child: Text('No route defined for "${settings.name}"'),
+            ),
+          ),
+        );
       },
     );
   }

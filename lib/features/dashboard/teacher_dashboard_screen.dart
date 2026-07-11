@@ -6,10 +6,13 @@ import 'package:http/http.dart' as http;
 import '../auth/controllers/auth_controller.dart';
 import '../auth/repositories/auth_repository.dart';
 import '../../models/user.dart';
+import '../../models/appointment.dart';
 import '../settings/screens/teacher/edit_bio_subjects_screen.dart';
 import '../settings/screens/teacher/set_availability_screen.dart';
 import '../settings/screens/teacher/credits_per_session_screen.dart';
 import '../settings/screens/student/change_password_screen.dart';
+import '../appointments/controllers/appointment_controller.dart';
+import '../appointments/screens/teacher_appointments_screen.dart';
 
 class _C {
   static const slateBlue = Color(0xFF3E678A);
@@ -25,6 +28,17 @@ class _C {
   static const paper = Color(0xFFFFFFFF);
   static const green = Color(0xFF00C48C);
   static const greenPale = Color(0xFFDCF7EE);
+}
+
+// Guards against an empty firstName string crashing on ''[0] — same
+// pattern applied to the student dashboard. Falls back to lastName, then
+// '?' if both are somehow empty.
+String _avatarLetter(UserModel user) {
+  final f = user.firstName.trim();
+  if (f.isNotEmpty) return f[0].toUpperCase();
+  final l = user.lastName.trim();
+  if (l.isNotEmpty) return l[0].toUpperCase();
+  return '?';
 }
 
 final _tRepoProvider = Provider((_) => AuthRepository());
@@ -166,6 +180,13 @@ class _THomeTab extends ConsumerWidget {
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(child: _buildHeader()),
+
+        // Appointment requests entry point
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+          sliver: SliverToBoxAdapter(child: _AppointmentsEntryCard()),
+        ),
+
         // Stats hero
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
@@ -233,7 +254,7 @@ class _THomeTab extends ConsumerWidget {
         CircleAvatar(
           radius: 22,
           backgroundColor: _C.bluePale,
-          child: Text(user.firstName[0].toUpperCase(),
+          child: Text(_avatarLetter(user),
               style: const TextStyle(
                   color: _C.slateBlue,
                   fontWeight: FontWeight.w800,
@@ -264,6 +285,84 @@ class _THomeTab extends ConsumerWidget {
           ]),
         ),
       ]),
+    );
+  }
+}
+
+// ── Appointment requests entry card (Home tab) ─────────────────────────────────
+// Shows a live pending count via teacherAppointmentsProvider (from
+// appointment_controller.dart) and opens TeacherAppointmentsScreen, which
+// handles the full Pending/Approved/Today/Upcoming/Completed/Declined/
+// Cancelled categorized workflow.
+class _AppointmentsEntryCard extends ConsumerWidget {
+  const _AppointmentsEntryCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(teacherAppointmentsProvider);
+    final pendingCount = async.whenOrNull(
+          data: (list) =>
+              list.where((a) => a.status.apiValue == 'pending').length,
+        ) ??
+        0;
+
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const TeacherAppointmentsScreen()),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _C.paper,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _C.line),
+        ),
+        child: Row(children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: _C.bluePale,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.event_note_rounded,
+                color: _C.slateBlue, size: 22),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Appointment Requests',
+                    style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: _C.ink)),
+                Text('预约请求',
+                    style: TextStyle(fontSize: 11, color: _C.slateBlue)),
+              ],
+            ),
+          ),
+          if (pendingCount > 0)
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: _C.magenta,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text('$pendingCount pending',
+                  style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700)),
+            ),
+          const SizedBox(width: 6),
+          const Icon(Icons.arrow_forward_ios_rounded,
+              size: 14, color: _C.inkSoft),
+        ]),
+      ),
     );
   }
 }
@@ -576,7 +675,7 @@ class _TProfileTab extends ConsumerWidget {
           CircleAvatar(
             radius: 42,
             backgroundColor: _C.bluePale,
-            child: Text(user.firstName[0].toUpperCase(),
+            child: Text(_avatarLetter(user),
                 style: const TextStyle(
                     fontSize: 36,
                     color: _C.slateBlue,
@@ -818,7 +917,7 @@ class _TBookingCard extends StatelessWidget {
         CircleAvatar(
             radius: 20,
             backgroundColor: _C.softPink,
-            child: Text(name[0],
+            child: Text(name.isNotEmpty ? name[0] : '?',
                 style: const TextStyle(
                     color: _C.magenta, fontWeight: FontWeight.w800))),
         const SizedBox(width: 12),
@@ -959,7 +1058,7 @@ class _EarningRow extends StatelessWidget {
         CircleAvatar(
             radius: 16,
             backgroundColor: _C.bluePale,
-            child: Text(name[0],
+            child: Text(name.isNotEmpty ? name[0] : '?',
                 style: const TextStyle(
                     color: _C.slateBlue,
                     fontWeight: FontWeight.w800,

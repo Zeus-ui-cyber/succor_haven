@@ -32,6 +32,22 @@ String _initials(String? first, String? last) {
   return '${f[0]}${l[0]}'.toUpperCase();
 }
 
+// Defensive numeric parser — Postgres COUNT(*) returns bigint, which
+// node-postgres sends over the wire as a JS string, not a number. A plain
+// `(x ?? 0) as int` cast crashes on that string since ?? only substitutes
+// on null, not on a non-null value of the wrong type. This was the actual
+// cause of the Students tab crash (upcoming_sessions came back as "0").
+// The backend now casts with ::int, but this stays as a safety net in
+// case any other numeric field on this screen is ever added without the
+// same care.
+int _asInt(dynamic v, [int fallback = 0]) {
+  if (v == null) return fallback;
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  if (v is String) return int.tryParse(v) ?? fallback;
+  return fallback;
+}
+
 // avatar_url from the backend is likely a relative path (multer saves to
 // uploads/profile-pictures/, served statically at /uploads/... — separate
 // from the /api/v1 routes AuthRepository.baseUrl points at). This builds
@@ -328,7 +344,7 @@ class _StudentRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final active = student['is_active'] == true;
     final verified = student['phone_verified'] == true;
-    final upcoming = (student['upcoming_sessions'] ?? 0) as int;
+    final upcoming = _asInt(student['upcoming_sessions']);
     final firstName = student['first_name'] as String?;
     final lastName = student['last_name'] as String?;
     final displayName = [firstName, lastName]

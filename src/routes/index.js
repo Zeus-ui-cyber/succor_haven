@@ -19,6 +19,7 @@ const pricingCtrl = require("../controllers/pricing.controller");
 const milestonesCtrl = require("../controllers/milestones.controller");
 const settingsCtrl = require("../controllers/settings.controller");
 const studentsAdminCtrl = require("../controllers/studentsAdmin.controller");
+const appointmentsController = require("../controllers/appointments.controller");
 
 const router = express.Router();
 
@@ -177,6 +178,16 @@ router.get("/courses", authenticate, courseCtrl.browse);
 router.get("/courses/categories", authenticate, courseCtrl.categories);
 router.get("/courses/:id", authenticate, courseCtrl.getOne);
 
+// ── Rewards (student-facing, read-only) ────────────────────────────────────────
+// ⚠️ ADDED: the student dashboard's Rewards tab was hitting /admin/rewards,
+// which requires requireRole("admin") — every student request got a 403
+// Forbidden (visible in multiple debug console screenshots this session).
+// This reuses adminCtrl.listRewards without the admin gate — it's a
+// read-only SELECT, safe to expose to any authenticated user. The admin
+// management screen continues to use /admin/rewards for create/update/
+// delete, unaffected by this addition.
+router.get("/rewards", authenticate, adminCtrl.listRewards);
+
 // ── Settings ──────────────────────────────────────────────────────────────────
 router.patch("/settings/profile", authenticate, settingsCtrl.updateProfile);
 router.post(
@@ -228,6 +239,71 @@ router.patch(
 );
 
 router.post("/settings/concerns", authenticate, settingsCtrl.submitConcern);
+
+// ── Appointments ──────────────────────────────────────────────────────────────
+// Student
+router.post(
+  "/appointments",
+  authenticate,
+  requireRole("student"),
+  appointmentsController.createAppointment,
+);
+router.get(
+  "/appointments/mine",
+  authenticate,
+  requireRole("student"),
+  appointmentsController.getMyAppointments,
+);
+router.patch(
+  "/appointments/:id/cancel",
+  authenticate,
+  appointmentsController.cancelAppointment,
+);
+router.patch(
+  "/appointments/:id/respond-reschedule",
+  authenticate,
+  appointmentsController.respondToReschedule,
+);
+
+// Shared (student or teacher viewing their own appointment — enforce
+// ownership inside the controller, since role alone can't tell us that)
+router.get(
+  "/appointments/:id",
+  authenticate,
+  appointmentsController.getAppointmentById,
+);
+
+// Teacher (Phase 2 UI, endpoints ready now)
+router.get(
+  "/appointments/teacher/mine",
+  authenticate,
+  requireRole("teacher"),
+  appointmentsController.getTeacherAppointments,
+);
+router.patch(
+  "/appointments/:id/approve",
+  authenticate,
+  requireRole("teacher", "admin"),
+  appointmentsController.approveAppointment,
+);
+router.patch(
+  "/appointments/:id/decline",
+  authenticate,
+  requireRole("teacher", "admin"),
+  appointmentsController.declineAppointment,
+);
+router.patch(
+  "/appointments/:id/propose-reschedule",
+  authenticate,
+  requireRole("teacher", "admin"),
+  appointmentsController.proposeReschedule,
+);
+router.patch(
+  "/appointments/:id/complete",
+  authenticate,
+  requireRole("teacher", "admin"),
+  appointmentsController.completeAppointment,
+);
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
 const admin = [authenticate, requireRole("admin")];
