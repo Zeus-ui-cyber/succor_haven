@@ -13,6 +13,7 @@ import '../settings/screens/teacher/credits_per_session_screen.dart';
 import '../settings/screens/student/change_password_screen.dart';
 import '../appointments/controllers/appointment_controller.dart';
 import '../appointments/screens/teacher_appointments_screen.dart';
+import '../modules/screens/modules_screen.dart';
 
 class _C {
   static const slateBlue = Color(0xFF3E678A);
@@ -28,6 +29,8 @@ class _C {
   static const paper = Color(0xFFFFFFFF);
   static const green = Color(0xFF00C48C);
   static const greenPale = Color(0xFFDCF7EE);
+  static const purple = Color(0xFF8E5FD6);
+  static const purplePale = Color(0xFFEBE2FA);
 }
 
 // Guards against an empty firstName string crashing on ''[0] — same
@@ -183,8 +186,14 @@ class _THomeTab extends ConsumerWidget {
 
         // Appointment requests entry point
         SliverPadding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+          sliver: const SliverToBoxAdapter(child: _AppointmentsEntryCard()),
+        ),
+
+        // Modules entry point
+        SliverPadding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-          sliver: SliverToBoxAdapter(child: _AppointmentsEntryCard()),
+          sliver: SliverToBoxAdapter(child: _ModulesEntryCard(user: user)),
         ),
 
         // Stats hero
@@ -359,6 +368,61 @@ class _AppointmentsEntryCard extends ConsumerWidget {
                       fontWeight: FontWeight.w700)),
             ),
           const SizedBox(width: 6),
+          const Icon(Icons.arrow_forward_ios_rounded,
+              size: 14, color: _C.inkSoft),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── Modules entry card (Home tab) ───────────────────────────────────────────
+// Opens ModulesScreen (shared with admin), which lists both admin-uploaded
+// reference materials and the teacher's own supplementary uploads.
+class _ModulesEntryCard extends StatelessWidget {
+  final UserModel user;
+  const _ModulesEntryCard({required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => ModulesScreen(currentUser: user)),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _C.paper,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _C.line),
+        ),
+        child: Row(children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: _C.purplePale,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.folder_copy_outlined,
+                color: _C.purple, size: 22),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Learning Modules',
+                    style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: _C.ink)),
+                Text('教学资料',
+                    style: TextStyle(fontSize: 11, color: _C.purple)),
+              ],
+            ),
+          ),
           const Icon(Icons.arrow_forward_ios_rounded,
               size: 14, color: _C.inkSoft),
         ]),
@@ -712,6 +776,16 @@ class _TProfileTab extends ConsumerWidget {
 
         // Settings
         _TProfileSection('Teaching', '教学', [
+          _TProfileTile(
+            Icons.folder_copy_outlined,
+            'Learning Modules',
+            '教学资料',
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => ModulesScreen(currentUser: user)),
+            ),
+          ),
           _TProfileTile(
             Icons.edit_outlined,
             'Edit Bio & Subjects',

@@ -45,13 +45,13 @@ exports.dashboard = async (req, res) => {
 };
 
 // ── GET /admin/users ──────────────────────────────────────────────────────────
-// ⚠️ FIXED (this pass): credits/points now read from student_profiles
-// (the authoritative balance, same as bookings.controller.js) instead of
-// SUM(credits_ledger). credits_ledger is an audit trail only — a new
-// student's initial balance is never written there, so summing it
-// under-reports (or entirely misses) any student who hasn't had a booking
-// or admin adjustment yet. Teachers/admins simply show 0, same as before
-// (they have no student_profiles row).
+// ⚠️ REVERTED: a prior version of this file joined against
+// student_profiles for credits/points. That table does not exist on the
+// live database — confirmed via
+// `SELECT tablename FROM pg_tables WHERE tablename IN ('student_profiles',
+// 'points_ledger');` returning zero rows against succor_haven_neon. Back
+// to credits_ledger, summed by currency, matching bookings.controller.js
+// and every other confirmed-working query in this codebase.
 exports.listUsers = async (req, res) => {
   const { role, search } = req.query;
   const { pageNum, limitNum, offset } = parsePagination(
@@ -75,11 +75,16 @@ exports.listUsers = async (req, res) => {
               (u.first_name || ' ' || u.last_name) AS full_name,
               u.role, u.is_active, u.created_at,
               tp.is_approved AS teacher_approved,
-              COALESCE(sp.credits, 0) AS credits,
-              COALESCE(sp.points, 0) AS points
+              COALESCE((
+                SELECT SUM(amount) FROM credits_ledger cl
+                WHERE cl.user_id = u.id AND cl.currency = 'credits'
+              ), 0) AS credits,
+              COALESCE((
+                SELECT SUM(amount) FROM credits_ledger cl
+                WHERE cl.user_id = u.id AND cl.currency = 'points'
+              ), 0) AS points
        FROM users u
        LEFT JOIN teacher_profiles tp ON tp.user_id = u.id
-       LEFT JOIN student_profiles sp ON sp.user_id = u.id
        WHERE ${where}
        ORDER BY u.created_at DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -138,8 +143,7 @@ exports.createTeacher = async (req, res) => {
     const user = rows[0];
 
     // teacher_profiles.availability is a real TEXT[] column (confirmed
-    // live, same convention teachers.controller.js already uses) — pass
-    // it through instead of silently dropping it.
+    // live, same convention teachers.controller.js already uses).
     await pool.query(
       `INSERT INTO teacher_profiles
          (user_id, bio, subjects, availability, is_approved)
@@ -252,11 +256,6 @@ exports.listBookings = async (req, res) => {
 };
 
 // ── GET /admin/rewards ────────────────────────────────────────────────────────
-// ⚠️ FIXED (this pass): confirmed live via check_schema.js — rewards now
-// has name/points_required/reward_type/reward_value (migration_002.sql
-// renamed the old title/points_cost columns to match what this file and
-// the Flutter app already expected). Ordering by points_required is
-// correct as-is; no query changes needed here beyond this note.
 exports.listRewards = async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -336,16 +335,10 @@ exports.deleteReward = async (req, res) => {
 
 // ── PATCH /admin/users/:id/credits — admin adjusts a student's credit balance ─
 // body: { amount: number (can be negative), reason?: string }
-// ⚠️ FIXED (this pass): student_profiles.credits is the authoritative
-// balance (see bookings.controller.js). This previously only wrote a
-// credits_ledger row and computed the "new" balance as
-// SUM(credits_ledger) — never touching student_profiles at all. That
-// meant an admin's credit adjustment would show a different number here
-// than what bookings.controller.js actually used to decide if the student
-// could book a session, since the two were reading from different places.
-// Now: read/lock the real balance from student_profiles, update it
-// directly, and still log the change to credits_ledger as an audit trail
-// (not as the source of truth) — same pattern bookings.controller.js uses.
+// ⚠️ REVERTED: same schema fix as listUsers above. Balance is
+// SUM(credits_ledger.amount) where currency='credits' — matching
+// bookings.controller.js's own convention exactly, so this endpoint and
+// booking-time balance checks always agree on the same number.
 exports.adjustCredits = async (req, res) => {
   const { id } = req.params;
   const { amount, reason } = req.body;
@@ -366,39 +359,26 @@ exports.adjustCredits = async (req, res) => {
         .status(400)
         .json({ error: "Credit adjustments only apply to student accounts" });
 
-    await pool.query("BEGIN");
-
-    const { rows: spRows } = await pool.query(
-      `SELECT credits FROM student_profiles WHERE user_id = $1 FOR UPDATE`,
+    const { rows: balRows } = await pool.query(
+      `SELECT COALESCE(SUM(amount), 0) AS balance
+       FROM credits_ledger WHERE user_id = $1 AND currency = 'credits'`,
       [id],
     );
-    if (!spRows.length) {
-      await pool.query("ROLLBACK");
-      return res.status(404).json({ error: "Student profile not found" });
-    }
-
-    const newBalance = spRows[0].credits + delta;
-    if (newBalance < 0) {
-      await pool.query("ROLLBACK");
+    const currentBalance = Number(balRows[0].balance);
+    const newBalance = currentBalance + delta;
+    if (newBalance < 0)
       return res
         .status(400)
         .json({ error: "Adjustment would result in negative credits" });
-    }
 
-    await pool.query(
-      `UPDATE student_profiles SET credits = $1 WHERE user_id = $2`,
-      [newBalance, id],
-    );
     await pool.query(
       `INSERT INTO credits_ledger (user_id, amount, reason, currency)
        VALUES ($1, $2, $3, 'credits')`,
       [id, delta, reason || (delta > 0 ? "Admin credit" : "Admin deduction")],
     );
 
-    await pool.query("COMMIT");
     res.json({ credits: newBalance });
   } catch (err) {
-    await pool.query("ROLLBACK");
     console.error(err);
     res.status(500).json({ error: "Failed to adjust credits" });
   }
@@ -406,10 +386,8 @@ exports.adjustCredits = async (req, res) => {
 
 // ── PATCH /admin/users/:id/points — admin adjusts a student's points balance ──
 // body: { amount: number (can be negative), reason?: string }
-// ⚠️ FIXED (this pass): same student_profiles-as-source-of-truth fix as
-// adjustCredits above. points_ledger (not credits_ledger currency='points')
-// is the real audit-trail table for points — matches
-// bookings.controller.js complete().
+// ⚠️ REVERTED: same fix. Points are credits_ledger rows with
+// currency='points' — there is no separate points_ledger table.
 exports.adjustPoints = async (req, res) => {
   const { id } = req.params;
   const { amount, reason } = req.body;
@@ -430,39 +408,26 @@ exports.adjustPoints = async (req, res) => {
         .status(400)
         .json({ error: "Point adjustments only apply to student accounts" });
 
-    await pool.query("BEGIN");
-
-    const { rows: spRows } = await pool.query(
-      `SELECT points FROM student_profiles WHERE user_id = $1 FOR UPDATE`,
+    const { rows: balRows } = await pool.query(
+      `SELECT COALESCE(SUM(amount), 0) AS balance
+       FROM credits_ledger WHERE user_id = $1 AND currency = 'points'`,
       [id],
     );
-    if (!spRows.length) {
-      await pool.query("ROLLBACK");
-      return res.status(404).json({ error: "Student profile not found" });
-    }
-
-    const newBalance = spRows[0].points + delta;
-    if (newBalance < 0) {
-      await pool.query("ROLLBACK");
+    const currentBalance = Number(balRows[0].balance);
+    const newBalance = currentBalance + delta;
+    if (newBalance < 0)
       return res
         .status(400)
         .json({ error: "Adjustment would result in negative points" });
-    }
 
     await pool.query(
-      `UPDATE student_profiles SET points = $1 WHERE user_id = $2`,
-      [newBalance, id],
-    );
-    await pool.query(
-      `INSERT INTO points_ledger (user_id, points, reason)
-       VALUES ($1, $2, $3)`,
+      `INSERT INTO credits_ledger (user_id, amount, reason, currency)
+       VALUES ($1, $2, $3, 'points')`,
       [id, delta, reason || (delta > 0 ? "Admin credit" : "Admin deduction")],
     );
 
-    await pool.query("COMMIT");
     res.json({ points: newBalance });
   } catch (err) {
-    await pool.query("ROLLBACK");
     console.error(err);
     res.status(500).json({ error: "Failed to adjust points" });
   }
@@ -492,12 +457,9 @@ exports.teacherSchedule = async (req, res) => {
 };
 
 // ── PATCH /admin/bookings/:id/cancel — admin force-cancels any booking ────────
-// ⚠️ FIXED (this pass): refund now updates student_profiles.credits
-// directly (the authoritative balance), with credits_ledger kept as the
-// audit-trail entry — same pattern as bookings.controller.js's own
-// cancel(). Previously this only inserted a credits_ledger row without
-// touching student_profiles, so an admin-cancelled booking's refund never
-// actually reached the student's real balance.
+// ⚠️ REVERTED: refund is a credits_ledger insert only — same as
+// bookings.controller.js's own cancel(). No student_profiles table to
+// update separately.
 exports.cancelBooking = async (req, res) => {
   const { id } = req.params;
   try {
@@ -515,10 +477,6 @@ exports.cancelBooking = async (req, res) => {
     await pool.query(`UPDATE bookings SET status = 'cancelled' WHERE id = $1`, [
       id,
     ]);
-    await pool.query(
-      `UPDATE student_profiles SET credits = credits + $1 WHERE user_id = $2`,
-      [b.credits_cost, b.student_id],
-    );
     await pool.query(
       `INSERT INTO credits_ledger (user_id, amount, reason, currency)
        VALUES ($1, $2, $3, 'credits')`,

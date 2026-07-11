@@ -20,6 +20,7 @@ const milestonesCtrl = require("../controllers/milestones.controller");
 const settingsCtrl = require("../controllers/settings.controller");
 const studentsAdminCtrl = require("../controllers/studentsAdmin.controller");
 const appointmentsController = require("../controllers/appointments.controller");
+const modulesCtrl = require("../controllers/modules.controller");
 
 const router = express.Router();
 
@@ -51,6 +52,40 @@ const uploadProfilePicture = multer({
   fileFilter: (req, file, cb) => {
     if (!ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
       return cb(new Error("Only JPEG, PNG, or WEBP images are allowed."));
+    }
+    cb(null, true);
+  },
+});
+
+// ── Modules · upload config ──────────────────────────────────────────────────
+// Stored outside src/ at project-root/uploads/modules. Served statically
+// via the same `app.use("/uploads", express.static(...))` in app.js that
+// already handles profile-pictures — no extra static route needed.
+const moduleFileDir = path.join(__dirname, "..", "..", "uploads", "modules");
+fs.mkdirSync(moduleFileDir, { recursive: true });
+
+const moduleFileStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, moduleFileDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || "";
+    cb(null, `module-${req.user?.sub ?? "unknown"}-${Date.now()}${ext}`);
+  },
+});
+
+const ALLOWED_MODULE_TYPES = [
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+];
+
+const uploadModuleFile = multer({
+  storage: moduleFileStorage,
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB — documents, larger than profile pics
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_MODULE_TYPES.includes(file.mimetype)) {
+      return cb(new Error("Only PDF, DOC, DOCX, PPT, or PPTX files are allowed."));
     }
     cb(null, true);
   },
@@ -102,21 +137,6 @@ router.patch(
 );
 
 // ── Teachers · own account settings (bio / subjects / availability / credits) ─
-// ⚠️ RESOLVED (see prior TODO): these replace the old /settings/teacher/*
-// routes, which used settingsCtrl for the same bio/subjects/availability/
-// credits data. Keeping both live would mean two write paths to the same
-// columns via two different controllers — settingsCtrl is no longer wired
-// for these operations. If settingsCtrl.getTeacherProfile / updateBio /
-// addSubject / updateSubject / removeSubject / getAvailability /
-// addAvailabilitySlot / updateAvailabilitySlot / deleteAvailabilitySlot /
-// getCreditsSummary are unused elsewhere, they can be removed from
-// settings.controller.js entirely.
-//
-// ⚠️ CORRECTED: subjects live in teacher_profiles as an array (e.g. TEXT[]),
-// not as their own rows with an id column — unlike availability slots, which
-// still have an id (crypto.randomUUID()) since they come from a JSONB array
-// of objects. So subjects PATCH/DELETE take the subject value itself in the
-// body, not a :id param.
 router.get(
   "/teachers/profile/me",
   authenticate,
@@ -179,14 +199,44 @@ router.get("/courses/categories", authenticate, courseCtrl.categories);
 router.get("/courses/:id", authenticate, courseCtrl.getOne);
 
 // ── Rewards (student-facing, read-only) ────────────────────────────────────────
-// ⚠️ ADDED: the student dashboard's Rewards tab was hitting /admin/rewards,
-// which requires requireRole("admin") — every student request got a 403
-// Forbidden (visible in multiple debug console screenshots this session).
-// This reuses adminCtrl.listRewards without the admin gate — it's a
-// read-only SELECT, safe to expose to any authenticated user. The admin
-// management screen continues to use /admin/rewards for create/update/
-// delete, unaffected by this addition.
 router.get("/rewards", authenticate, adminCtrl.listRewards);
+
+// ── Modules ───────────────────────────────────────────────────────────────────
+// Both admin and teacher can view/upload. Update/delete permission is
+// enforced inside modules.controller.js (admin: any; teacher: own only),
+// since requireRole alone can't express "own resource" logic.
+router.get(
+  "/modules",
+  authenticate,
+  requireRole("admin", "teacher"),
+  modulesCtrl.list,
+);
+router.get(
+  "/modules/:id",
+  authenticate,
+  requireRole("admin", "teacher"),
+  modulesCtrl.getOne,
+);
+router.post(
+  "/modules",
+  authenticate,
+  requireRole("admin", "teacher"),
+  uploadModuleFile.single("file"),
+  modulesCtrl.create,
+);
+router.patch(
+  "/modules/:id",
+  authenticate,
+  requireRole("admin", "teacher"),
+  uploadModuleFile.single("file"),
+  modulesCtrl.update,
+);
+router.delete(
+  "/modules/:id",
+  authenticate,
+  requireRole("admin", "teacher"),
+  modulesCtrl.remove,
+);
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 router.patch("/settings/profile", authenticate, settingsCtrl.updateProfile);
@@ -323,10 +373,6 @@ router.patch("/admin/rewards/:id", ...admin, adminCtrl.updateReward);
 router.delete("/admin/rewards/:id", ...admin, adminCtrl.deleteReward);
 
 // ── Admin · Students List ──────────────────────────────────────────────────────
-// Activate/deactivate and delete are NOT duplicated here — the Flutter
-// Student Detail screen calls the existing adminCtrl.toggleUser /
-// adminCtrl.deleteUser endpoints above (PATCH/DELETE /admin/users/:id...),
-// since those already operate generically on any user id.
 router.get("/admin/students", ...admin, studentsAdminCtrl.list);
 router.get("/admin/students/summary", ...admin, studentsAdminCtrl.summary);
 router.get("/admin/students/:id", ...admin, studentsAdminCtrl.getOne);

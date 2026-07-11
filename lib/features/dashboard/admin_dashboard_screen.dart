@@ -6,8 +6,10 @@ import 'package:http/http.dart' as http;
 import 'package:fl_chart/fl_chart.dart';
 import '../auth/controllers/auth_controller.dart';
 import '../auth/repositories/auth_repository.dart';
+import '../../models/user.dart';
 import 'admin/create_teacher_account_screen.dart';
 import 'admin/students_list_screen.dart';
+import '../modules/screens/modules_screen.dart';
 
 class _C {
   static const burgundy = Color(0xFF7D002B);
@@ -21,6 +23,7 @@ class _C {
   static const line = Color(0xFFF0DCE5);
   static const paper = Color(0xFFFFFFFF);
   static const green = Color(0xFF00C48C);
+  static const purple = Color(0xFF8E5FD6);
 }
 
 // Backend now returns a single computed `full_name` field (first + last
@@ -79,6 +82,14 @@ final _allUsersProvider = FutureProvider<List<dynamic>>((ref) async {
   return jsonDecode(res.body) as List;
 });
 
+// Needed so ModulesScreen (shared with the teacher dashboard) has a
+// UserModel to check role/id against for edit/delete permissions. The
+// admin dashboard didn't previously fetch its own "me" profile anywhere
+// else — every other provider here works off raw Map data from /admin/*
+// endpoints, not the authenticated admin's own record.
+final _adminMeProvider =
+    FutureProvider<UserModel>((ref) => ref.read(_adminRepoProvider).getMe());
+
 // ═══════════════════════════════════════════════════════════════════════════════
 class AdminDashboard extends ConsumerStatefulWidget {
   const AdminDashboard({super.key});
@@ -94,7 +105,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 4, vsync: this);
+    _tabs = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -163,6 +174,8 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard>
               ),
               child: TabBar(
                 controller: _tabs,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
                 indicator: BoxDecoration(
                   color: _C.burgundy,
                   borderRadius: BorderRadius.circular(12),
@@ -176,6 +189,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard>
                   Tab(text: 'Teachers'),
                   Tab(text: 'Users'),
                   Tab(text: 'Students'),
+                  Tab(text: 'Modules'),
                 ],
               ),
             ),
@@ -190,12 +204,35 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard>
                   _TeachersTab(),
                   _UsersTab(),
                   StudentsListScreen(asTab: true),
+                  _ModulesTab(),
                 ],
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Modules tab ───────────────────────────────────────────────────────────────
+// Wraps the shared ModulesScreen (also used on the teacher dashboard) once
+// the admin's own UserModel is available — needed so the screen can decide
+// per-module whether Edit/Delete should show (admin: always; teacher: own
+// uploads only — enforced identically server-side in modules.controller.js).
+// ModulesScreen renders its own Scaffold/AppBar, so it's embedded here
+// without an extra wrapping Scaffold to avoid a nested-app-bar look.
+class _ModulesTab extends ConsumerWidget {
+  const _ModulesTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final meAsync = ref.watch(_adminMeProvider);
+    return meAsync.when(
+      loading: () =>
+          const Center(child: CircularProgressIndicator(color: _C.burgundy)),
+      error: (e, _) => Center(child: Text('$e')),
+      data: (user) => ModulesScreen(currentUser: user),
     );
   }
 }
