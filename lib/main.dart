@@ -1,4 +1,4 @@
-// lib/main.dart  (replace your existing main.dart with this)
+// lib/main.dart
 import 'package:flutter/foundation.dart'
     show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
@@ -40,6 +40,8 @@ import 'features/booking/screens/teacher_detail_screen.dart'
 // Appointments
 import 'features/appointments/screens/request_appointment_screen.dart'
     show RequestAppointmentScreen; // ← NEW
+import 'features/appointments/screens/my_appointments_screen.dart'
+    show MyAppointmentsScreen; // ← NEW
 
 // Models
 import 'models/user.dart' show UserModel;
@@ -372,7 +374,14 @@ class SuccorHavenApp extends StatelessWidget {
             );
           }
           return RequestAppointmentScreen(teacher: teacher);
-        }, // ← NEW
+        },
+
+        // No arguments needed — the backend identifies the student from
+        // the JWT and returns only their own appointment requests.
+        // Lets a student see and monitor the status of every request
+        // they've made (pending / approved / rescheduled / completed /
+        // declined / cancelled) via MyAppointmentsScreen's filter chips.
+        '/appointments/my': (_) => const MyAppointmentsScreen(), // ← NEW
       },
       // ── Dynamic routes ───────────────────────────────────────────────────
       // Handles paths the `routes:` map above can't match, since it only

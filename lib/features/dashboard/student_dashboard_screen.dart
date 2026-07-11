@@ -572,19 +572,40 @@ class _SessionsTab extends ConsumerWidget {
     final bookingsAsync = ref.watch(_sBookingsProvider);
 
     return Column(children: [
-      const Padding(
-        padding: EdgeInsets.fromLTRB(20, 16, 20, 16),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
         child: Row(children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('My Sessions',
-                style: TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.w800, color: _C.ink)),
-            Text('我的课程',
-                style: TextStyle(
-                    fontSize: 12,
-                    color: _C.magenta,
-                    fontWeight: FontWeight.w600)),
-          ]),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('My Sessions',
+                    style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: _C.ink)),
+                Text('我的课程',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: _C.magenta,
+                        fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          // Links to MyAppointmentsScreen — appointment *requests* (pending
+          // / approved / declined / etc.) are a separate thing from the
+          // confirmed `bookings` this tab lists, so students had no way to
+          // check on a request still awaiting a teacher's response.
+          TextButton.icon(
+            onPressed: () => Navigator.pushNamed(context, '/appointments/my'),
+            icon: const Icon(Icons.event_note_outlined, size: 16),
+            label: const Text('My Requests · 我的预约',
+                style: TextStyle(fontSize: 12)),
+            style: TextButton.styleFrom(
+              foregroundColor: _C.magenta,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+            ),
+          ),
         ]),
       ),
       Expanded(
@@ -749,6 +770,12 @@ class _ProfileTab extends ConsumerWidget {
     }
   }
 
+  void _openMyAppointments(BuildContext context) {
+    // No arguments needed — backend identifies the student via JWT and
+    // returns only their own appointment requests. See MyAppointmentsScreen.
+    Navigator.pushNamed(context, '/appointments/my');
+  }
+
   void _openNotificationSettings(BuildContext context) {
     Navigator.pushNamed(context, '/settings/notifications');
   }
@@ -814,6 +841,12 @@ class _ProfileTab extends ConsumerWidget {
             'Edit Profile',
             '编辑资料',
             () => _openEditProfile(context, ref),
+          ),
+          _ProfileTile(
+            Icons.calendar_month_outlined,
+            'My Appointments',
+            '我的预约',
+            () => _openMyAppointments(context),
           ),
           _ProfileTile(
             Icons.lock_outline,
