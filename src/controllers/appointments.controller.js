@@ -15,7 +15,7 @@
 // key constraint, and lookups would just return zero rows instead of a
 // clean error. Switched to req.user.sub throughout.
 
-const pool = require('../db/pool');
+const pool = require("../db/pool");
 
 const TEACHER_JOIN_SELECT = `
   a.*,
@@ -41,14 +41,21 @@ async function createAppointment(req, res) {
       title,
       purpose,
       subject,
-      preferredDate,   // 'YYYY-MM-DD'
-      preferredTime,   // 'HH:MM'
+      preferredDate, // 'YYYY-MM-DD'
+      preferredTime, // 'HH:MM'
       description,
       attachmentUrl,
     } = req.body;
 
-    if (!teacherId || !title || !purpose || !subject || !preferredDate || !preferredTime) {
-      return res.status(400).json({ error: 'Missing required fields.' });
+    if (
+      !teacherId ||
+      !title ||
+      !purpose ||
+      !subject ||
+      !preferredDate ||
+      !preferredTime
+    ) {
+      return res.status(400).json({ error: "Missing required fields." });
     }
 
     const { rows } = await pool.query(
@@ -56,13 +63,25 @@ async function createAppointment(req, res) {
         (student_id, teacher_id, title, purpose, subject, preferred_date, preferred_time, description, attachment_url)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [studentId, teacherId, title, purpose, subject, preferredDate, preferredTime, description ?? null, attachmentUrl ?? null]
+      [
+        studentId,
+        teacherId,
+        title,
+        purpose,
+        subject,
+        preferredDate,
+        preferredTime,
+        description ?? null,
+        attachmentUrl ?? null,
+      ],
     );
 
     return res.status(201).json(rows[0]);
   } catch (err) {
-    console.error('createAppointment error:', err);
-    return res.status(500).json({ error: 'Failed to create appointment request.' });
+    console.error("createAppointment error:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to create appointment request." });
   }
 }
 
@@ -72,12 +91,12 @@ async function getMyAppointments(req, res) {
     const studentId = req.user.sub;
     const { rows } = await pool.query(
       `${BASE_QUERY} WHERE a.student_id = $1 ORDER BY a.request_date DESC`,
-      [studentId]
+      [studentId],
     );
     return res.json(rows);
   } catch (err) {
-    console.error('getMyAppointments error:', err);
-    return res.status(500).json({ error: 'Failed to load appointments.' });
+    console.error("getMyAppointments error:", err);
+    return res.status(500).json({ error: "Failed to load appointments." });
   }
 }
 
@@ -86,16 +105,21 @@ async function getAppointmentById(req, res) {
   try {
     const { id } = req.params;
     const { rows } = await pool.query(`${BASE_QUERY} WHERE a.id = $1`, [id]);
-    if (rows.length === 0) return res.status(404).json({ error: 'Appointment not found.' });
+    if (rows.length === 0)
+      return res.status(404).json({ error: "Appointment not found." });
 
     const appt = rows[0];
-    const isOwner = req.user.sub === appt.student_id || req.user.sub === appt.teacher_id;
-    if (!isOwner) return res.status(403).json({ error: 'Not authorized to view this appointment.' });
+    const isOwner =
+      req.user.sub === appt.student_id || req.user.sub === appt.teacher_id;
+    if (!isOwner)
+      return res
+        .status(403)
+        .json({ error: "Not authorized to view this appointment." });
 
     return res.json(appt);
   } catch (err) {
-    console.error('getAppointmentById error:', err);
-    return res.status(500).json({ error: 'Failed to load appointment.' });
+    console.error("getAppointmentById error:", err);
+    return res.status(500).json({ error: "Failed to load appointment." });
   }
 }
 
@@ -116,16 +140,19 @@ async function cancelAppointment(req, res) {
        SET status = 'cancelled'
        WHERE id = $1 AND student_id = $2 AND status IN ('pending', 'approved', 'rescheduled')
        RETURNING *`,
-      [id, studentId]
+      [id, studentId],
     );
 
     if (rows.length === 0) {
-      return res.status(400).json({ error: 'Appointment cannot be cancelled (not found, not yours, or already finalized).' });
+      return res.status(400).json({
+        error:
+          "Appointment cannot be cancelled (not found, not yours, or already finalized).",
+      });
     }
     return res.json(rows[0]);
   } catch (err) {
-    console.error('cancelAppointment error:', err);
-    return res.status(500).json({ error: 'Failed to cancel appointment.' });
+    console.error("cancelAppointment error:", err);
+    return res.status(500).json({ error: "Failed to cancel appointment." });
   }
 }
 
@@ -137,12 +164,12 @@ async function getTeacherAppointments(req, res) {
     const teacherId = req.user.sub;
     const { rows } = await pool.query(
       `${BASE_QUERY} WHERE a.teacher_id = $1 ORDER BY a.request_date DESC`,
-      [teacherId]
+      [teacherId],
     );
     return res.json(rows);
   } catch (err) {
-    console.error('getTeacherAppointments error:', err);
-    return res.status(500).json({ error: 'Failed to load appointments.' });
+    console.error("getTeacherAppointments error:", err);
+    return res.status(500).json({ error: "Failed to load appointments." });
   }
 }
 
@@ -155,13 +182,16 @@ async function approveAppointment(req, res) {
       `UPDATE appointments SET status = 'approved'
        WHERE id = $1 AND teacher_id = $2 AND status IN ('pending', 'rescheduled')
        RETURNING *`,
-      [id, teacherId]
+      [id, teacherId],
     );
-    if (rows.length === 0) return res.status(400).json({ error: 'Cannot approve this appointment.' });
+    if (rows.length === 0)
+      return res
+        .status(400)
+        .json({ error: "Cannot approve this appointment." });
     return res.json(rows[0]);
   } catch (err) {
-    console.error('approveAppointment error:', err);
-    return res.status(500).json({ error: 'Failed to approve appointment.' });
+    console.error("approveAppointment error:", err);
+    return res.status(500).json({ error: "Failed to approve appointment." });
   }
 }
 
@@ -175,13 +205,16 @@ async function declineAppointment(req, res) {
       `UPDATE appointments SET status = 'declined', decline_reason = $3
        WHERE id = $1 AND teacher_id = $2 AND status IN ('pending', 'rescheduled')
        RETURNING *`,
-      [id, teacherId, reason ?? null]
+      [id, teacherId, reason ?? null],
     );
-    if (rows.length === 0) return res.status(400).json({ error: 'Cannot decline this appointment.' });
+    if (rows.length === 0)
+      return res
+        .status(400)
+        .json({ error: "Cannot decline this appointment." });
     return res.json(rows[0]);
   } catch (err) {
-    console.error('declineAppointment error:', err);
-    return res.status(500).json({ error: 'Failed to decline appointment.' });
+    console.error("declineAppointment error:", err);
+    return res.status(500).json({ error: "Failed to decline appointment." });
   }
 }
 
@@ -192,20 +225,25 @@ async function proposeReschedule(req, res) {
     const teacherId = req.user.sub;
     const { proposedDate, proposedTime } = req.body;
     if (!proposedDate || !proposedTime) {
-      return res.status(400).json({ error: 'proposedDate and proposedTime are required.' });
+      return res
+        .status(400)
+        .json({ error: "proposedDate and proposedTime are required." });
     }
     const { rows } = await pool.query(
       `UPDATE appointments
        SET status = 'rescheduled', proposed_date = $3, proposed_time = $4
        WHERE id = $1 AND teacher_id = $2 AND status = 'pending'
        RETURNING *`,
-      [id, teacherId, proposedDate, proposedTime]
+      [id, teacherId, proposedDate, proposedTime],
     );
-    if (rows.length === 0) return res.status(400).json({ error: 'Cannot propose a new schedule for this appointment.' });
+    if (rows.length === 0)
+      return res
+        .status(400)
+        .json({ error: "Cannot propose a new schedule for this appointment." });
     return res.json(rows[0]);
   } catch (err) {
-    console.error('proposeReschedule error:', err);
-    return res.status(500).json({ error: 'Failed to propose new schedule.' });
+    console.error("proposeReschedule error:", err);
+    return res.status(500).json({ error: "Failed to propose new schedule." });
   }
 }
 
@@ -222,23 +260,29 @@ async function respondToReschedule(req, res) {
          SET status = 'approved', preferred_date = proposed_date, preferred_time = proposed_time
          WHERE id = $1 AND student_id = $2 AND status = 'rescheduled'
          RETURNING *`,
-        [id, studentId]
+        [id, studentId],
       );
-      if (rows.length === 0) return res.status(400).json({ error: 'Cannot accept this reschedule.' });
+      if (rows.length === 0)
+        return res
+          .status(400)
+          .json({ error: "Cannot accept this reschedule." });
       return res.json(rows[0]);
     } else {
       const { rows } = await pool.query(
         `UPDATE appointments SET status = 'declined'
          WHERE id = $1 AND student_id = $2 AND status = 'rescheduled'
          RETURNING *`,
-        [id, studentId]
+        [id, studentId],
       );
-      if (rows.length === 0) return res.status(400).json({ error: 'Cannot decline this reschedule.' });
+      if (rows.length === 0)
+        return res
+          .status(400)
+          .json({ error: "Cannot decline this reschedule." });
       return res.json(rows[0]);
     }
   } catch (err) {
-    console.error('respondToReschedule error:', err);
-    return res.status(500).json({ error: 'Failed to respond to reschedule.' });
+    console.error("respondToReschedule error:", err);
+    return res.status(500).json({ error: "Failed to respond to reschedule." });
   }
 }
 
@@ -251,13 +295,16 @@ async function completeAppointment(req, res) {
       `UPDATE appointments SET status = 'completed'
        WHERE id = $1 AND teacher_id = $2 AND status = 'approved'
        RETURNING *`,
-      [id, teacherId]
+      [id, teacherId],
     );
-    if (rows.length === 0) return res.status(400).json({ error: 'Cannot complete this appointment.' });
+    if (rows.length === 0)
+      return res
+        .status(400)
+        .json({ error: "Cannot complete this appointment." });
     return res.json(rows[0]);
   } catch (err) {
-    console.error('completeAppointment error:', err);
-    return res.status(500).json({ error: 'Failed to complete appointment.' });
+    console.error("completeAppointment error:", err);
+    return res.status(500).json({ error: "Failed to complete appointment." });
   }
 }
 

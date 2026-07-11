@@ -298,8 +298,7 @@ class SuccorHavenApp extends StatelessWidget {
         // Expects a UserModel passed as arguments, e.g.:
         //   Navigator.pushNamed(context, '/settings/edit-profile', arguments: user);
         '/settings/edit-profile': (context) {
-          final user =
-              ModalRoute.of(context)!.settings.arguments as UserModel;
+          final user = ModalRoute.of(context)!.settings.arguments as UserModel;
           return EditProfileScreen(user: user);
         },
 
@@ -322,21 +321,56 @@ class SuccorHavenApp extends StatelessWidget {
           return LanguageSettingsScreen(currentLanguage: currentLanguage);
         },
 
-        '/settings/notifications': (_) =>
-            const NotificationSettingsScreen(),
+        '/settings/notifications': (_) => const NotificationSettingsScreen(),
 
         '/settings/help-center': (_) => const HelpCenterScreen(),
 
-        '/settings/privacy-policy': (_) =>
-            const PrivacyPolicyScreen(),
+        '/settings/privacy-policy': (_) => const PrivacyPolicyScreen(),
 
         // ── Appointments ───────────────────────────────────────────────────
         // Expects a TeacherProfileModel passed as arguments, e.g.:
         //   Navigator.pushNamed(context, '/appointments/request',
         //       arguments: teacher);
+        //
+        // FIXED: this used to do a hard, non-null cast
+        // (`ModalRoute.of(context)!.settings.arguments as TeacherProfileModel`),
+        // which crashed with "type 'Null' is not a subtype of type
+        // 'TeacherProfileModel'" any time this route was entered without a
+        // teacher object in the arguments — most commonly a browser
+        // refresh on Flutter web, since the URL alone can't carry a Dart
+        // object across a reload. Now it's a nullable cast with a friendly
+        // fallback screen instead of a crash.
         '/appointments/request': (context) {
-          final teacher = ModalRoute.of(context)!.settings.arguments
-              as TeacherProfileModel;
+          final teacher = ModalRoute.of(context)?.settings.arguments
+              as TeacherProfileModel?;
+          if (teacher == null) {
+            return Scaffold(
+              appBar: AppBar(title: const Text('Request Appointment')),
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Please select a teacher first to request an appointment.',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pushNamedAndRemoveUntil(
+                          context,
+                          '/dashboard',
+                          (route) => false,
+                        ),
+                        child: const Text('Back to Dashboard'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
           return RequestAppointmentScreen(teacher: teacher);
         }, // ← NEW
       },
