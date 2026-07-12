@@ -33,6 +33,10 @@ import 'features/settings/screens/student/help_center_screen.dart'
 import 'features/settings/screens/student/privacy_policy_screen.dart'
     show PrivacyPolicyScreen;
 
+// Payments
+import 'features/payments/screens/student/payment_history_screen.dart'
+    show PaymentHistoryScreen;
+
 // Booking / Teacher detail
 import 'features/booking/screens/teacher_detail_screen.dart'
     show TeacherDetailScreen; // ← NEW
@@ -328,6 +332,10 @@ class SuccorHavenApp extends StatelessWidget {
         '/settings/help-center': (_) => const HelpCenterScreen(),
 
         '/settings/privacy-policy': (_) => const PrivacyPolicyScreen(),
+
+        // No arguments needed — backend identifies the user from the JWT
+        // and returns only their own top-up history.
+        '/settings/purchase-history': (_) => const PaymentHistoryScreen(),
 
         // ── Appointments ───────────────────────────────────────────────────
         // Expects a TeacherProfileModel passed as arguments, e.g.:

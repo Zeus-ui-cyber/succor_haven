@@ -732,7 +732,13 @@ class _RewardsTab extends ConsumerWidget {
           child: FilledButton.icon(
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const BuyCreditsScreen()),
+              MaterialPageRoute(
+                // Named so PaymentReceiptScreen's "Done" button can
+                // popUntil this exact route, regardless of how many
+                // wizard steps (method → review → receipt) are on top.
+                settings: const RouteSettings(name: '/buy-credits'),
+                builder: (_) => const BuyCreditsScreen(),
+              ),
             ),
             icon: const Icon(Icons.add_card_outlined),
             label: const Text('Buy Credits · 购买积分'),
@@ -830,6 +836,12 @@ class _ProfileTab extends ConsumerWidget {
     Navigator.pushNamed(context, '/appointments/my');
   }
 
+  void _openPurchaseHistory(BuildContext context) {
+    // No arguments needed — backend identifies the student via JWT and
+    // returns only their own top-up history. See PaymentHistoryScreen.
+    Navigator.pushNamed(context, '/settings/purchase-history');
+  }
+
   void _openNotificationSettings(BuildContext context) {
     Navigator.pushNamed(context, '/settings/notifications');
   }
@@ -906,6 +918,12 @@ class _ProfileTab extends ConsumerWidget {
             'My Appointments',
             '我的预约',
             () => _openMyAppointments(context),
+          ),
+          _ProfileTile(
+            Icons.receipt_long_outlined,
+            'Purchase History',
+            '购买记录',
+            () => _openPurchaseHistory(context),
           ),
           _ProfileTile(
             Icons.lock_outline,

@@ -31,7 +31,13 @@ const _kPaymentMethods = [
   ('alipay', 'Alipay'),
   ('wechat', 'WeChat Pay'),
 ];
-const _kPaymentStatuses = ['pending', 'succeeded', 'failed', 'refunded'];
+const _kPaymentStatuses = [
+  'pending',
+  'succeeded',
+  'failed',
+  'refunded',
+  'cancelled',
+];
 
 class ManagePaymentsScreen extends StatefulWidget {
   const ManagePaymentsScreen({super.key});
@@ -83,16 +89,51 @@ class _PaymentsSubTab extends ConsumerWidget {
 
   Future<void> _setStatus(
       BuildContext ctx, WidgetRef ref, PaymentModel p, String status) async {
+    if (status == 'refunded') {
+      final confirm = await showDialog<bool>(
+        context: ctx,
+        builder: (_) => AlertDialog(
+          title: const Text('Refund this payment?'),
+          content: const Text(
+              "This reverses the student's credits if their balance still "
+              "covers it. If they've already spent below that amount, "
+              "credits are left alone and this gets flagged for manual "
+              "review instead."),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child:
+                    const Text('Refund', style: TextStyle(color: _C.red))),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+    }
+
     try {
-      await ref
+      final result = await ref
           .read(paymentsRepositoryProvider)
           .updatePaymentStatus(id: p.id, status: status);
       ref.invalidate(adminPaymentsProvider);
-      if (ctx.mounted) {
+      if (!ctx.mounted) return;
+
+      if (result.flaggedForReview) {
+        ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+          content: Text(
+              "Marked refunded, but the student's balance was too low to "
+              'claw back credits — flagged for manual review.'),
+          backgroundColor: _C.amber,
+        ));
+      } else {
         ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-          content: Text(status == 'succeeded'
-              ? 'Payment confirmed, credits added ✓'
-              : 'Payment marked $status'),
+          content: Text(switch (status) {
+            'succeeded' => 'Payment confirmed, credits added ✓',
+            'refunded' => 'Payment refunded, credits reversed',
+            _ => 'Payment marked $status',
+          }),
           backgroundColor: status == 'succeeded' ? _C.green : _C.burgundy,
         ));
       }
@@ -197,6 +238,7 @@ class _AdminPaymentTile extends StatelessWidget {
         PaymentStatus.succeeded => (_C.green, _C.greenPale, 'Succeeded'),
         PaymentStatus.failed => (_C.red, _C.redPale, 'Failed'),
         PaymentStatus.refunded => (_C.inkSoft, _C.softPink, 'Refunded'),
+        PaymentStatus.cancelled => (_C.inkSoft, _C.line, 'Cancelled'),
         PaymentStatus.pending => (_C.amber, _C.amberPale, 'Pending'),
       };
 
@@ -258,6 +300,23 @@ class _AdminPaymentTile extends StatelessWidget {
         Text(
             '${payment.createdAt.day}/${payment.createdAt.month}/${payment.createdAt.year}',
             style: const TextStyle(fontSize: 10, color: _C.inkSoft)),
+        if (payment.refundRequestedAt != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+                color: _C.amberPale, borderRadius: BorderRadius.circular(20)),
+            child: const Text('Student requested a refund',
+                style: TextStyle(
+                    fontSize: 10, color: _C.amber, fontWeight: FontWeight.w700)),
+          ),
+        ],
+        if (payment.status == PaymentStatus.cancelled &&
+            payment.cancelReason != null) ...[
+          const SizedBox(height: 8),
+          Text('Cancelled: ${payment.cancelReason}',
+              style: const TextStyle(fontSize: 10.5, color: _C.inkSoft)),
+        ],
         if (payment.status == PaymentStatus.pending) ...[
           const SizedBox(height: 10),
           Row(children: [
@@ -289,6 +348,23 @@ class _AdminPaymentTile extends StatelessWidget {
               ),
             ),
           ]),
+        ],
+        if (payment.status == PaymentStatus.succeeded) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () => onSetStatus('refunded'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _C.inkSoft,
+                side: const BorderSide(color: _C.line, width: 1.5),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('Refund', style: TextStyle(fontSize: 12)),
+            ),
+          ),
         ],
       ]),
     );
@@ -554,7 +630,7 @@ class _PackageFormSheetState extends ConsumerState<_PackageFormSheet> {
                     style:
                         TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 value: _isActive,
-                activeColor: _C.magenta,
+                activeThumbColor: _C.magenta,
                 onChanged: (v) => setState(() => _isActive = v),
               ),
             ],

@@ -335,10 +335,16 @@ exports.deleteReward = async (req, res) => {
 
 // ── PATCH /admin/users/:id/credits — admin adjusts a student's credit balance ─
 // body: { amount: number (can be negative), reason?: string }
-// ⚠️ REVERTED: same schema fix as listUsers above. Balance is
-// SUM(credits_ledger.amount) where currency='credits' — matching
-// bookings.controller.js's own convention exactly, so this endpoint and
-// booking-time balance checks always agree on the same number.
+// ⚠️ FIXED: this previously only inserted a credits_ledger row and computed
+// "balance" as SUM(credits_ledger.amount) — but /auth/me and
+// bookings.controller.js both read/write student_profiles.credits directly
+// as the authoritative balance (credits_ledger is an audit trail only; a
+// student's initial balance is never logged there). That meant an admin
+// credit adjustment never actually changed what the student saw. Now reads
+// and updates student_profiles.credits directly, still logging the delta
+// to credits_ledger for the audit trail — same dual-write pattern as
+// bookings.controller.js's create()/cancel() and payments.controller.js's
+// updatePaymentStatus().
 exports.adjustCredits = async (req, res) => {
   const { id } = req.params;
   const { amount, reason } = req.body;
@@ -347,47 +353,73 @@ exports.adjustCredits = async (req, res) => {
   if (!Number.isFinite(delta) || delta === 0)
     return res.status(400).json({ error: "amount must be a non-zero number" });
 
+  const client = await pool.connect();
   try {
-    const { rows: userRows } = await pool.query(
+    await client.query("BEGIN");
+
+    const { rows: userRows } = await client.query(
       `SELECT role FROM users WHERE id = $1`,
       [id],
     );
-    if (!userRows.length)
+    if (!userRows.length) {
+      await client.query("ROLLBACK");
       return res.status(404).json({ error: "User not found" });
-    if (userRows[0].role !== "student")
+    }
+    if (userRows[0].role !== "student") {
+      await client.query("ROLLBACK");
       return res
         .status(400)
         .json({ error: "Credit adjustments only apply to student accounts" });
+    }
 
-    const { rows: balRows } = await pool.query(
-      `SELECT COALESCE(SUM(amount), 0) AS balance
-       FROM credits_ledger WHERE user_id = $1 AND currency = 'credits'`,
+    const { rows: spRows } = await client.query(
+      `SELECT credits FROM student_profiles WHERE user_id = $1 FOR UPDATE`,
       [id],
     );
-    const currentBalance = Number(balRows[0].balance);
-    const newBalance = currentBalance + delta;
-    if (newBalance < 0)
+    if (!spRows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Student profile not found" });
+    }
+    const newBalance = spRows[0].credits + delta;
+    if (newBalance < 0) {
+      await client.query("ROLLBACK");
       return res
         .status(400)
         .json({ error: "Adjustment would result in negative credits" });
+    }
 
-    await pool.query(
+    await client.query(
+      `UPDATE student_profiles SET credits = $1 WHERE user_id = $2`,
+      [newBalance, id],
+    );
+    await client.query(
       `INSERT INTO credits_ledger (user_id, amount, reason, currency)
        VALUES ($1, $2, $3, 'credits')`,
       [id, delta, reason || (delta > 0 ? "Admin credit" : "Admin deduction")],
     );
 
+    await client.query("COMMIT");
     res.json({ credits: newBalance });
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error(err);
     res.status(500).json({ error: "Failed to adjust credits" });
+  } finally {
+    client.release();
   }
 };
 
 // ── PATCH /admin/users/:id/points — admin adjusts a student's points balance ──
 // body: { amount: number (can be negative), reason?: string }
-// ⚠️ REVERTED: same fix. Points are credits_ledger rows with
-// currency='points' — there is no separate points_ledger table.
+// ⚠️ FIXED: same issue as adjustCredits above — this only inserted a
+// credits_ledger row (currency='points') and never updated
+// student_profiles.points, the column /auth/me actually reads. Now updates
+// student_profiles.points directly, same as bookings.controller.js's
+// complete() does when it awards points. Note: complete() logs its awards
+// to a separate points_ledger table, not credits_ledger(currency='points')
+// — this endpoint still uses the latter to avoid changing its audit-log
+// shape; the two ledgers diverging is a pre-existing inconsistency beyond
+// today's fix.
 exports.adjustPoints = async (req, res) => {
   const { id } = req.params;
   const { amount, reason } = req.body;
@@ -396,40 +428,59 @@ exports.adjustPoints = async (req, res) => {
   if (!Number.isFinite(delta) || delta === 0)
     return res.status(400).json({ error: "amount must be a non-zero number" });
 
+  const client = await pool.connect();
   try {
-    const { rows: userRows } = await pool.query(
+    await client.query("BEGIN");
+
+    const { rows: userRows } = await client.query(
       `SELECT role FROM users WHERE id = $1`,
       [id],
     );
-    if (!userRows.length)
+    if (!userRows.length) {
+      await client.query("ROLLBACK");
       return res.status(404).json({ error: "User not found" });
-    if (userRows[0].role !== "student")
+    }
+    if (userRows[0].role !== "student") {
+      await client.query("ROLLBACK");
       return res
         .status(400)
         .json({ error: "Point adjustments only apply to student accounts" });
+    }
 
-    const { rows: balRows } = await pool.query(
-      `SELECT COALESCE(SUM(amount), 0) AS balance
-       FROM credits_ledger WHERE user_id = $1 AND currency = 'points'`,
+    const { rows: spRows } = await client.query(
+      `SELECT points FROM student_profiles WHERE user_id = $1 FOR UPDATE`,
       [id],
     );
-    const currentBalance = Number(balRows[0].balance);
-    const newBalance = currentBalance + delta;
-    if (newBalance < 0)
+    if (!spRows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Student profile not found" });
+    }
+    const newBalance = spRows[0].points + delta;
+    if (newBalance < 0) {
+      await client.query("ROLLBACK");
       return res
         .status(400)
         .json({ error: "Adjustment would result in negative points" });
+    }
 
-    await pool.query(
+    await client.query(
+      `UPDATE student_profiles SET points = $1 WHERE user_id = $2`,
+      [newBalance, id],
+    );
+    await client.query(
       `INSERT INTO credits_ledger (user_id, amount, reason, currency)
        VALUES ($1, $2, $3, 'points')`,
       [id, delta, reason || (delta > 0 ? "Admin credit" : "Admin deduction")],
     );
 
+    await client.query("COMMIT");
     res.json({ points: newBalance });
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error(err);
     res.status(500).json({ error: "Failed to adjust points" });
+  } finally {
+    client.release();
   }
 };
 

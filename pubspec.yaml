@@ -37,6 +37,10 @@ dependencies:
   # China-facing deployments.
   file_picker: ^8.1.4
 
+  # PDF receipt generation (Buy Credits → download/share receipt)
+  pdf: ^3.11.1
+  printing: ^5.13.4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

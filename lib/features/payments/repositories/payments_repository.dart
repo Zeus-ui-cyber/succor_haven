@@ -41,18 +41,43 @@ class PaymentsRepository {
     return PaymentModel.fromJson(data as Map<String, dynamic>);
   }
 
-  // ── Admin — confirm / reject a payment ──────────────────────────────────
-  // On 'succeeded', the backend must credit `creditsAmount` from the linked
+  // ── Student — request a refund on an already-succeeded top-up ───────────
+  // Doesn't refund anything itself — just timestamps the request so the
+  // admin Payments tab can prioritize it. The actual refund (and credit
+  // clawback) happens when an admin acts on it via updatePaymentStatus.
+  Future<PaymentModel> requestRefund(String id) async {
+    final data = await _api.post('/credits/payments/$id/refund-request');
+    return PaymentModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  // ── Student — cancel a still-pending request ─────────────────────────────
+  // Only valid while status is 'pending' — once an admin has acted,
+  // requestRefund above is the right tool instead.
+  Future<PaymentModel> cancelPayment({
+    required String id,
+    required String reason,
+  }) async {
+    final data = await _api
+        .patch('/credits/payments/$id/cancel', data: {'reason': reason});
+    return PaymentModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  // ── Admin — confirm / reject / refund a payment ─────────────────────────
+  // On 'succeeded', the backend credits `creditsAmount` from the linked
   // package onto the student's account (same column bookings deduct from).
-  // ⚠️ BACKEND TODO: needs a PATCH /admin/payments/:id/status route —
-  // requireRole("admin"), sets status + paid_at, and on 'succeeded' runs the
-  // credit top-up in the same transaction (idempotent — guard against
-  // double-confirming an already-succeeded row).
-  Future<void> updatePaymentStatus({
+  // On 'refunded', it reverses that if the student's balance still covers
+  // it — otherwise `flaggedForReview` comes back true and credits are left
+  // alone (no auto-claw-back below zero).
+  Future<({PaymentModel payment, bool flaggedForReview})> updatePaymentStatus({
     required String id,
     required String status, // 'succeeded' | 'failed' | 'refunded'
-  }) {
-    return _api.patch('/admin/payments/$id/status', data: {'status': status});
+  }) async {
+    final data = await _api.patch('/admin/payments/$id/status',
+        data: {'status': status}) as Map<String, dynamic>;
+    return (
+      payment: PaymentModel.fromJson(data),
+      flaggedForReview: data['flaggedForReview'] == true,
+    );
   }
 
   // ── Admin — packages ─────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 // lib/models/payment.dart
 
-enum PaymentStatus { pending, succeeded, failed, refunded }
+enum PaymentStatus { pending, succeeded, failed, refunded, cancelled }
 
 extension PaymentStatusX on PaymentStatus {
   static PaymentStatus fromApi(String value) {
@@ -11,6 +11,8 @@ extension PaymentStatusX on PaymentStatus {
         return PaymentStatus.failed;
       case 'refunded':
         return PaymentStatus.refunded;
+      case 'cancelled':
+        return PaymentStatus.cancelled;
       default:
         return PaymentStatus.pending;
     }
@@ -21,6 +23,7 @@ extension PaymentStatusX on PaymentStatus {
         PaymentStatus.succeeded => 'Succeeded',
         PaymentStatus.failed => 'Failed',
         PaymentStatus.refunded => 'Refunded',
+        PaymentStatus.cancelled => 'Cancelled',
       };
 }
 
@@ -34,6 +37,8 @@ class PaymentModel {
   final DateTime? paidAt;
   final String? packageName;
   final int? creditsAmount;
+  final DateTime? refundRequestedAt;
+  final String? cancelReason;
   // Admin-list-only fields — null when parsed from /credits/payments/mine.
   final String? studentName;
   final String? studentEmail;
@@ -48,6 +53,8 @@ class PaymentModel {
     this.paidAt,
     this.packageName,
     this.creditsAmount,
+    this.refundRequestedAt,
+    this.cancelReason,
     this.studentName,
     this.studentEmail,
   });
@@ -67,6 +74,10 @@ class PaymentModel {
           : null,
       packageName: json['package_name'] as String?,
       creditsAmount: (json['credits_amount'] as num?)?.toInt(),
+      refundRequestedAt: json['refund_requested_at'] != null
+          ? DateTime.parse(json['refund_requested_at'] as String)
+          : null,
+      cancelReason: json['cancel_reason'] as String?,
       studentName: json['student_name'] as String?,
       studentEmail: json['student_email'] as String?,
     );

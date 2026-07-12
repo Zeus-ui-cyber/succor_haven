@@ -253,13 +253,40 @@ router.get("/rewards", authenticate, adminCtrl.listRewards);
 // registered further down in the ── Admin ── section.
 router.get("/credit-packages", authenticate, paymentsCtrl.listPackages);
 
-// ── Payments (student read-only) ──────────────────────────────────────────────
+// ── Payments (student) ────────────────────────────────────────────────────────
 // NEW: student's own top-up history, shown under Profile/Settings.
 router.get(
   "/credits/payments/mine",
   authenticate,
   requireRole("student"),
   paymentsCtrl.listMyPayments,
+);
+// NEW: student submits a top-up request (manual-confirmation flow — see
+// payments.controller.js). Creates a `pending` payment row for the admin
+// Payments tab to confirm/reject.
+router.post(
+  "/credits/payments",
+  authenticate,
+  requireRole("student"),
+  paymentsCtrl.requestPayment,
+);
+// NEW: student flags a succeeded payment as wanting a refund — just a
+// timestamp for the admin Payments tab to prioritize; the actual refund
+// stays admin-initiated via PATCH /admin/payments/:id/status.
+router.post(
+  "/credits/payments/:id/refund-request",
+  authenticate,
+  requireRole("student"),
+  paymentsCtrl.requestRefund,
+);
+// NEW: student withdraws a still-pending request with a reason
+// (Shopee-style cancel flow). Only valid from 'pending' — once an admin
+// has acted, requestRefund above is the right tool instead.
+router.patch(
+  "/credits/payments/:id/cancel",
+  authenticate,
+  requireRole("student"),
+  paymentsCtrl.cancelPayment,
 );
 
 // ── Modules ───────────────────────────────────────────────────────────────────
@@ -452,6 +479,13 @@ router.delete(
 // ── Admin · Payments ───────────────────────────────────────────────────────────
 // NEW: full transaction list + revenue totals, filterable by ?status=/?method=.
 router.get("/admin/payments", ...admin, paymentsCtrl.listPaymentsAdmin);
+// NEW: confirm/reject/refund a payment. On 'succeeded', credits the
+// student's balance in the same transaction (see payments.controller.js).
+router.patch(
+  "/admin/payments/:id/status",
+  ...admin,
+  paymentsCtrl.updatePaymentStatus,
+);
 
 // ── Admin · Students List ──────────────────────────────────────────────────────
 router.get("/admin/students", ...admin, studentsAdminCtrl.list);

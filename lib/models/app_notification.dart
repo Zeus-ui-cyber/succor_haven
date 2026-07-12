@@ -11,6 +11,13 @@ class AppNotificationModel {
   final String title;
   final String? body;
   final String? announcementId;
+  // Set on payment-lifecycle notifications (submitted/succeeded/failed/
+  // refunded/refund-requested) — see payments.controller.js's notifyUser()
+  // and notifyAdmins(). Not currently used for tap-navigation: the target
+  // screen differs by role (student vs. admin) and this model has no
+  // access to the viewer's role, so wiring that up is left for later
+  // rather than risk a role-mismatched deep link.
+  final String? paymentId;
   final bool isRead;
   final DateTime createdAt;
 
@@ -21,6 +28,7 @@ class AppNotificationModel {
     required this.title,
     this.body,
     this.announcementId,
+    this.paymentId,
     required this.isRead,
     required this.createdAt,
   });
@@ -33,6 +41,7 @@ class AppNotificationModel {
       title: json['title'] as String? ?? '',
       body: json['body'] as String?,
       announcementId: json['announcement_id']?.toString(),
+      paymentId: json['payment_id']?.toString(),
       isRead: json['is_read'] as bool? ?? false,
       createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now(),
     );
