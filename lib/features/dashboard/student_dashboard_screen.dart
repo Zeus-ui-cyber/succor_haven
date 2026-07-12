@@ -10,6 +10,9 @@ import '../../models/teacher_profile.dart';
 import '../booking/controllers/booking_controller.dart';
 import '../booking/widgets/teacher_card.dart';
 import '../booking/utils/avatar_url.dart';
+import '../announcements/controllers/announcement_controller.dart';
+import '../announcements/widgets/announcement_feed_section.dart';
+import '../notifications/widgets/notification_bell.dart';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 class _C {
@@ -207,7 +210,14 @@ class _HomeTab extends ConsumerWidget {
     // Real teacher directory, backed by BookingRepository + TeacherProfileModel.
     final teachersAsync = ref.watch(teachersListProvider);
 
-    return CustomScrollView(
+    return RefreshIndicator(
+      color: _C.magenta,
+      onRefresh: () async {
+        ref.invalidate(_sBookingsProvider);
+        ref.invalidate(teachersListProvider);
+        ref.invalidate(announcementFeedProvider);
+      },
+      child: CustomScrollView(
       slivers: [
         // ── Header ────────────────────────────────────────────────────────
         SliverToBoxAdapter(child: _buildHeader(context)),
@@ -223,6 +233,12 @@ class _HomeTab extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
           sliver:
               SliverToBoxAdapter(child: _PointsProgress(points: user.points)),
+        ),
+
+        // ── School Updates · Announcements ─────────────────────────────────
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          sliver: const SliverToBoxAdapter(child: AnnouncementFeedSection()),
         ),
 
         // ── Next session banner ───────────────────────────────────────────
@@ -305,6 +321,7 @@ class _HomeTab extends ConsumerWidget {
           ),
         ),
       ],
+      ),
     );
   }
 
@@ -352,6 +369,8 @@ class _HomeTab extends ConsumerWidget {
                     fontWeight: FontWeight.w700)),
           ]),
         ),
+        const SizedBox(width: 10),
+        const NotificationBell(),
       ]),
     );
   }
