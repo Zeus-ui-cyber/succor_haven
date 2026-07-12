@@ -13,6 +13,7 @@ import '../booking/utils/avatar_url.dart';
 import '../announcements/controllers/announcement_controller.dart';
 import '../announcements/widgets/announcement_feed_section.dart';
 import '../notifications/widgets/notification_bell.dart';
+import '../payments/screens/student/buy_credits_screen.dart';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 class _C {
@@ -218,109 +219,110 @@ class _HomeTab extends ConsumerWidget {
         ref.invalidate(announcementFeedProvider);
       },
       child: CustomScrollView(
-      slivers: [
-        // ── Header ────────────────────────────────────────────────────────
-        SliverToBoxAdapter(child: _buildHeader(context)),
+        slivers: [
+          // ── Header ────────────────────────────────────────────────────────
+          SliverToBoxAdapter(child: _buildHeader(context)),
 
-        // ── Hero credits + points ─────────────────────────────────────────
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-          sliver: SliverToBoxAdapter(child: _buildHeroCard()),
-        ),
-
-        // ── Points progress ───────────────────────────────────────────────
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-          sliver:
-              SliverToBoxAdapter(child: _PointsProgress(points: user.points)),
-        ),
-
-        // ── School Updates · Announcements ─────────────────────────────────
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-          sliver: const SliverToBoxAdapter(child: AnnouncementFeedSection()),
-        ),
-
-        // ── Next session banner ───────────────────────────────────────────
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-          sliver: SliverToBoxAdapter(
-            child: bookingsAsync.when(
-              loading: () => const SizedBox.shrink(),
-              error: (_, __) => const SizedBox.shrink(),
-              data: (bookings) {
-                final next =
-                    bookings.where((b) => b['status'] == 'confirmed').toList();
-                if (next.isEmpty) return const SizedBox.shrink();
-                return _NextSessionBanner(booking: next.first);
-              },
-            ),
+          // ── Hero credits + points ─────────────────────────────────────────
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+            sliver: SliverToBoxAdapter(child: _buildHeroCard()),
           ),
-        ),
 
-        // ── Featured teachers ─────────────────────────────────────────────
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 0, 8),
-          sliver: SliverToBoxAdapter(
-            child: _SectionRow(
-                en: 'Featured Teachers',
-                zh: '推荐老师',
-                onSeeAll: onSeeAllTeachers),
+          // ── Points progress ───────────────────────────────────────────────
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            sliver:
+                SliverToBoxAdapter(child: _PointsProgress(points: user.points)),
           ),
-        ),
-        SliverToBoxAdapter(
-          child: teachersAsync.when(
-            loading: () => const SizedBox(
-                height: 160,
-                child: Center(
-                    child: CircularProgressIndicator(color: _C.magenta))),
-            error: (e, _) => SizedBox(
-              height: 100,
-              child: Center(
-                child: Text('Could not load teachers: $e',
-                    style: const TextStyle(fontSize: 12, color: _C.inkSoft)),
+
+          // ── School Updates · Announcements ─────────────────────────────────
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            sliver: const SliverToBoxAdapter(child: AnnouncementFeedSection()),
+          ),
+
+          // ── Next session banner ───────────────────────────────────────────
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            sliver: SliverToBoxAdapter(
+              child: bookingsAsync.when(
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
+                data: (bookings) {
+                  final next = bookings
+                      .where((b) => b['status'] == 'confirmed')
+                      .toList();
+                  if (next.isEmpty) return const SizedBox.shrink();
+                  return _NextSessionBanner(booking: next.first);
+                },
               ),
             ),
-            data: (teachers) => _TeacherCarousel(
-              teachers: teachers.take(6).toList(),
-              onSeeAll: onSeeAllTeachers,
-            ),
           ),
-        ),
 
-        // ── Recent sessions ───────────────────────────────────────────────
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-          sliver: SliverToBoxAdapter(
-            child:
-                _SectionRow(en: 'Recent Sessions', zh: '最近课程', onSeeAll: () {}),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-          sliver: SliverToBoxAdapter(
-            child: bookingsAsync.when(
-              loading: () => const Center(
-                  child: CircularProgressIndicator(color: _C.magenta)),
-              error: (e, _) => Text('$e'),
-              data: (bookings) {
-                final recent = bookings.take(3).toList();
-                if (recent.isEmpty) {
-                  return const _EmptyCard(
-                    icon: Icons.calendar_today_outlined,
-                    title: 'No sessions yet',
-                    titleCn: '暂无课程',
-                    subtitle: 'Book a session with a teacher to get started.',
-                  );
-                }
-                return Column(
-                    children:
-                        recent.map((b) => _BookingCard(booking: b)).toList());
-              },
+          // ── Featured teachers ─────────────────────────────────────────────
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 0, 8),
+            sliver: SliverToBoxAdapter(
+              child: _SectionRow(
+                  en: 'Featured Teachers',
+                  zh: '推荐老师',
+                  onSeeAll: onSeeAllTeachers),
             ),
           ),
-        ),
-      ],
+          SliverToBoxAdapter(
+            child: teachersAsync.when(
+              loading: () => const SizedBox(
+                  height: 160,
+                  child: Center(
+                      child: CircularProgressIndicator(color: _C.magenta))),
+              error: (e, _) => SizedBox(
+                height: 100,
+                child: Center(
+                  child: Text('Could not load teachers: $e',
+                      style: const TextStyle(fontSize: 12, color: _C.inkSoft)),
+                ),
+              ),
+              data: (teachers) => _TeacherCarousel(
+                teachers: teachers.take(6).toList(),
+                onSeeAll: onSeeAllTeachers,
+              ),
+            ),
+          ),
+
+          // ── Recent sessions ───────────────────────────────────────────────
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+            sliver: SliverToBoxAdapter(
+              child: _SectionRow(
+                  en: 'Recent Sessions', zh: '最近课程', onSeeAll: () {}),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+            sliver: SliverToBoxAdapter(
+              child: bookingsAsync.when(
+                loading: () => const Center(
+                    child: CircularProgressIndicator(color: _C.magenta)),
+                error: (e, _) => Text('$e'),
+                data: (bookings) {
+                  final recent = bookings.take(3).toList();
+                  if (recent.isEmpty) {
+                    return const _EmptyCard(
+                      icon: Icons.calendar_today_outlined,
+                      title: 'No sessions yet',
+                      titleCn: '暂无课程',
+                      subtitle: 'Book a session with a teacher to get started.',
+                    );
+                  }
+                  return Column(
+                      children:
+                          recent.map((b) => _BookingCard(booking: b)).toList());
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -719,6 +721,29 @@ class _RewardsTab extends ConsumerWidget {
           const SizedBox(height: 8),
           _PointsProgress(points: user.points),
         ]),
+      ),
+      const SizedBox(height: 16),
+      // Buy Credits — links to BuyCreditsScreen (payments feature): browse
+      // credit packages, submit a purchase request, view payment history.
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const BuyCreditsScreen()),
+            ),
+            icon: const Icon(Icons.add_card_outlined),
+            label: const Text('Buy Credits · 购买积分'),
+            style: FilledButton.styleFrom(
+              backgroundColor: _C.magenta,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+        ),
       ),
       const SizedBox(height: 20),
       const Padding(

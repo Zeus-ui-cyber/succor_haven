@@ -11,6 +11,7 @@ import 'admin/create_teacher_account_screen.dart';
 import 'admin/students_list_screen.dart';
 import 'admin/announcements_screen.dart';
 import '../modules/screens/modules_screen.dart';
+import '../payments/screens/admin/manage_payments_screen.dart';
 
 class _C {
   static const burgundy = Color(0xFF7D002B);
@@ -106,7 +107,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 6, vsync: this);
+    _tabs = TabController(length: 7, vsync: this);
   }
 
   @override
@@ -192,6 +193,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard>
                   Tab(text: 'Students'),
                   Tab(text: 'Modules'),
                   Tab(text: 'Announcements'),
+                  Tab(text: 'Payments'),
                 ],
               ),
             ),
@@ -208,6 +210,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard>
                   StudentsListScreen(asTab: true),
                   _ModulesTab(),
                   AnnouncementsTab(),
+                  ManagePaymentsScreen(),
                 ],
               ),
             ),
@@ -519,7 +522,7 @@ class _OverviewTab extends ConsumerWidget {
                         BarChartData(
                           alignment: BarChartAlignment.spaceAround,
                           maxY: [active, completed, cancelled]
-                                  .reduce((a, b) => a > b ? a : b) *
+                                      .reduce((a, b) => a > b ? a : b) *
                                   1.25 +
                               1,
                           gridData: const FlGridData(show: false),
@@ -535,7 +538,11 @@ class _OverviewTab extends ConsumerWidget {
                               sideTitles: SideTitles(
                                 showTitles: true,
                                 getTitlesWidget: (v, meta) {
-                                  const labels = ['Active', 'Done', 'Cancelled'];
+                                  const labels = [
+                                    'Active',
+                                    'Done',
+                                    'Cancelled'
+                                  ];
                                   final i = v.toInt();
                                   if (i < 0 || i > 2) return const SizedBox();
                                   return Padding(

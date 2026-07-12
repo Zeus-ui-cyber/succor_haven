@@ -24,6 +24,7 @@ const modulesCtrl = require("../controllers/modules.controller");
 const announcementsCtrl = require("../controllers/announcements.controller");
 const announcementCommentsCtrl = require("../controllers/announcementComments.controller");
 const notificationsCtrl = require("../controllers/notifications.controller");
+const paymentsCtrl = require("../controllers/payments.controller"); // ← NEW
 
 const router = express.Router();
 
@@ -88,7 +89,9 @@ const uploadModuleFile = multer({
   limits: { fileSize: 25 * 1024 * 1024 }, // 25MB — documents, larger than profile pics
   fileFilter: (req, file, cb) => {
     if (!ALLOWED_MODULE_TYPES.includes(file.mimetype)) {
-      return cb(new Error("Only PDF, DOC, DOCX, PPT, or PPTX files are allowed."));
+      return cb(
+        new Error("Only PDF, DOC, DOCX, PPT, or PPTX files are allowed."),
+      );
     }
     cb(null, true);
   },
@@ -127,7 +130,9 @@ const uploadAnnouncementFile = multer({
   limits: { fileSize: 25 * 1024 * 1024 }, // 25MB, same ceiling as modules
   fileFilter: (req, file, cb) => {
     if (!ALLOWED_ANNOUNCEMENT_TYPES.includes(file.mimetype)) {
-      return cb(new Error("Only JPEG, PNG, WEBP, PDF, DOC, or DOCX files are allowed."));
+      return cb(
+        new Error("Only JPEG, PNG, WEBP, PDF, DOC, or DOCX files are allowed."),
+      );
     }
     cb(null, true);
   },
@@ -242,6 +247,20 @@ router.get("/courses/:id", authenticate, courseCtrl.getOne);
 
 // ── Rewards (student-facing, read-only) ────────────────────────────────────────
 router.get("/rewards", authenticate, adminCtrl.listRewards);
+
+// ── Credit Packages (public read, any authenticated role) ────────────────────
+// NEW: "Buy Credits" screen reads active tiers from here. Admin CRUD is
+// registered further down in the ── Admin ── section.
+router.get("/credit-packages", authenticate, paymentsCtrl.listPackages);
+
+// ── Payments (student read-only) ──────────────────────────────────────────────
+// NEW: student's own top-up history, shown under Profile/Settings.
+router.get(
+  "/credits/payments/mine",
+  authenticate,
+  requireRole("student"),
+  paymentsCtrl.listMyPayments,
+);
 
 // ── Modules ───────────────────────────────────────────────────────────────────
 // Both admin and teacher can view/upload. Update/delete permission is
@@ -414,6 +433,26 @@ router.post("/admin/rewards", ...admin, adminCtrl.createReward);
 router.patch("/admin/rewards/:id", ...admin, adminCtrl.updateReward);
 router.delete("/admin/rewards/:id", ...admin, adminCtrl.deleteReward);
 
+// ── Admin · Credit Packages ("Buy Credits" tiers) ─────────────────────────────
+// NEW: admin-only create/update/delete. Public read (GET /credit-packages,
+// no /admin prefix) is registered earlier, open to any authenticated role.
+router.get("/admin/credit-packages", ...admin, paymentsCtrl.listPackagesAdmin);
+router.post("/admin/credit-packages", ...admin, paymentsCtrl.createPackage);
+router.patch(
+  "/admin/credit-packages/:id",
+  ...admin,
+  paymentsCtrl.updatePackage,
+);
+router.delete(
+  "/admin/credit-packages/:id",
+  ...admin,
+  paymentsCtrl.deletePackage,
+);
+
+// ── Admin · Payments ───────────────────────────────────────────────────────────
+// NEW: full transaction list + revenue totals, filterable by ?status=/?method=.
+router.get("/admin/payments", ...admin, paymentsCtrl.listPaymentsAdmin);
+
 // ── Admin · Students List ──────────────────────────────────────────────────────
 router.get("/admin/students", ...admin, studentsAdminCtrl.list);
 router.get("/admin/students/summary", ...admin, studentsAdminCtrl.summary);
@@ -452,9 +491,21 @@ router.delete("/admin/milestones/:id", ...admin, milestonesCtrl.remove);
 router.get("/announcements", authenticate, announcementsCtrl.list);
 router.get("/announcements/:id", authenticate, announcementsCtrl.getOne);
 router.post("/announcements/:id/like", authenticate, announcementsCtrl.like);
-router.delete("/announcements/:id/like", authenticate, announcementsCtrl.unlike);
-router.post("/announcements/:id/bookmark", authenticate, announcementsCtrl.bookmark);
-router.delete("/announcements/:id/bookmark", authenticate, announcementsCtrl.unbookmark);
+router.delete(
+  "/announcements/:id/like",
+  authenticate,
+  announcementsCtrl.unlike,
+);
+router.post(
+  "/announcements/:id/bookmark",
+  authenticate,
+  announcementsCtrl.bookmark,
+);
+router.delete(
+  "/announcements/:id/bookmark",
+  authenticate,
+  announcementsCtrl.unbookmark,
+);
 
 // ── Admin · Announcements (create/manage) ─────────────────────────────────────
 router.get("/admin/announcements", ...admin, announcementsCtrl.adminList);
@@ -492,8 +543,20 @@ router.delete(
 
 // ── In-app Notifications (bell icon feed) ────────────────────────────────────
 router.get("/notifications", authenticate, notificationsCtrl.list);
-router.get("/notifications/unread-count", authenticate, notificationsCtrl.unreadCount);
-router.patch("/notifications/read-all", authenticate, notificationsCtrl.markAllRead);
-router.patch("/notifications/:id/read", authenticate, notificationsCtrl.markRead);
+router.get(
+  "/notifications/unread-count",
+  authenticate,
+  notificationsCtrl.unreadCount,
+);
+router.patch(
+  "/notifications/read-all",
+  authenticate,
+  notificationsCtrl.markAllRead,
+);
+router.patch(
+  "/notifications/:id/read",
+  authenticate,
+  notificationsCtrl.markRead,
+);
 
 module.exports = router;
