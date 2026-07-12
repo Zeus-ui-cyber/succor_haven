@@ -44,13 +44,16 @@ class ApiService {
   );
 
   // ── Token helpers ──────────────────────────────────────────────────────
-  Future<void> saveTokens({required String access, required String refresh}) async {
+  Future<void> saveTokens(
+      {required String access, required String refresh}) async {
     await _storage.write(key: AppConstants.accessTokenKey, value: access);
     await _storage.write(key: AppConstants.refreshTokenKey, value: refresh);
   }
 
-  Future<String?> getAccessToken() => _storage.read(key: AppConstants.accessTokenKey);
-  Future<String?> getRefreshToken() => _storage.read(key: AppConstants.refreshTokenKey);
+  Future<String?> getAccessToken() =>
+      _storage.read(key: AppConstants.accessTokenKey);
+  Future<String?> getRefreshToken() =>
+      _storage.read(key: AppConstants.refreshTokenKey);
 
   Future<void> clearTokens() async {
     await _storage.delete(key: AppConstants.accessTokenKey);
@@ -87,7 +90,8 @@ class ApiService {
       );
       if (res.statusCode >= 400) return false;
       final data = jsonDecode(res.body);
-      await saveTokens(access: data['accessToken'], refresh: data['refreshToken']);
+      await saveTokens(
+          access: data['accessToken'], refresh: data['refreshToken']);
       return true;
     } catch (_) {
       return false;
@@ -128,14 +132,17 @@ class ApiService {
   }
 
   // ── Public verbs ─────────────────────────────────────────────────────
-  Future<dynamic> get(String path, {Map<String, dynamic>? query, bool authenticated = true}) {
+  Future<dynamic> get(String path,
+      {Map<String, dynamic>? query, bool authenticated = true}) {
     return _handle(
-      () async => http.get(_uri(path, query), headers: await _headers(authenticated: authenticated)),
+      () async => http.get(_uri(path, query),
+          headers: await _headers(authenticated: authenticated)),
       authenticated: authenticated,
     );
   }
 
-  Future<dynamic> post(String path, {Map<String, dynamic>? data, bool authenticated = true}) {
+  Future<dynamic> post(String path,
+      {Map<String, dynamic>? data, bool authenticated = true}) {
     return _handle(
       () async => http.post(
         _uri(path),
@@ -146,7 +153,8 @@ class ApiService {
     );
   }
 
-  Future<dynamic> patch(String path, {Map<String, dynamic>? data, bool authenticated = true}) {
+  Future<dynamic> patch(String path,
+      {Map<String, dynamic>? data, bool authenticated = true}) {
     return _handle(
       () async => http.patch(
         _uri(path),
@@ -157,9 +165,24 @@ class ApiService {
     );
   }
 
-  Future<dynamic> delete(String path, {bool authenticated = true}) {
+  // FIXED: delete() had no way to send a request body. Some DELETE
+  // endpoints in this backend need one — e.g. teachers.controller.js's
+  // removeSubject reads `subject` from req.body (subjects have no numeric
+  // ID, only their exact text), and deleteAvailabilitySlot reads `day`
+  // from req.body too (even though the route also has a :id path segment
+  // it doesn't actually use). Without this, settings_repository.dart's
+  // calls to delete(..., data: {...}) failed to even compile
+  // ("undefined_named_parameter"). `data` is optional and omitted for
+  // DELETE calls that don't need a body, so nothing else that already
+  // calls delete(path) is affected.
+  Future<dynamic> delete(String path,
+      {Map<String, dynamic>? data, bool authenticated = true}) {
     return _handle(
-      () async => http.delete(_uri(path), headers: await _headers(authenticated: authenticated)),
+      () async => http.delete(
+        _uri(path),
+        headers: await _headers(authenticated: authenticated),
+        body: data != null ? jsonEncode(data) : null,
+      ),
       authenticated: authenticated,
     );
   }

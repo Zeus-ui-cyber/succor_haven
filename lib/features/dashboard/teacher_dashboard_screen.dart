@@ -3,10 +3,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import '../auth/controllers/auth_controller.dart';
 import '../auth/repositories/auth_repository.dart';
+import '../../core/api/api_service.dart';
 import '../../models/user.dart';
 import '../../models/appointment.dart';
+import '../settings/repositories/settings_repository.dart';
 import '../settings/screens/teacher/edit_bio_subjects_screen.dart';
 import '../settings/screens/teacher/set_availability_screen.dart';
 import '../settings/screens/teacher/credits_per_session_screen.dart';
@@ -14,6 +17,7 @@ import '../settings/screens/student/change_password_screen.dart';
 import '../appointments/controllers/appointment_controller.dart';
 import '../appointments/screens/teacher_appointments_screen.dart';
 import '../modules/screens/modules_screen.dart';
+import '../booking/utils/avatar_url.dart';
 
 class _C {
   static const slateBlue = Color(0xFF3E678A);
@@ -263,11 +267,16 @@ class _THomeTab extends ConsumerWidget {
         CircleAvatar(
           radius: 22,
           backgroundColor: _C.bluePale,
-          child: Text(_avatarLetter(user),
-              style: const TextStyle(
-                  color: _C.slateBlue,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16)),
+          backgroundImage: user.profilePictureUrl != null
+              ? NetworkImage(resolveAvatarUrl(user.profilePictureUrl)!)
+              : null,
+          child: user.profilePictureUrl == null
+              ? Text(_avatarLetter(user),
+                  style: const TextStyle(
+                      color: _C.slateBlue,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16))
+              : null,
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -355,8 +364,7 @@ class _AppointmentsEntryCard extends ConsumerWidget {
           ),
           if (pendingCount > 0)
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: _C.magenta,
                 borderRadius: BorderRadius.circular(20),
@@ -418,8 +426,7 @@ class _ModulesEntryCard extends StatelessWidget {
                         fontSize: 13.5,
                         fontWeight: FontWeight.w700,
                         color: _C.ink)),
-                Text('教学资料',
-                    style: TextStyle(fontSize: 11, color: _C.purple)),
+                Text('教学资料', style: TextStyle(fontSize: 11, color: _C.purple)),
               ],
             ),
           ),
@@ -723,6 +730,35 @@ class _TProfileTab extends ConsumerWidget {
   final VoidCallback onLogout;
   const _TProfileTab({required this.user, required this.onLogout});
 
+  Future<void> _pickAndUploadPhoto(BuildContext context, WidgetRef ref) async {
+    final picker = ImagePicker();
+    final picked =
+        await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked == null) return;
+
+    final bytes = await picked.readAsBytes();
+    try {
+      await SettingsRepository().uploadProfilePicture(bytes, picked.name);
+      ref.invalidate(_tMeProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile photo updated · 头像已更新')),
+        );
+      }
+    } on ApiException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to upload photo.')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bookingsAsync = ref.watch(_tBookingsProvider);
@@ -736,14 +772,37 @@ class _TProfileTab extends ConsumerWidget {
       children: [
         Center(
             child: Column(children: [
-          CircleAvatar(
-            radius: 42,
-            backgroundColor: _C.bluePale,
-            child: Text(_avatarLetter(user),
-                style: const TextStyle(
-                    fontSize: 36,
-                    color: _C.slateBlue,
-                    fontWeight: FontWeight.w800)),
+          GestureDetector(
+            onTap: () => _pickAndUploadPhoto(context, ref),
+            child: Stack(
+              children: [
+                CircleAvatar(
+                  radius: 42,
+                  backgroundColor: _C.bluePale,
+                  backgroundImage: user.profilePictureUrl != null
+                      ? NetworkImage(resolveAvatarUrl(user.profilePictureUrl)!)
+                      : null,
+                  child: user.profilePictureUrl == null
+                      ? Text(_avatarLetter(user),
+                          style: const TextStyle(
+                              fontSize: 36,
+                              color: _C.slateBlue,
+                              fontWeight: FontWeight.w800))
+                      : null,
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: const BoxDecoration(
+                        color: _C.slateBlue, shape: BoxShape.circle),
+                    child: const Icon(Icons.camera_alt,
+                        size: 14, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
           Text('${user.firstName} ${user.lastName}',

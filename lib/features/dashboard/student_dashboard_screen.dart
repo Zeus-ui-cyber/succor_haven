@@ -110,7 +110,9 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
           child: IndexedStack(
             index: _navIndex,
             children: [
-              _HomeTab(user: user, onSeeAllTeachers: () => setState(() => _navIndex = 1)),
+              _HomeTab(
+                  user: user,
+                  onSeeAllTeachers: () => setState(() => _navIndex = 1)),
               _FindTeachersTab(user: user),
               _SessionsTab(user: user),
               _RewardsTab(user: user),
@@ -245,7 +247,9 @@ class _HomeTab extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(20, 24, 0, 8),
           sliver: SliverToBoxAdapter(
             child: _SectionRow(
-                en: 'Featured Teachers', zh: '推荐老师', onSeeAll: onSeeAllTeachers),
+                en: 'Featured Teachers',
+                zh: '推荐老师',
+                onSeeAll: onSeeAllTeachers),
           ),
         ),
         SliverToBoxAdapter(
@@ -311,11 +315,16 @@ class _HomeTab extends ConsumerWidget {
         CircleAvatar(
           radius: 22,
           backgroundColor: _C.blushPink,
-          child: Text(_avatarLetter(user),
-              style: const TextStyle(
-                  color: _C.burgundy,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16)),
+          backgroundImage: user.profilePictureUrl != null
+              ? NetworkImage(resolveAvatarUrl(user.profilePictureUrl)!)
+              : null,
+          child: user.profilePictureUrl == null
+              ? Text(_avatarLetter(user),
+                  style: const TextStyle(
+                      color: _C.burgundy,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16))
+              : null,
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -757,7 +766,8 @@ class _ProfileTab extends ConsumerWidget {
     Navigator.pushNamed(context, '/settings/phone');
   }
 
-  Future<void> _openLanguageSettings(BuildContext context, WidgetRef ref) async {
+  Future<void> _openLanguageSettings(
+      BuildContext context, WidgetRef ref) async {
     final result = await Navigator.pushNamed(
       context,
       '/settings/language',
@@ -799,11 +809,16 @@ class _ProfileTab extends ConsumerWidget {
           CircleAvatar(
             radius: 42,
             backgroundColor: _C.blushPink,
-            child: Text(_avatarLetter(user),
-                style: const TextStyle(
-                    fontSize: 36,
-                    color: _C.burgundy,
-                    fontWeight: FontWeight.w800)),
+            backgroundImage: user.profilePictureUrl != null
+                ? NetworkImage(resolveAvatarUrl(user.profilePictureUrl)!)
+                : null,
+            child: user.profilePictureUrl == null
+                ? Text(_avatarLetter(user),
+                    style: const TextStyle(
+                        fontSize: 36,
+                        color: _C.burgundy,
+                        fontWeight: FontWeight.w800))
+                : null,
           ),
           const SizedBox(height: 12),
           Text('${user.firstName} ${user.lastName}',
@@ -1027,8 +1042,7 @@ class _TeacherCarousel extends StatelessWidget {
           final avatarUrl = resolveAvatarUrl(t.avatarUrl);
           final subjectsPreview = t.subjects.take(2).join(', ');
           return GestureDetector(
-            onTap: () =>
-                Navigator.pushNamed(context, '/teachers/${t.id}'),
+            onTap: () => Navigator.pushNamed(context, '/teachers/${t.id}'),
             child: Container(
               width: 130,
               margin: const EdgeInsets.only(right: 12),
@@ -1045,9 +1059,8 @@ class _TeacherCarousel extends StatelessWidget {
                       CircleAvatar(
                         radius: 18,
                         backgroundColor: _C.blushPink,
-                        backgroundImage: avatarUrl != null
-                            ? NetworkImage(avatarUrl)
-                            : null,
+                        backgroundImage:
+                            avatarUrl != null ? NetworkImage(avatarUrl) : null,
                         child: avatarUrl == null
                             ? Text(t.initials.characters.first,
                                 style: const TextStyle(
@@ -1082,7 +1095,8 @@ class _TeacherCarousel extends StatelessWidget {
                             : subjectsPreview,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 10, color: _C.inkSoft)),
+                        style:
+                            const TextStyle(fontSize: 10, color: _C.inkSoft)),
                     const Spacer(),
                     Text(
                         t.isNewTeacher

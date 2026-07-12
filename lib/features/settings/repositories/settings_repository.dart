@@ -2,6 +2,7 @@
 
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import '../../../core/api/api_service.dart';
 
 class SettingsRepository {
@@ -19,11 +20,24 @@ class SettingsRepository {
   }
 
   /// Uploads a profile picture and returns the new public URL.
-  /// Takes raw bytes + a filename so this works on web, mobile, and desktop
-  /// alike (dart:io's File is unavailable on Flutter web).
-  Future<String> uploadProfilePicture(Uint8List imageBytes, String filename) async {
+  ///
+  /// FIXED: MultipartFile.fromBytes defaults to `application/octet-stream`
+  /// when no contentType is given — that's not in the server's
+  /// ALLOWED_IMAGE_TYPES list (jpeg/png/webp only), so every single upload
+  /// was being rejected by multer's fileFilter regardless of what the
+  /// actual image was. Now the content type is set explicitly from the
+  /// file extension so the server's mimetype check passes.
+  Future<String> uploadProfilePicture(
+      Uint8List imageBytes, String filename) async {
     final token = await _api.getAccessToken();
     final uri = Uri.parse('${ApiService.baseUrl}/settings/profile/picture');
+
+    final ext = filename.split('.').last.toLowerCase();
+    final mimeType = switch (ext) {
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      _ => 'image/jpeg', // covers jpg/jpeg and any unrecognized extension
+    };
 
     final request = http.MultipartRequest('POST', uri)
       ..headers['Authorization'] = 'Bearer $token'
@@ -31,24 +45,26 @@ class SettingsRepository {
         'profilePicture',
         imageBytes,
         filename: filename,
+        contentType: MediaType.parse(mimeType),
       ));
 
     final streamed = await request.send();
     final response = await http.Response.fromStream(streamed);
 
     if (response.statusCode >= 400) {
-      throw ApiException(response.statusCode, 'Failed to upload profile picture');
+      throw ApiException(
+          response.statusCode, 'Failed to upload profile picture');
     }
 
     final decoded = response.body;
-    final match = RegExp(r'"profilePictureUrl"\s*:\s*"([^"]+)"').firstMatch(decoded);
+    final match = RegExp(r'"avatarUrl"\s*:\s*"([^"]+)"').firstMatch(decoded);
     if (match == null) {
       throw ApiException(500, 'Unexpected response from server');
     }
     return match.group(1)!;
   }
 
-  // ── everything else below is unchanged ──────────────────────────────────
+  // ── everything below here is unchanged ──────────────────────────────────
   Future<void> sendPasswordChangeOtp() {
     return _api.post('/settings/password/otp/send');
   }
@@ -76,12 +92,15 @@ class SettingsRepository {
     return _api.post('/settings/phone/otp/send', data: {'phone': phone});
   }
 
-  Future<void> updatePrimaryPhone({required String phone, required String otp}) {
-    return _api.patch('/settings/phone/primary', data: {'phone': phone, 'otp': otp});
+  Future<void> updatePrimaryPhone(
+      {required String phone, required String otp}) {
+    return _api
+        .patch('/settings/phone/primary', data: {'phone': phone, 'otp': otp});
   }
 
   Future<void> updateBackupPhone({required String phone, required String otp}) {
-    return _api.patch('/settings/phone/backup', data: {'phone': phone, 'otp': otp});
+    return _api
+        .patch('/settings/phone/backup', data: {'phone': phone, 'otp': otp});
   }
 
   Future<void> updateLanguage(String language) {
@@ -103,69 +122,67 @@ class SettingsRepository {
     });
   }
 
-  Future<void> submitConcern({required String subject, required String message}) {
+  Future<void> submitConcern(
+      {required String subject, required String message}) {
     return _api.post('/settings/concerns', data: {
       'subject': subject,
       'message': message,
     });
   }
 
+  // ── Teacher settings ─────────────────────────────────────────────────────
+
   Future<Map<String, dynamic>> getCreditsSummary() async {
-    final data = await _api.get('/settings/teacher/credits-summary');
+    final data = await _api.get('/teachers/profile/credits');
     return data as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> getTeacherProfile() async {
-    final data = await _api.get('/settings/teacher/profile');
+    final data = await _api.get('/teachers/profile/me');
     return data as Map<String, dynamic>;
   }
 
   Future<void> updateBio(String bio) {
-    return _api.patch('/settings/teacher/bio', data: {'bio': bio});
+    return _api.patch('/teachers/profile/bio', data: {'bio': bio});
   }
 
   Future<void> addSubject(String subject) {
-    return _api.post('/settings/teacher/subjects', data: {'subject': subject});
+    return _api.post('/teachers/profile/subjects', data: {'subject': subject});
   }
 
-  Future<void> removeSubject(String subjectId) {
-    return _api.delete('/settings/teacher/subjects/$subjectId');
+  Future<void> removeSubject(String subjectText) {
+    return _api.delete('/teachers/profile/subjects', data: {
+      'subject': subjectText,
+    });
   }
 
   Future<void> updateSubject({
     required String subjectId,
     required String subject,
   }) {
-    return _api.patch('/settings/teacher/subjects/$subjectId', data: {
-      'subject': subject,
+    return _api.patch('/teachers/profile/subjects', data: {
+      'oldSubject': subjectId,
+      'newSubject': subject,
     });
   }
 
-  Future<List<Map<String, dynamic>>> getAvailability() async {
-    final data = await _api.get('/settings/teacher/availability');
-    return List<Map<String, dynamic>>.from(
-      (data as List).map((s) => Map<String, dynamic>.from(s)),
-    );
+  Future<List<String>> getAvailability() async {
+    final data = await _api.get('/teachers/profile/availability');
+    return List<String>.from(data as List);
   }
 
   Future<void> saveAvailabilitySlot({
     required String day,
-    required String startTime,
-    required String endTime,
+    String? startTime,
+    String? endTime,
     String? slotId,
   }) {
-    final data = {
-      'day': day,
-      'startTime': startTime,
-      'endTime': endTime,
-    };
-    if (slotId == null) {
-      return _api.post('/settings/teacher/availability', data: data);
-    }
-    return _api.patch('/settings/teacher/availability/$slotId', data: data);
+    return _api.post('/teachers/profile/availability', data: {'day': day});
   }
 
   Future<void> deleteAvailabilitySlot(String slotId) {
-    return _api.delete('/settings/teacher/availability/$slotId');
+    return _api.delete('/teachers/profile/availability/$slotId', data: {
+      'day': slotId,
+    });
   }
 }

@@ -60,14 +60,14 @@ class UserModel {
 
   bool get isStudent => role == 'student';
   bool get isTeacher => role == 'teacher';
-  bool get isAdmin   => role == 'admin';
+  bool get isAdmin => role == 'admin';
 
   // ── Factory ───────────────────────────────────────────────────────────────
   factory UserModel.fromJson(Map<String, dynamic> json) {
     // ① Resolve full name — accept full_name OR first_name + last_name
-    final rawFull  = json['full_name']   as String?;
-    final rawFirst = json['first_name']  as String? ?? '';
-    final rawLast  = json['last_name']   as String? ?? '';
+    final rawFull = json['full_name'] as String?;
+    final rawFirst = json['first_name'] as String? ?? '';
+    final rawLast = json['last_name'] as String? ?? '';
     final resolvedName = (rawFull != null && rawFull.trim().isNotEmpty)
         ? rawFull.trim()
         : '$rawFirst $rawLast'.trim();
@@ -81,30 +81,30 @@ class UserModel {
     }
 
     return UserModel(
-      id:              json['id']?.toString() ?? '',
-      email:           json['email']  as String?  ?? '',
-      fullName:        resolvedName,
-      role:            json['role']   as String?  ?? 'student',
-      languagePref:    json['language_pref'] as String? ?? 'en',
-      credits:         (json['credits']  as num?)?.toInt() ?? 0,
-      points:          (json['points']   as num?)?.toInt() ?? 0,
-      createdAt:       resolvedDate,
+      id: json['id']?.toString() ?? '',
+      email: json['email'] as String? ?? '',
+      fullName: resolvedName,
+      role: json['role'] as String? ?? 'student',
+      languagePref: json['language_pref'] as String? ?? 'en',
+      credits: (json['credits'] as num?)?.toInt() ?? 0,
+      points: (json['points'] as num?)?.toInt() ?? 0,
+      createdAt: resolvedDate,
       teacherApproved: json['teacher_approved'] as bool? ?? false,
       profilePictureUrl: json['avatar_url'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'id':                 id,
-        'email':              email,
-        'full_name':          fullName,
-        'role':               role,
-        'language_pref':      languagePref,
-        'credits':            credits,
-        'points':             points,
-        'created_at':         createdAt.toIso8601String(),
-        'teacher_approved':   teacherApproved,
-        'avatar_url':         profilePictureUrl,
+        'id': id,
+        'email': email,
+        'full_name': fullName,
+        'role': role,
+        'language_pref': languagePref,
+        'credits': credits,
+        'points': points,
+        'created_at': createdAt.toIso8601String(),
+        'teacher_approved': teacherApproved,
+        'avatar_url': profilePictureUrl,
       };
 
   UserModel copyWith({
@@ -120,14 +120,14 @@ class UserModel {
     String? profilePictureUrl,
   }) =>
       UserModel(
-        id:              id              ?? this.id,
-        email:           email           ?? this.email,
-        fullName:        fullName        ?? this.fullName,
-        role:            role            ?? this.role,
-        languagePref:    languagePref    ?? this.languagePref,
-        credits:         credits         ?? this.credits,
-        points:          points          ?? this.points,
-        createdAt:       createdAt       ?? this.createdAt,
+        id: id ?? this.id,
+        email: email ?? this.email,
+        fullName: fullName ?? this.fullName,
+        role: role ?? this.role,
+        languagePref: languagePref ?? this.languagePref,
+        credits: credits ?? this.credits,
+        points: points ?? this.points,
+        createdAt: createdAt ?? this.createdAt,
         teacherApproved: teacherApproved ?? this.teacherApproved,
         profilePictureUrl: profilePictureUrl ?? this.profilePictureUrl,
       );

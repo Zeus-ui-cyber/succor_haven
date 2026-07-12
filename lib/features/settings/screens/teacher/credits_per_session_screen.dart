@@ -6,7 +6,8 @@ class CreditsPerSessionScreen extends StatefulWidget {
   const CreditsPerSessionScreen({super.key});
 
   @override
-  State<CreditsPerSessionScreen> createState() => _CreditsPerSessionScreenState();
+  State<CreditsPerSessionScreen> createState() =>
+      _CreditsPerSessionScreenState();
 }
 
 class _CreditsPerSessionScreenState extends State<CreditsPerSessionScreen> {
@@ -54,7 +55,8 @@ class _CreditsPerSessionScreenState extends State<CreditsPerSessionScreen> {
                       children: [
                         Text(_error!),
                         const SizedBox(height: 12),
-                        ElevatedButton(onPressed: _load, child: const Text('Retry')),
+                        ElevatedButton(
+                            onPressed: _load, child: const Text('Retry')),
                       ],
                     ),
                   )
@@ -68,11 +70,16 @@ class _CreditsPerSessionScreenState extends State<CreditsPerSessionScreen> {
 
   Widget _buildContent(ColorScheme cs) {
     final summary = _summary ?? {};
-    final perSessionRate = (summary['perSessionRate'] as num?)?.toInt() ?? 0;
+    // FIXED: teachers.controller.js's getCreditsSummary returns the field
+    // as `creditsPerSession`, not `perSessionRate` — that key never
+    // existed in the response, so this always silently showed 0 instead
+    // of the teacher's real rate.
+    final perSessionRate = (summary['creditsPerSession'] as num?)?.toInt() ?? 0;
     final totalCredits = (summary['totalCredits'] as num?)?.toInt() ?? 0;
     final totalSessions = (summary['totalSessions'] as num?)?.toInt() ?? 0;
     final sessions = List<Map<String, dynamic>>.from(
-      (summary['sessions'] as List? ?? []).map((s) => Map<String, dynamic>.from(s)),
+      (summary['sessions'] as List? ?? [])
+          .map((s) => Map<String, dynamic>.from(s)),
     );
 
     return ListView(
@@ -90,11 +97,15 @@ class _CreditsPerSessionScreenState extends State<CreditsPerSessionScreen> {
             children: [
               Text('Total Credits Earned · 总积分收入',
                   style: TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.w600, color: cs.onPrimaryContainer)),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onPrimaryContainer)),
               const SizedBox(height: 6),
               Text('$totalCredits',
                   style: TextStyle(
-                      fontSize: 40, fontWeight: FontWeight.w900, color: cs.onPrimaryContainer)),
+                      fontSize: 40,
+                      fontWeight: FontWeight.w900,
+                      color: cs.onPrimaryContainer)),
               Text('from $totalSessions completed sessions',
                   style: TextStyle(
                       fontSize: 12,
@@ -123,7 +134,8 @@ class _CreditsPerSessionScreenState extends State<CreditsPerSessionScreen> {
                         style: TextStyle(
                             fontWeight: FontWeight.w700, color: cs.onSurface)),
                     Text('Standard rate per completed session · 每节课标准积分',
-                        style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                        style: TextStyle(
+                            fontSize: 12, color: cs.onSurfaceVariant)),
                   ],
                 ),
               ),
@@ -199,8 +211,10 @@ class _SessionCreditRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(studentName,
-                    style: TextStyle(fontWeight: FontWeight.w700, color: cs.onSurface)),
-                Text(date, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700, color: cs.onSurface)),
+                Text(date,
+                    style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
               ],
             ),
           ),

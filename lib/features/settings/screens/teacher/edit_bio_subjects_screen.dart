@@ -1,3 +1,17 @@
+// lib/features/settings/screens/teacher/edit_bio_subjects_screen.dart
+//
+// FIXED: this screen used to treat each subject as a {'id': ..., 'subject':
+// ...} object. The real backend (teachers.controller.js's getMyProfile)
+// returns `subjects` as a plain list of strings, e.g. ["Math", "English"]
+// — teacher_profiles.subjects is a TEXT[] column with no separate ID per
+// entry (confirmed by that controller's own comment: "items are
+// identified by their exact text"). The old _load() tried to do
+// `Map<String,dynamic>.from(s)` on each entry, which throws immediately
+// since a String isn't a Map — this crashed every time the screen loaded
+// for any teacher who had at least one subject. Now `_subjects` is a
+// plain `List<String>`, and add/edit/remove all operate on the subject's
+// text directly instead of a nonexistent numeric ID.
+
 import 'package:flutter/material.dart';
 import '../../../../core/api/api_service.dart';
 import '../../repositories/settings_repository.dart';
@@ -19,8 +33,7 @@ class _EditBioSubjectsScreenState extends State<EditBioSubjectsScreen> {
   bool _addingSubject = false;
   String? _error;
 
-  // Each subject: {'id': ..., 'subject': ...}
-  List<Map<String, dynamic>> _subjects = [];
+  List<String> _subjects = [];
 
   @override
   void initState() {
@@ -43,9 +56,7 @@ class _EditBioSubjectsScreenState extends State<EditBioSubjectsScreen> {
     try {
       final profile = await _repo.getTeacherProfile();
       _bioCtrl.text = profile['bio'] as String? ?? '';
-      _subjects = List<Map<String, dynamic>>.from(
-        (profile['subjects'] as List? ?? []).map((s) => Map<String, dynamic>.from(s)),
-      );
+      _subjects = List<String>.from(profile['subjects'] as List? ?? []);
     } on ApiException catch (e) {
       _error = e.message;
     } catch (_) {
@@ -73,11 +84,16 @@ class _EditBioSubjectsScreenState extends State<EditBioSubjectsScreen> {
     final subject = _newSubjectCtrl.text.trim();
     if (subject.isEmpty) return;
 
+    if (_subjects.any((s) => s.toLowerCase() == subject.toLowerCase())) {
+      _showSnack('This subject has already been added.', isError: true);
+      return;
+    }
+
     setState(() => _addingSubject = true);
     try {
       await _repo.addSubject(subject);
       _newSubjectCtrl.clear();
-      await _load(); // refresh from server so we get the real id
+      await _load(); // refresh from server so the list stays in sync
       if (mounted) _showSnack('Subject added · 已添加科目', isError: false);
     } on ApiException catch (e) {
       if (mounted) _showSnack(e.message, isError: true);
@@ -88,33 +104,34 @@ class _EditBioSubjectsScreenState extends State<EditBioSubjectsScreen> {
     }
   }
 
-  Future<void> _removeSubject(String id) async {
-    final removed = _subjects.firstWhere((s) => s['id'].toString() == id);
-    setState(() => _subjects.removeWhere((s) => s['id'].toString() == id));
+  Future<void> _removeSubject(String subjectText) async {
+    setState(() => _subjects
+        .removeWhere((s) => s.toLowerCase() == subjectText.toLowerCase()));
     try {
-      await _repo.removeSubject(id);
+      await _repo.removeSubject(subjectText);
     } on ApiException catch (e) {
       if (mounted) {
-        setState(() => _subjects.add(removed));
+        setState(() => _subjects.add(subjectText));
         _showSnack(e.message, isError: true);
       }
     } catch (_) {
       if (mounted) {
-        setState(() => _subjects.add(removed));
+        setState(() => _subjects.add(subjectText));
         _showSnack('Failed to remove subject.', isError: true);
       }
     }
   }
 
-  Future<void> _editSubject(Map<String, dynamic> subject) async {
-    final ctrl = TextEditingController(text: subject['subject'] as String);
+  Future<void> _editSubject(String subjectText) async {
+    final ctrl = TextEditingController(text: subjectText);
     final updated = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Edit Subject · 编辑科目'),
         content: TextField(controller: ctrl, autofocus: true),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
             child: const Text('Save'),
@@ -122,12 +139,15 @@ class _EditBioSubjectsScreenState extends State<EditBioSubjectsScreen> {
         ],
       ),
     );
-    if (updated == null || updated.isEmpty || updated == subject['subject']) return;
+    if (updated == null || updated.isEmpty || updated == subjectText) return;
 
     try {
-      await _repo.updateSubject(subjectId: subject['id'].toString(), subject: updated);
+      await _repo.updateSubject(subjectId: subjectText, subject: updated);
       if (mounted) {
-        setState(() => subject['subject'] = updated);
+        setState(() {
+          final i = _subjects.indexOf(subjectText);
+          if (i != -1) _subjects[i] = updated;
+        });
         _showSnack('Subject updated · 已更新', isError: false);
       }
     } on ApiException catch (e) {
@@ -162,7 +182,8 @@ class _EditBioSubjectsScreenState extends State<EditBioSubjectsScreen> {
                       children: [
                         Text(_error!),
                         const SizedBox(height: 12),
-                        ElevatedButton(onPressed: _load, child: const Text('Retry')),
+                        ElevatedButton(
+                            onPressed: _load, child: const Text('Retry')),
                       ],
                     ),
                   )
@@ -170,14 +191,17 @@ class _EditBioSubjectsScreenState extends State<EditBioSubjectsScreen> {
                     padding: const EdgeInsets.fromLTRB(20, 24, 20, 40),
                     children: [
                       Text('Biography · 个人简介',
-                          style: TextStyle(fontWeight: FontWeight.w700, color: cs.onSurface)),
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: cs.onSurface)),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _bioCtrl,
                         maxLines: 5,
                         maxLength: 500,
                         decoration: const InputDecoration(
-                          hintText: 'Tell students a bit about your teaching experience...',
+                          hintText:
+                              'Tell students a bit about your teaching experience...',
                           border: OutlineInputBorder(),
                         ),
                       ),
@@ -189,15 +213,17 @@ class _EditBioSubjectsScreenState extends State<EditBioSubjectsScreen> {
                               ? const SizedBox(
                                   width: 20,
                                   height: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : const Text('Save Bio · 保存简介'),
                         ),
                       ),
                       const SizedBox(height: 32),
-
                       Text('Teaching Subjects · 教学科目',
-                          style: TextStyle(fontWeight: FontWeight.w700, color: cs.onSurface)),
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: cs.onSurface)),
                       const SizedBox(height: 8),
                       Row(
                         children: [
@@ -238,8 +264,8 @@ class _EditBioSubjectsScreenState extends State<EditBioSubjectsScreen> {
                           runSpacing: 8,
                           children: _subjects.map((s) {
                             return InputChip(
-                              label: Text(s['subject'] as String),
-                              onDeleted: () => _removeSubject(s['id'].toString()),
+                              label: Text(s),
+                              onDeleted: () => _removeSubject(s),
                               onPressed: () => _editSubject(s),
                             );
                           }).toList(),
