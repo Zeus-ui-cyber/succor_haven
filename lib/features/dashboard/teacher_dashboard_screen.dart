@@ -18,6 +18,9 @@ import '../appointments/controllers/appointment_controller.dart';
 import '../appointments/screens/teacher_appointments_screen.dart';
 import '../modules/screens/modules_screen.dart';
 import '../booking/utils/avatar_url.dart';
+import '../announcements/controllers/announcement_controller.dart';
+import '../announcements/widgets/announcement_feed_section.dart';
+import '../notifications/widgets/notification_bell.dart';
 
 class _C {
   static const slateBlue = Color(0xFF3E678A);
@@ -184,7 +187,13 @@ class _THomeTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bookingsAsync = ref.watch(_tBookingsProvider);
 
-    return CustomScrollView(
+    return RefreshIndicator(
+      color: _C.slateBlue,
+      onRefresh: () async {
+        ref.invalidate(_tBookingsProvider);
+        ref.invalidate(announcementFeedProvider);
+      },
+      child: CustomScrollView(
       slivers: [
         SliverToBoxAdapter(child: _buildHeader()),
 
@@ -198,6 +207,12 @@ class _THomeTab extends ConsumerWidget {
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
           sliver: SliverToBoxAdapter(child: _ModulesEntryCard(user: user)),
+        ),
+
+        // ── Faculty Updates · Announcements ─────────────────────────────────
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+          sliver: const SliverToBoxAdapter(child: AnnouncementFeedSection()),
         ),
 
         // Stats hero
@@ -257,6 +272,7 @@ class _THomeTab extends ConsumerWidget {
           ),
         ),
       ],
+      ),
     );
   }
 
@@ -302,6 +318,8 @@ class _THomeTab extends ConsumerWidget {
                     fontWeight: FontWeight.w700)),
           ]),
         ),
+        const SizedBox(width: 10),
+        const NotificationBell(),
       ]),
     );
   }

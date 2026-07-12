@@ -9,6 +9,7 @@ import '../auth/repositories/auth_repository.dart';
 import '../../models/user.dart';
 import 'admin/create_teacher_account_screen.dart';
 import 'admin/students_list_screen.dart';
+import 'admin/announcements_screen.dart';
 import '../modules/screens/modules_screen.dart';
 
 class _C {
@@ -105,7 +106,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 5, vsync: this);
+    _tabs = TabController(length: 6, vsync: this);
   }
 
   @override
@@ -190,6 +191,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard>
                   Tab(text: 'Users'),
                   Tab(text: 'Students'),
                   Tab(text: 'Modules'),
+                  Tab(text: 'Announcements'),
                 ],
               ),
             ),
@@ -205,6 +207,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard>
                   _UsersTab(),
                   StudentsListScreen(asTab: true),
                   _ModulesTab(),
+                  AnnouncementsTab(),
                 ],
               ),
             ),

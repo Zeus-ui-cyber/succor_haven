@@ -21,6 +21,9 @@ const settingsCtrl = require("../controllers/settings.controller");
 const studentsAdminCtrl = require("../controllers/studentsAdmin.controller");
 const appointmentsController = require("../controllers/appointments.controller");
 const modulesCtrl = require("../controllers/modules.controller");
+const announcementsCtrl = require("../controllers/announcements.controller");
+const announcementCommentsCtrl = require("../controllers/announcementComments.controller");
+const notificationsCtrl = require("../controllers/notifications.controller");
 
 const router = express.Router();
 
@@ -86,6 +89,45 @@ const uploadModuleFile = multer({
   fileFilter: (req, file, cb) => {
     if (!ALLOWED_MODULE_TYPES.includes(file.mimetype)) {
       return cb(new Error("Only PDF, DOC, DOCX, PPT, or PPTX files are allowed."));
+    }
+    cb(null, true);
+  },
+});
+
+// ── Announcements · cover image / attachment upload config ───────────────────
+// Stored outside src/ at project-root/uploads/announcements. Served
+// statically via the same `app.use("/uploads", express.static(...))` in
+// app.js that already handles profile-pictures and modules.
+const announcementFileDir = path.join(
+  __dirname,
+  "..",
+  "..",
+  "uploads",
+  "announcements",
+);
+fs.mkdirSync(announcementFileDir, { recursive: true });
+
+const announcementFileStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, announcementFileDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || "";
+    cb(null, `announcement-${req.user?.sub ?? "unknown"}-${Date.now()}${ext}`);
+  },
+});
+
+const ALLOWED_ANNOUNCEMENT_TYPES = [
+  ...ALLOWED_IMAGE_TYPES,
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+
+const uploadAnnouncementFile = multer({
+  storage: announcementFileStorage,
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB, same ceiling as modules
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_ANNOUNCEMENT_TYPES.includes(file.mimetype)) {
+      return cb(new Error("Only JPEG, PNG, WEBP, PDF, DOC, or DOCX files are allowed."));
     }
     cb(null, true);
   },
@@ -405,5 +447,53 @@ router.get("/admin/milestones", ...admin, milestonesCtrl.list);
 router.post("/admin/milestones", ...admin, milestonesCtrl.create);
 router.patch("/admin/milestones/:id", ...admin, milestonesCtrl.update);
 router.delete("/admin/milestones/:id", ...admin, milestonesCtrl.remove);
+
+// ── Announcements (student/teacher-facing, visibility-filtered) ──────────────
+router.get("/announcements", authenticate, announcementsCtrl.list);
+router.get("/announcements/:id", authenticate, announcementsCtrl.getOne);
+router.post("/announcements/:id/like", authenticate, announcementsCtrl.like);
+router.delete("/announcements/:id/like", authenticate, announcementsCtrl.unlike);
+router.post("/announcements/:id/bookmark", authenticate, announcementsCtrl.bookmark);
+router.delete("/announcements/:id/bookmark", authenticate, announcementsCtrl.unbookmark);
+
+// ── Admin · Announcements (create/manage) ─────────────────────────────────────
+router.get("/admin/announcements", ...admin, announcementsCtrl.adminList);
+router.post(
+  "/announcements/upload",
+  ...admin,
+  uploadAnnouncementFile.single("file"),
+  announcementsCtrl.uploadAsset,
+);
+router.post("/announcements", ...admin, announcementsCtrl.create);
+router.patch("/announcements/:id", ...admin, announcementsCtrl.update);
+router.delete("/announcements/:id", ...admin, announcementsCtrl.remove);
+router.patch("/announcements/:id/archive", ...admin, announcementsCtrl.archive);
+router.patch("/announcements/:id/restore", ...admin, announcementsCtrl.restore);
+router.patch("/announcements/:id/pin", ...admin, announcementsCtrl.pin);
+router.patch("/announcements/:id/unpin", ...admin, announcementsCtrl.unpin);
+
+// ── Announcement Comments (author or admin can delete; anyone who can see
+// the announcement can read/post, gated server-side on comments_enabled) ──
+router.get(
+  "/announcements/:id/comments",
+  authenticate,
+  announcementCommentsCtrl.list,
+);
+router.post(
+  "/announcements/:id/comments",
+  authenticate,
+  announcementCommentsCtrl.create,
+);
+router.delete(
+  "/announcements/comments/:commentId",
+  authenticate,
+  announcementCommentsCtrl.remove,
+);
+
+// ── In-app Notifications (bell icon feed) ────────────────────────────────────
+router.get("/notifications", authenticate, notificationsCtrl.list);
+router.get("/notifications/unread-count", authenticate, notificationsCtrl.unreadCount);
+router.patch("/notifications/read-all", authenticate, notificationsCtrl.markAllRead);
+router.patch("/notifications/:id/read", authenticate, notificationsCtrl.markRead);
 
 module.exports = router;
