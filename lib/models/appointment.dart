@@ -85,6 +85,12 @@ class AppointmentModel {
   final String teacherId;
   final String? teacherName;
   final String? studentName;
+  // ⚠️ NEW: appointments.controller.js's shared join now selects
+  // t.avatar_url / s.avatar_url as teacher_avatar_url / student_avatar_url
+  // — without these, every appointment card fell back to initials-only
+  // even for users with an uploaded profile photo.
+  final String? teacherAvatarUrl;
+  final String? studentAvatarUrl;
   final String title;
   final String purpose;
   final String subject;
@@ -105,6 +111,8 @@ class AppointmentModel {
     required this.teacherId,
     this.teacherName,
     this.studentName,
+    this.teacherAvatarUrl,
+    this.studentAvatarUrl,
     required this.title,
     required this.purpose,
     required this.subject,
@@ -134,6 +142,8 @@ class AppointmentModel {
       teacherId: json['teacher_id'].toString(),
       teacherName: json['teacher_name'] as String?,
       studentName: json['student_name'] as String?,
+      teacherAvatarUrl: json['teacher_avatar_url'] as String?,
+      studentAvatarUrl: json['student_avatar_url'] as String?,
       title: json['title'] as String,
       purpose: json['purpose'] as String,
       subject: json['subject'] as String,

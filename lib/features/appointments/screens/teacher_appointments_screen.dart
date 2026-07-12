@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../controllers/appointment_controller.dart';
 import '../../../models/appointment.dart';
+import '../../booking/utils/avatar_url.dart';
 
 class _C {
   static const slateBlue = Color(0xFF3E678A);
@@ -71,7 +72,8 @@ class _TeacherAppointmentsScreenState
           labelColor: _C.magenta,
           unselectedLabelColor: _C.inkSoft,
           indicatorColor: _C.magenta,
-          labelStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+          labelStyle:
+              const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
           tabs: const [
             Tab(text: 'Pending · 待批准'),
             Tab(text: 'Approved · 已批准'),
@@ -95,28 +97,53 @@ class _TeacherAppointmentsScreenState
               .toList();
           final approved =
               all.where((a) => a.status == AppointmentStatus.approved).toList();
-          final today = approved.where((a) => _isToday(a.preferredDate)).toList();
+          final today =
+              approved.where((a) => _isToday(a.preferredDate)).toList();
           final upcoming = approved
-              .where((a) => a.preferredDate.isAfter(DateTime.now()) &&
+              .where((a) =>
+                  a.preferredDate.isAfter(DateTime.now()) &&
                   !_isToday(a.preferredDate))
               .toList();
-          final completed =
-              all.where((a) => a.status == AppointmentStatus.completed).toList();
+          final completed = all
+              .where((a) => a.status == AppointmentStatus.completed)
+              .toList();
           final declined =
               all.where((a) => a.status == AppointmentStatus.declined).toList();
-          final cancelled =
-              all.where((a) => a.status == AppointmentStatus.cancelled).toList();
+          final cancelled = all
+              .where((a) => a.status == AppointmentStatus.cancelled)
+              .toList();
 
           return TabBarView(
             controller: _tabs,
             children: [
-              _List(items: pending, emptyText: 'No pending requests', emptyCn: '暂无待批准的请求'),
-              _List(items: approved, emptyText: 'No approved appointments', emptyCn: '暂无已批准的预约'),
-              _List(items: today, emptyText: 'Nothing scheduled today', emptyCn: '今天没有安排'),
-              _List(items: upcoming, emptyText: 'No upcoming appointments', emptyCn: '暂无即将到来的预约'),
-              _List(items: completed, emptyText: 'No completed appointments', emptyCn: '暂无已完成的预约'),
-              _List(items: declined, emptyText: 'No declined requests', emptyCn: '暂无已拒绝的请求'),
-              _List(items: cancelled, emptyText: 'No cancelled appointments', emptyCn: '暂无已取消的预约'),
+              _List(
+                  items: pending,
+                  emptyText: 'No pending requests',
+                  emptyCn: '暂无待批准的请求'),
+              _List(
+                  items: approved,
+                  emptyText: 'No approved appointments',
+                  emptyCn: '暂无已批准的预约'),
+              _List(
+                  items: today,
+                  emptyText: 'Nothing scheduled today',
+                  emptyCn: '今天没有安排'),
+              _List(
+                  items: upcoming,
+                  emptyText: 'No upcoming appointments',
+                  emptyCn: '暂无即将到来的预约'),
+              _List(
+                  items: completed,
+                  emptyText: 'No completed appointments',
+                  emptyCn: '暂无已完成的预约'),
+              _List(
+                  items: declined,
+                  emptyText: 'No declined requests',
+                  emptyCn: '暂无已拒绝的请求'),
+              _List(
+                  items: cancelled,
+                  emptyText: 'No cancelled appointments',
+                  emptyCn: '暂无已取消的预约'),
             ],
           );
         },
@@ -128,7 +155,8 @@ class _TeacherAppointmentsScreenState
 class _List extends StatelessWidget {
   final List<AppointmentModel> items;
   final String emptyText, emptyCn;
-  const _List({required this.items, required this.emptyText, required this.emptyCn});
+  const _List(
+      {required this.items, required this.emptyText, required this.emptyCn});
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +168,8 @@ class _List extends StatelessWidget {
           decoration: BoxDecoration(
               color: _C.bluePale, borderRadius: BorderRadius.circular(18)),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.event_note_outlined, size: 36, color: _C.slateBlue),
+            const Icon(Icons.event_note_outlined,
+                size: 36, color: _C.slateBlue),
             const SizedBox(height: 10),
             Text(emptyText,
                 style: const TextStyle(
@@ -198,10 +227,13 @@ class _AppointmentCard extends ConsumerWidget {
     );
     if (confirmed != true) return;
     if (!context.mounted) return;
-    final ok = await ref.read(teacherAppointmentActionsProvider.notifier).decline(
-          appointment.id,
-          reason: reasonCtrl.text.trim().isEmpty ? null : reasonCtrl.text.trim(),
-        );
+    final ok =
+        await ref.read(teacherAppointmentActionsProvider.notifier).decline(
+              appointment.id,
+              reason: reasonCtrl.text.trim().isEmpty
+                  ? null
+                  : reasonCtrl.text.trim(),
+            );
     if (context.mounted) _notify(context, ok, 'Request declined');
   }
 
@@ -222,7 +254,8 @@ class _AppointmentCard extends ConsumerWidget {
         '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
     final ok = await ref
         .read(teacherAppointmentActionsProvider.notifier)
-        .proposeReschedule(appointment.id, proposedDate: date, proposedTime: timeStr);
+        .proposeReschedule(appointment.id,
+            proposedDate: date, proposedTime: timeStr);
     if (context.mounted) _notify(context, ok, 'New time proposed ✓');
   }
 
@@ -259,16 +292,24 @@ class _AppointmentCard extends ConsumerWidget {
           CircleAvatar(
             radius: 18,
             backgroundColor: _C.softPink,
-            child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: const TextStyle(
-                    color: _C.magenta, fontWeight: FontWeight.w800)),
+            backgroundImage: a.studentAvatarUrl != null
+                ? NetworkImage(resolveAvatarUrl(a.studentAvatarUrl)!)
+                : null,
+            child: a.studentAvatarUrl == null
+                ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                    style: const TextStyle(
+                        color: _C.magenta, fontWeight: FontWeight.w800))
+                : null,
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(name,
                   style: const TextStyle(
-                      fontSize: 13.5, fontWeight: FontWeight.w800, color: _C.ink)),
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: _C.ink)),
               Text(a.subject,
                   style: const TextStyle(fontSize: 11.5, color: _C.inkSoft)),
             ]),
@@ -276,10 +317,13 @@ class _AppointmentCard extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-                color: status.paleColor, borderRadius: BorderRadius.circular(20)),
+                color: status.paleColor,
+                borderRadius: BorderRadius.circular(20)),
             child: Text(status.shortLabel,
                 style: TextStyle(
-                    fontSize: 10.5, color: status.color, fontWeight: FontWeight.w700)),
+                    fontSize: 10.5,
+                    color: status.color,
+                    fontWeight: FontWeight.w700)),
           ),
         ]),
         const SizedBox(height: 12),
@@ -287,7 +331,8 @@ class _AppointmentCard extends ConsumerWidget {
             style: const TextStyle(
                 fontSize: 13.5, fontWeight: FontWeight.w700, color: _C.ink)),
         const SizedBox(height: 4),
-        Text(a.purpose, style: const TextStyle(fontSize: 12, color: _C.inkSoft)),
+        Text(a.purpose,
+            style: const TextStyle(fontSize: 12, color: _C.inkSoft)),
         if (a.description != null && a.description!.isNotEmpty) ...[
           const SizedBox(height: 6),
           Text(a.description!,
@@ -295,15 +340,19 @@ class _AppointmentCard extends ConsumerWidget {
         ],
         const SizedBox(height: 10),
         Row(children: [
-          const Icon(Icons.calendar_today_outlined, size: 13, color: _C.slateBlue),
+          const Icon(Icons.calendar_today_outlined,
+              size: 13, color: _C.slateBlue),
           const SizedBox(width: 5),
           Text(
               '${a.preferredDate.day}/${a.preferredDate.month}/${a.preferredDate.year}  '
               '${a.preferredTime}',
               style: const TextStyle(
-                  fontSize: 12, color: _C.slateBlue, fontWeight: FontWeight.w600)),
+                  fontSize: 12,
+                  color: _C.slateBlue,
+                  fontWeight: FontWeight.w600)),
         ]),
-        if (status == AppointmentStatus.rescheduled && a.proposedDate != null) ...[
+        if (status == AppointmentStatus.rescheduled &&
+            a.proposedDate != null) ...[
           const SizedBox(height: 6),
           Row(children: [
             const Icon(Icons.update_rounded, size: 13, color: _C.magenta),
@@ -312,10 +361,13 @@ class _AppointmentCard extends ConsumerWidget {
                 'Proposed: ${a.proposedDate!.day}/${a.proposedDate!.month}/${a.proposedDate!.year}  '
                 '${a.proposedTime ?? ''}',
                 style: const TextStyle(
-                    fontSize: 12, color: _C.magenta, fontWeight: FontWeight.w600)),
+                    fontSize: 12,
+                    color: _C.magenta,
+                    fontWeight: FontWeight.w600)),
           ]),
         ],
-        if (status == AppointmentStatus.declined && a.declineReason != null) ...[
+        if (status == AppointmentStatus.declined &&
+            a.declineReason != null) ...[
           const SizedBox(height: 6),
           Text('Reason: ${a.declineReason}',
               style: const TextStyle(fontSize: 11.5, color: _C.inkSoft)),
@@ -376,8 +428,8 @@ class _AppointmentCard extends ConsumerWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: _C.slateBlue,
                 padding: const EdgeInsets.symmetric(vertical: 10),
-                shape:
-                    RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ),

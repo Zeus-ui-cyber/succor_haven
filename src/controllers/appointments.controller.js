@@ -14,13 +14,21 @@
 // on `undefined` as the user's ID — inserts would fail the NOT NULL/foreign
 // key constraint, and lookups would just return zero rows instead of a
 // clean error. Switched to req.user.sub throughout.
+//
+// ⚠️ FIXED: student/teacher avatar_url was never selected here, so every
+// appointment card in the Flutter app (both teacher-facing and
+// student-facing) fell back to showing initials only, even for users who
+// had uploaded a profile photo. Added t.avatar_url / s.avatar_url to the
+// shared join select below.
 
 const pool = require("../db/pool");
 
 const TEACHER_JOIN_SELECT = `
   a.*,
   (t.first_name || ' ' || t.last_name) AS teacher_name,
-  (s.first_name || ' ' || s.last_name) AS student_name
+  (s.first_name || ' ' || s.last_name) AS student_name,
+  t.avatar_url AS teacher_avatar_url,
+  s.avatar_url AS student_avatar_url
 `;
 
 const BASE_QUERY = `
