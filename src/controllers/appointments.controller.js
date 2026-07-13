@@ -22,6 +22,7 @@
 // shared join select below.
 
 const pool = require("../db/pool");
+const sessionService = require("../services/session.service");
 
 const TEACHER_JOIN_SELECT = `
   a.*,
@@ -51,6 +52,7 @@ async function createAppointment(req, res) {
       subject,
       preferredDate, // 'YYYY-MM-DD'
       preferredTime, // 'HH:MM'
+      durationMins,  // 30 | 60 | 90 | 120
       description,
       attachmentUrl,
     } = req.body;
@@ -66,10 +68,17 @@ async function createAppointment(req, res) {
       return res.status(400).json({ error: "Missing required fields." });
     }
 
+    const duration = durationMins ?? 60;
+    if (!sessionService.VALID_DURATIONS.includes(duration)) {
+      return res.status(400).json({
+        error: `durationMins must be one of ${sessionService.VALID_DURATIONS.join(", ")}.`,
+      });
+    }
+
     const { rows } = await pool.query(
       `INSERT INTO appointments
-        (student_id, teacher_id, title, purpose, subject, preferred_date, preferred_time, description, attachment_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        (student_id, teacher_id, title, purpose, subject, preferred_date, preferred_time, duration_mins, description, attachment_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         studentId,
@@ -79,6 +88,7 @@ async function createAppointment(req, res) {
         subject,
         preferredDate,
         preferredTime,
+        duration,
         description ?? null,
         attachmentUrl ?? null,
       ],
@@ -196,6 +206,17 @@ async function approveAppointment(req, res) {
       return res
         .status(400)
         .json({ error: "Cannot approve this appointment." });
+
+    // Auto-provision the "My Sessions" video meeting the moment a teacher
+    // approves — this is what makes it "automatically appear" on both
+    // dashboards per the product spec. Never let a session-creation
+    // hiccup fail the approval itself; the approval already committed.
+    try {
+      await sessionService.createFromAppointment(rows[0]);
+    } catch (sessionErr) {
+      console.error("createFromAppointment (approve) error:", sessionErr);
+    }
+
     return res.json(rows[0]);
   } catch (err) {
     console.error("approveAppointment error:", err);
@@ -274,6 +295,13 @@ async function respondToReschedule(req, res) {
         return res
           .status(400)
           .json({ error: "Cannot accept this reschedule." });
+
+      try {
+        await sessionService.createFromAppointment(rows[0]);
+      } catch (sessionErr) {
+        console.error("createFromAppointment (reschedule accept) error:", sessionErr);
+      }
+
       return res.json(rows[0]);
     } else {
       const { rows } = await pool.query(

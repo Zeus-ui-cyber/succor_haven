@@ -1,5 +1,6 @@
 // src/controllers/bookings.controller.js
 const pool = require("../db/pool");
+const sessionService = require("../services/session.service");
 
 // ── GET /bookings — student sees their own, teacher sees theirs ───────────────
 // Uses first_name/last_name (the real users columns, confirmed live via
@@ -97,6 +98,17 @@ exports.create = async (req, res) => {
     );
 
     await pool.query("COMMIT");
+
+    // Bookings are confirmed immediately (no separate teacher-approval
+    // step, unlike appointments), so the "My Sessions" video meeting is
+    // provisioned right here. Kept outside the transaction/after COMMIT
+    // so a session-creation hiccup can never roll back a paid booking.
+    try {
+      await sessionService.createFromBooking(rows[0]);
+    } catch (sessionErr) {
+      console.error("createFromBooking error:", sessionErr);
+    }
+
     res.status(201).json(rows[0]);
   } catch (err) {
     await pool.query("ROLLBACK");

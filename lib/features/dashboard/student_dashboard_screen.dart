@@ -14,6 +14,7 @@ import '../announcements/controllers/announcement_controller.dart';
 import '../announcements/widgets/announcement_feed_section.dart';
 import '../notifications/widgets/notification_bell.dart';
 import '../payments/screens/student/buy_credits_screen.dart';
+import '../sessions/screens/my_sessions_screen.dart';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 class _C {
@@ -593,14 +594,18 @@ class _FindTeachersTabState extends ConsumerState<_FindTeachersTab> {
 }
 
 // ── SESSIONS TAB ──────────────────────────────────────────────────────────────
+// Unified feed (confirmed bookings + approved appointments, both surfaced
+// as `sessions`, plus still-pending appointment requests) via
+// MySessionsView / GET /sessions/mine — replaces the old bookings-only
+// list so a student has one place to see every session regardless of
+// whether it came from an instant credit booking or a teacher-approved
+// appointment request.
 class _SessionsTab extends ConsumerWidget {
   final UserModel user;
   const _SessionsTab({required this.user});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bookingsAsync = ref.watch(_sBookingsProvider);
-
     return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
@@ -622,10 +627,10 @@ class _SessionsTab extends ConsumerWidget {
               ],
             ),
           ),
-          // Links to MyAppointmentsScreen — appointment *requests* (pending
-          // / approved / declined / etc.) are a separate thing from the
-          // confirmed `bookings` this tab lists, so students had no way to
-          // check on a request still awaiting a teacher's response.
+          // Links to MyAppointmentsScreen for the fuller appointment
+          // request history/actions (cancel, respond to reschedule) —
+          // MySessionsView already surfaces pending requests as cards,
+          // this is for the deeper management view.
           TextButton.icon(
             onPressed: () => Navigator.pushNamed(context, '/appointments/my'),
             icon: const Icon(Icons.event_note_outlined, size: 16),
@@ -638,48 +643,7 @@ class _SessionsTab extends ConsumerWidget {
           ),
         ]),
       ),
-      Expanded(
-        child: bookingsAsync.when(
-          loading: () =>
-              const Center(child: CircularProgressIndicator(color: _C.magenta)),
-          error: (e, _) => Center(child: Text('$e')),
-          data: (bookings) {
-            if (bookings.isEmpty) {
-              return const Center(
-                  child: _EmptyCard(
-                icon: Icons.calendar_today_outlined,
-                title: 'No sessions yet',
-                titleCn: '暂无课程',
-                subtitle: 'Book a session to get started.',
-              ));
-            }
-            // Group: upcoming / past
-            final upcoming = bookings
-                .where((b) =>
-                    b['status'] == 'confirmed' || b['status'] == 'pending')
-                .toList();
-            final past = bookings
-                .where((b) =>
-                    b['status'] == 'completed' || b['status'] == 'cancelled')
-                .toList();
-
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-              children: [
-                if (upcoming.isNotEmpty) ...[
-                  const _GroupLabel(label: 'Upcoming · 即将上课'),
-                  ...upcoming.map((b) => _BookingCard(booking: b)),
-                  const SizedBox(height: 16),
-                ],
-                if (past.isNotEmpty) ...[
-                  const _GroupLabel(label: 'Past · 历史课程'),
-                  ...past.map((b) => _BookingCard(booking: b)),
-                ],
-              ],
-            );
-          },
-        ),
-      ),
+      Expanded(child: MySessionsView(user: user)),
     ]);
   }
 }
@@ -1347,18 +1311,6 @@ class _SectionRow extends StatelessWidget {
           ),
         ),
       ]);
-}
-
-class _GroupLabel extends StatelessWidget {
-  final String label;
-  const _GroupLabel({required this.label});
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 10, top: 4),
-        child: Text(label,
-            style: const TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w700, color: _C.inkSoft)),
-      );
 }
 
 class _EmptyCard extends StatelessWidget {

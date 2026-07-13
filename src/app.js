@@ -5,6 +5,7 @@ const express = require('express');
 const cors    = require('cors');
 const helmet  = require('helmet');
 const routes  = require('./routes');
+const { initSocketServer } = require('./realtime/socket.server');
 
 const app = express();
 
@@ -60,6 +61,10 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Succor Haven API running on port ${PORT}`));
+const server = app.listen(PORT, () => console.log(`Succor Haven API running on port ${PORT}`));
+
+// Socket.IO attaches to the same HTTP server/port rather than opening a
+// second listener — one process, one port, same as everything else here.
+initSocketServer(server);
 
 module.exports = app;

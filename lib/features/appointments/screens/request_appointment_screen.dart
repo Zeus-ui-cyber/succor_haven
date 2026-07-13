@@ -25,6 +25,7 @@ class _RequestAppointmentScreenState
   String? _subject;
   DateTime? _preferredDate;
   TimeOfDay? _preferredTime;
+  int _durationMins = 60; // 30 | 60 | 90 | 120 — always has a default
 
   @override
   void initState() {
@@ -127,6 +128,7 @@ class _RequestAppointmentScreenState
           subject: _subject!,
           preferredDate: _preferredDate!,
           preferredTime: _formatTime24(_preferredTime!),
+          durationMins: _durationMins,
           description: _descriptionCtrl.text.trim().isEmpty
               ? null
               : _descriptionCtrl.text.trim(),
@@ -313,6 +315,12 @@ class _RequestAppointmentScreenState
                               : _formatTimeDisplay(_preferredTime!),
                           filled: _preferredTime != null,
                           onTap: _pickTime,
+                        ),
+                        const SizedBox(height: 18),
+                        _FieldLabel('Estimated Duration', '预计时长'),
+                        _DurationChips(
+                          value: _durationMins,
+                          onChanged: (v) => setState(() => _durationMins = v),
                         ),
                       ],
                     ),
@@ -869,6 +877,64 @@ class _PickerTile extends StatelessWidget {
           ]),
         ),
       ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// Duration chips — 30 / 60 / 90 / 120 minutes, matches My Sessions'
+// duration_mins so the join window (scheduled_at .. scheduled_at +
+// duration) is set correctly the moment the teacher approves.
+// ════════════════════════════════════════════════════════════════════
+class _DurationChips extends StatelessWidget {
+  static const List<int> options = [30, 60, 90, 120];
+  final int value;
+  final ValueChanged<int> onChanged;
+  const _DurationChips({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: options.map((mins) {
+        final selected = mins == value;
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () => onChanged(mins),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                gradient: selected
+                    ? LinearGradient(
+                        colors: [SHColors.softPink, SHColors.blushPink],
+                      )
+                    : null,
+                color: selected ? null : SHColors.softPink.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: selected
+                      ? SHColors.magenta.withValues(alpha: 0.45)
+                      : SHColors.line.withValues(alpha: 0.6),
+                  width: selected ? 1.4 : 1,
+                ),
+              ),
+              child: Text(
+                '$mins min',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                  color: selected ? SHColors.ink : SHColors.inkSoft,
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }

@@ -41,6 +41,22 @@ dependencies:
   pdf: ^3.11.1
   printing: ^5.13.4
 
+  # ── My Sessions (video meetings) ─────────────────────────────────────
+  # WebRTC peer connections, talking to our own coturn STUN/TURN server
+  # (infra/coturn/) — not Google's, so this stays usable in China. Not
+  # yet wired into any screen (Phase 2 of the build-out); declared now so
+  # `flutter pub get` picks it up ahead of that work.
+  flutter_webrtc: ^0.11.7
+
+  # Signaling/chat/whiteboard/presence transport, talking to this repo's
+  # own Socket.IO server (src/realtime/socket.server.js) — no third-party
+  # realtime SaaS involved.
+  socket_io_client: ^2.0.3+1
+
+  # Runtime camera/microphone permission prompts, required by flutter_webrtc
+  # on Android/iOS before a call can start.
+  permission_handler: ^11.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -26,6 +26,7 @@ class AppointmentRepository {
     required String subject,
     required DateTime preferredDate,
     required String preferredTime, // 'HH:MM'
+    required int durationMins, // 30 | 60 | 90 | 120
     String? description,
     String? attachmentUrl,
   }) async {
@@ -42,6 +43,7 @@ class AppointmentRepository {
             '${preferredDate.month.toString().padLeft(2, '0')}-'
             '${preferredDate.day.toString().padLeft(2, '0')}',
         'preferredTime': preferredTime,
+        'durationMins': durationMins,
         'description': description,
         'attachmentUrl': attachmentUrl,
       }),

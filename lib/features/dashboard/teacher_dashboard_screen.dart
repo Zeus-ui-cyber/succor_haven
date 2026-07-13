@@ -21,6 +21,7 @@ import '../booking/utils/avatar_url.dart';
 import '../announcements/controllers/announcement_controller.dart';
 import '../announcements/widgets/announcement_feed_section.dart';
 import '../notifications/widgets/notification_bell.dart';
+import '../sessions/screens/my_sessions_screen.dart';
 
 class _C {
   static const slateBlue = Color(0xFF3E678A);
@@ -563,14 +564,15 @@ class _TScheduleTab extends ConsumerWidget {
 }
 
 // ── SESSIONS TAB ──────────────────────────────────────────────────────────────
+// Unified feed (confirmed bookings + approved appointments, both surfaced
+// as `sessions`, plus appointment requests still awaiting this teacher's
+// decision) via MySessionsView / GET /sessions/mine.
 class _TSessionsTab extends ConsumerWidget {
   final UserModel user;
   const _TSessionsTab({required this.user});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bookingsAsync = ref.watch(_tBookingsProvider);
-
     return Column(children: [
       const Padding(
         padding: EdgeInsets.fromLTRB(20, 16, 20, 16),
@@ -587,47 +589,7 @@ class _TSessionsTab extends ConsumerWidget {
           ]),
         ]),
       ),
-      Expanded(
-        child: bookingsAsync.when(
-          loading: () => const Center(
-              child: CircularProgressIndicator(color: _C.slateBlue)),
-          error: (e, _) => Center(child: Text('$e')),
-          data: (bookings) {
-            if (bookings.isEmpty) {
-              return const Center(child: _TEmpty('No sessions yet', '暂无课程'));
-            }
-            final upcoming =
-                bookings.where((b) => b['status'] == 'confirmed').toList();
-            final completed =
-                bookings.where((b) => b['status'] == 'completed').toList();
-            final cancelled =
-                bookings.where((b) => b['status'] == 'cancelled').toList();
-
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-              children: [
-                if (upcoming.isNotEmpty) ...[
-                  const _TLabel('Upcoming · 即将上课'),
-                  ...upcoming.map((b) =>
-                      _TBookingCard(booking: b, showComplete: true, ref: ref)),
-                  const SizedBox(height: 16),
-                ],
-                if (completed.isNotEmpty) ...[
-                  const _TLabel('Completed · 已完成'),
-                  ...completed.map((b) => _TBookingCard(
-                      booking: b, showComplete: false, ref: null)),
-                  const SizedBox(height: 16),
-                ],
-                if (cancelled.isNotEmpty) ...[
-                  const _TLabel('Cancelled · 已取消'),
-                  ...cancelled.map((b) => _TBookingCard(
-                      booking: b, showComplete: false, ref: null)),
-                ],
-              ],
-            );
-          },
-        ),
-      ),
+      Expanded(child: MySessionsView(user: user)),
     ]);
   }
 }

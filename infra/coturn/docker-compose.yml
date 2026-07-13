@@ -1,0 +1,21 @@
+# infra/coturn/docker-compose.yml
+# Self-hosted STUN/TURN, run on a separate small VPS from the API — TURN
+# relays need a real public IP and a wide open UDP port range, which you
+# generally don't want on the same box as the app server/database.
+#
+#   cd infra/coturn && docker compose up -d
+#
+# Before starting: edit turnserver.conf (external-ip, static-auth-secret,
+# cert/pkey paths) and put TLS cert files where the volume mount below
+# expects them.
+
+services:
+  coturn:
+    image: coturn/coturn:latest
+    container_name: succor-haven-turn
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ./certs:/etc/coturn:ro
+    command: ["-c", "/etc/coturn/turnserver.conf"]

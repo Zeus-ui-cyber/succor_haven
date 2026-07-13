@@ -34,6 +34,7 @@ class AppointmentActionsController extends StateNotifier<AsyncValue<void>> {
     required String subject,
     required DateTime preferredDate,
     required String preferredTime,
+    required int durationMins,
     String? description,
     String? attachmentUrl,
   }) async {
@@ -46,6 +47,7 @@ class AppointmentActionsController extends StateNotifier<AsyncValue<void>> {
         subject: subject,
         preferredDate: preferredDate,
         preferredTime: preferredTime,
+        durationMins: durationMins,
         description: description,
         attachmentUrl: attachmentUrl,
       );

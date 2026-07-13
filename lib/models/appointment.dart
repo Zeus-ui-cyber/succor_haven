@@ -96,6 +96,7 @@ class AppointmentModel {
   final String subject;
   final DateTime preferredDate;
   final String preferredTime; // 'HH:MM' as returned by the API
+  final int durationMins;
   final String? description;
   final String? attachmentUrl;
   final AppointmentStatus status;
@@ -118,6 +119,7 @@ class AppointmentModel {
     required this.subject,
     required this.preferredDate,
     required this.preferredTime,
+    this.durationMins = 60,
     this.description,
     this.attachmentUrl,
     required this.status,
@@ -150,6 +152,7 @@ class AppointmentModel {
       preferredDate: DateTime.parse(json['preferred_date'] as String),
       // Postgres TIME comes back like "14:30:00" — keep just HH:MM for display.
       preferredTime: (json['preferred_time'] as String).substring(0, 5),
+      durationMins: (json['duration_mins'] as num?)?.toInt() ?? 60,
       description: json['description'] as String?,
       attachmentUrl: json['attachment_url'] as String?,
       status: AppointmentStatusX.fromApi(json['status'] as String),

@@ -4,6 +4,7 @@
 // from the live database, so we stop guessing/relying on stale comments.
 
 const { Pool } = require("pg");
+require("dotenv").config();
 
 // Uses the same DATABASE_URL your app already uses.
 const pool = new Pool({
@@ -25,6 +26,10 @@ const TABLES_OF_INTEREST = [
   "refresh_tokens",
   "support_concerns",
   "milestones",
+  "appointments",
+  "notifications",
+  "sessions",
+  "session_attendance",
 ];
 
 async function main() {

@@ -20,6 +20,7 @@ const milestonesCtrl = require("../controllers/milestones.controller");
 const settingsCtrl = require("../controllers/settings.controller");
 const studentsAdminCtrl = require("../controllers/studentsAdmin.controller");
 const appointmentsController = require("../controllers/appointments.controller");
+const sessionsController = require("../controllers/sessions.controller");
 const modulesCtrl = require("../controllers/modules.controller");
 const announcementsCtrl = require("../controllers/announcements.controller");
 const announcementCommentsCtrl = require("../controllers/announcementComments.controller");
@@ -441,6 +442,20 @@ router.patch(
   authenticate,
   requireRole("teacher", "admin"),
   appointmentsController.completeAppointment,
+);
+
+// ── My Sessions (video meetings) ────────────────────────────────────────────
+// Unified feed of confirmed bookings + approved appointments, both surfaced
+// as `sessions` rows — see session.service.js. Read-only here; sessions are
+// only ever created as a side effect of the appointments/bookings flows
+// above. Ownership (student vs teacher) is enforced inside the controller
+// since both roles hit the same routes.
+router.get("/sessions/mine", authenticate, sessionsController.getMySessions);
+router.get("/sessions/:id", authenticate, sessionsController.getSessionById);
+router.get(
+  "/sessions/:id/turn-credentials",
+  authenticate,
+  sessionsController.getTurnCredentials,
 );
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
