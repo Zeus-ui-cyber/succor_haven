@@ -97,8 +97,9 @@ class StudentDetailScreen extends ConsumerWidget {
       headers: await _headers(repo),
     );
     if (!ctx.mounted) return;
-    final active =
-        res.statusCode == 200 ? (jsonDecode(res.body)['isActive'] as bool?) : null;
+    final active = res.statusCode == 200
+        ? (jsonDecode(res.body)['isActive'] as bool?)
+        : null;
     ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
       content: Text(active == true
           ? 'Student activated'
@@ -136,7 +137,8 @@ class StudentDetailScreen extends ConsumerWidget {
 
     final repo = ref.read(_detailRepoProvider);
     final res = await http.post(
-      Uri.parse('${AuthRepository.baseUrl}/admin/students/$studentId/reset-password'),
+      Uri.parse(
+          '${AuthRepository.baseUrl}/admin/students/$studentId/reset-password'),
       headers: await _headers(repo),
     );
     if (!ctx.mounted) return;
@@ -261,7 +263,9 @@ class StudentDetailScreen extends ConsumerWidget {
                   ),
                   const Text('Edit Student',
                       style: TextStyle(
-                          fontSize: 19, fontWeight: FontWeight.w800, color: _C.ink)),
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                          color: _C.ink)),
                   const SizedBox(height: 18),
                   _EditField('First Name', firstNameCtrl),
                   _EditField('Last Name', lastNameCtrl),
@@ -337,7 +341,8 @@ class StudentDetailScreen extends ConsumerWidget {
                 final profile = data['profile'] as Map<String, dynamic>;
                 final takenSubjects = data['takenSubjects'] as List;
                 final sessions = data['sessionHistory'] as List;
-                final progress = data['progressSummary'] as Map<String, dynamic>;
+                final progress =
+                    data['progressSummary'] as Map<String, dynamic>;
                 final timeline = data['activityTimeline'] as List;
                 final active = profile['is_active'] == true;
 
@@ -385,7 +390,10 @@ class StudentDetailScreen extends ConsumerWidget {
                                 label: active ? 'Active' : 'Inactive',
                                 colors: active
                                     ? [_C.mint, const Color(0xFF5FD9A8)]
-                                    : [_C.inkSoft.withValues(alpha: 0.4), _C.inkSoft],
+                                    : [
+                                        _C.inkSoft.withValues(alpha: 0.4),
+                                        _C.inkSoft
+                                      ],
                               ),
                               _GlowBadge(
                                 label: profile['phone_verified'] == true
@@ -396,10 +404,9 @@ class StudentDetailScreen extends ConsumerWidget {
                                     : [_C.cream, const Color(0xFFE8B84B)],
                               ),
                               if (course.isNotEmpty)
-                                _GlowBadge(label: course, colors: const [
-                                  _C.pink,
-                                  Color(0xFFFF6FAE)
-                                ]),
+                                _GlowBadge(
+                                    label: course,
+                                    colors: const [_C.pink, Color(0xFFFF6FAE)]),
                               if (yearLevel.isNotEmpty)
                                 _GlowBadge(label: yearLevel, colors: const [
                                   _C.lavender,
@@ -634,8 +641,7 @@ class _AmbientBackground extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: RadialGradient(
-              colors: [color, color.withValues(alpha: 0)]),
+          gradient: RadialGradient(colors: [color, color.withValues(alpha: 0)]),
         ),
       );
 }
@@ -737,7 +743,8 @@ class _GlassCard extends StatelessWidget {
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(32),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 1.4),
+            border: Border.all(
+                color: Colors.white.withValues(alpha: 0.9), width: 1.4),
             boxShadow: [
               BoxShadow(
                 color: _C.pink.withValues(alpha: 0.16),
@@ -851,7 +858,9 @@ class _BreathingAvatarState extends State<_BreathingAvatar>
   Widget _initialsFallback() => Center(
         child: Text(widget.initials,
             style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.w800, fontSize: 32)),
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 32)),
       );
 }
 
@@ -883,8 +892,8 @@ class _GlowBadge extends StatelessWidget {
         Container(
           width: 6,
           height: 6,
-          decoration: const BoxDecoration(
-              color: Colors.white, shape: BoxShape.circle),
+          decoration:
+              const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
         Text(label,
@@ -925,8 +934,7 @@ class _SectionTitle extends StatelessWidget {
           style: const TextStyle(
               fontSize: 15.5, fontWeight: FontWeight.w800, color: _C.ink)),
       const SizedBox(width: 6),
-      Text('· $zh',
-          style: const TextStyle(fontSize: 12, color: _C.inkSoft)),
+      Text('· $zh', style: const TextStyle(fontSize: 12, color: _C.inkSoft)),
     ]);
   }
 }
@@ -963,7 +971,9 @@ class _InfoRow extends StatelessWidget {
                   style: const TextStyle(fontSize: 10.5, color: _C.inkSoft)),
               Text(value,
                   style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w700, color: _C.ink)),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: _C.ink)),
             ],
           ),
         ),
@@ -1098,7 +1108,8 @@ class _LastSessionCard extends StatelessWidget {
             gradient: const LinearGradient(colors: [_C.sky, Color(0xFF6FB3FF)]),
             borderRadius: BorderRadius.circular(13),
           ),
-          child: const Icon(Icons.access_time_rounded, color: Colors.white, size: 20),
+          child: const Icon(Icons.access_time_rounded,
+              color: Colors.white, size: 20),
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -1109,7 +1120,9 @@ class _LastSessionCard extends StatelessWidget {
                   style: TextStyle(fontSize: 11, color: _C.inkSoft)),
               Text(label,
                   style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w800, color: _C.ink)),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: _C.ink)),
             ],
           ),
         ),
@@ -1188,12 +1201,12 @@ class _SessionTile extends StatelessWidget {
     final dt = DateTime.tryParse(session['scheduledAt'].toString())?.toLocal();
     final status = session['status'] as String;
     final statusColors = {
-      'confirmed': [_C.mint, const Color(0xFF1FAE7C)],
-      'completed': [_C.sky, const Color(0xFF3B82C4)],
-      'cancelled': [_C.inkSoft.withValues(alpha: 0.3), _C.inkSoft],
-      'pending': [_C.lightPink, _C.pink],
-      'missed': [_C.cream, const Color(0xFFE8B84B)],
-    }[status] ??
+          'confirmed': [_C.mint, const Color(0xFF1FAE7C)],
+          'completed': [_C.sky, const Color(0xFF3B82C4)],
+          'cancelled': [_C.inkSoft.withValues(alpha: 0.3), _C.inkSoft],
+          'pending': [_C.lightPink, _C.pink],
+          'missed': [_C.cream, const Color(0xFFE8B84B)],
+        }[status] ??
         [_C.inkSoft.withValues(alpha: 0.3), _C.inkSoft];
 
     return Padding(
@@ -1208,7 +1221,8 @@ class _SessionTile extends StatelessWidget {
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [_C.lavender, Color(0xFFB794F6)]),
+                  gradient: const LinearGradient(
+                      colors: [_C.lavender, Color(0xFFB794F6)]),
                   borderRadius: BorderRadius.circular(11),
                 ),
                 child: const Icon(Icons.calendar_today_rounded,
@@ -1218,11 +1232,12 @@ class _SessionTile extends StatelessWidget {
               Expanded(
                 child: Text(session['teacherName'] ?? 'Teacher',
                     style: const TextStyle(
-                        fontSize: 13.5, fontWeight: FontWeight.w800, color: _C.ink)),
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: _C.ink)),
               ),
               _GlowBadge(
-                  label: status,
-                  colors: [statusColors[0], statusColors[1]]),
+                  label: status, colors: [statusColors[0], statusColors[1]]),
             ]),
             const SizedBox(height: 10),
             if (dt != null)
@@ -1238,7 +1253,9 @@ class _SessionTile extends StatelessWidget {
               const SizedBox(height: 8),
               Text('Note: ${session['teacherNotes']}',
                   style: const TextStyle(
-                      fontSize: 11.5, color: _C.pink, fontStyle: FontStyle.italic)),
+                      fontSize: 11.5,
+                      color: _C.pink,
+                      fontStyle: FontStyle.italic)),
             ],
           ],
         ),
@@ -1272,7 +1289,8 @@ class _Timeline extends StatelessWidget {
                   height: 14,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: const LinearGradient(colors: [_C.pink, Color(0xFFFF6FAE)]),
+                    gradient: const LinearGradient(
+                        colors: [_C.pink, Color(0xFFFF6FAE)]),
                     boxShadow: [
                       BoxShadow(
                           color: _C.pink.withValues(alpha: 0.5),
@@ -1304,7 +1322,8 @@ class _Timeline extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 14),
                   child: _GlassCard(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -1421,7 +1440,9 @@ class _FloatingPillButton extends StatelessWidget {
         ),
         child: Text(label,
             style: const TextStyle(
-                color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w800)),
       ),
     );
   }
@@ -1503,7 +1524,9 @@ class _GlassDialog extends StatelessWidget {
               children: [
                 Text(title,
                     style: const TextStyle(
-                        fontSize: 17, fontWeight: FontWeight.w800, color: _C.ink)),
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: _C.ink)),
                 const SizedBox(height: 12),
                 if (bodyWidget != null) bodyWidget!,
                 if (body != null)

@@ -37,7 +37,8 @@ const kPaymentMethods = [
 ];
 
 String paymentMethodLabel(String? method) => kPaymentMethods
-    .firstWhere((m) => m.$1 == method, orElse: () => ('', method ?? '—', Icons.payment_rounded))
+    .firstWhere((m) => m.$1 == method,
+        orElse: () => ('', method ?? '—', Icons.payment_rounded))
     .$2;
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -178,8 +179,8 @@ class _BuyCreditsScreenState extends ConsumerState<BuyCreditsScreen> {
               backgroundColor: _C.magenta,
               disabledBackgroundColor: _C.line,
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape:
-                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
             ),
             child: Text(
               _selected == null
@@ -242,7 +243,9 @@ class _SelectablePackageCard extends StatelessWidget {
           ),
           Text('₱${package.priceDisplay.toStringAsFixed(0)}',
               style: const TextStyle(
-                  fontSize: 16, fontWeight: FontWeight.w900, color: _C.burgundy)),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: _C.burgundy)),
           const SizedBox(width: 12),
           _RadioDot(selected: selected),
         ]),
@@ -351,8 +354,7 @@ class SelectPaymentMethodScreen extends StatefulWidget {
       _SelectPaymentMethodScreenState();
 }
 
-class _SelectPaymentMethodScreenState
-    extends State<SelectPaymentMethodScreen> {
+class _SelectPaymentMethodScreenState extends State<SelectPaymentMethodScreen> {
   String? _method;
 
   Future<void> _continue() async {
@@ -452,8 +454,8 @@ class _SelectPaymentMethodScreenState
               backgroundColor: _C.magenta,
               disabledBackgroundColor: _C.line,
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape:
-                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
             ),
             child: const Text('Continue',
                 style: TextStyle(fontWeight: FontWeight.w800)),
@@ -491,9 +493,8 @@ class _ReviewOrderScreenState extends ConsumerState<ReviewOrderScreen> {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) =>
-              PaymentReceiptScreen(
-                  payment: payment, package: widget.package, justSubmitted: true),
+          builder: (_) => PaymentReceiptScreen(
+              payment: payment, package: widget.package, justSubmitted: true),
         ),
       );
     } catch (e) {
@@ -535,7 +536,8 @@ class _ReviewOrderScreenState extends ConsumerState<ReviewOrderScreen> {
               const SizedBox(height: 10),
               const Divider(color: _C.line, height: 1),
               const SizedBox(height: 10),
-              _SummaryRow('Total', '₱${package.priceDisplay.toStringAsFixed(2)}',
+              _SummaryRow(
+                  'Total', '₱${package.priceDisplay.toStringAsFixed(2)}',
                   bold: true),
             ]),
           ),
@@ -549,7 +551,9 @@ class _ReviewOrderScreenState extends ConsumerState<ReviewOrderScreen> {
             child: Row(children: [
               const Text('Payment Method',
                   style: TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w700, color: _C.ink)),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: _C.ink)),
               const Spacer(),
               Text(methodLabel,
                   style: const TextStyle(fontSize: 13, color: _C.inkSoft)),
@@ -578,7 +582,8 @@ class _ReviewOrderScreenState extends ConsumerState<ReviewOrderScreen> {
                   '$methodLabel yourself. Your ${package.creditsAmount} credits '
                   "are added once our team verifies the payment — you can "
                   'track status in Purchase History.',
-                  style: const TextStyle(fontSize: 11.5, color: _C.ink, height: 1.4),
+                  style: const TextStyle(
+                      fontSize: 11.5, color: _C.ink, height: 1.4),
                 ),
               ),
             ]),
@@ -594,8 +599,8 @@ class _ReviewOrderScreenState extends ConsumerState<ReviewOrderScreen> {
             style: FilledButton.styleFrom(
               backgroundColor: _C.magenta,
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape:
-                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
             ),
             child: _submitting
                 ? const SizedBox(

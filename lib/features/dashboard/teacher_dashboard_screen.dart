@@ -195,84 +195,85 @@ class _THomeTab extends ConsumerWidget {
         ref.invalidate(announcementFeedProvider);
       },
       child: CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(child: _buildHeader()),
+        slivers: [
+          SliverToBoxAdapter(child: _buildHeader()),
 
-        // Appointment requests entry point
-        const SliverPadding(
-          padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
-          sliver: SliverToBoxAdapter(child: _AppointmentsEntryCard()),
-        ),
+          // Appointment requests entry point
+          const SliverPadding(
+            padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
+            sliver: SliverToBoxAdapter(child: _AppointmentsEntryCard()),
+          ),
 
-        // Modules entry point
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-          sliver: SliverToBoxAdapter(child: _ModulesEntryCard(user: user)),
-        ),
+          // Modules entry point
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            sliver: SliverToBoxAdapter(child: _ModulesEntryCard(user: user)),
+          ),
 
-        // ── Faculty Updates · Announcements ─────────────────────────────────
-        const SliverPadding(
-          padding: EdgeInsets.fromLTRB(20, 0, 20, 16),
-          sliver: SliverToBoxAdapter(child: AnnouncementFeedSection()),
-        ),
+          // ── Faculty Updates · Announcements ─────────────────────────────────
+          const SliverPadding(
+            padding: EdgeInsets.fromLTRB(20, 0, 20, 16),
+            sliver: SliverToBoxAdapter(child: AnnouncementFeedSection()),
+          ),
 
-        // Stats hero
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-          sliver: SliverToBoxAdapter(
-            child: bookingsAsync.when(
-              loading: () => const SizedBox.shrink(),
-              error: (_, __) => const SizedBox.shrink(),
-              data: (b) => _StatsHero(bookings: b),
+          // Stats hero
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+            sliver: SliverToBoxAdapter(
+              child: bookingsAsync.when(
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
+                data: (b) => _StatsHero(bookings: b),
+              ),
             ),
           ),
-        ),
-        // Next session
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-          sliver: SliverToBoxAdapter(
-            child: bookingsAsync.when(
-              loading: () => const SizedBox.shrink(),
-              error: (_, __) => const SizedBox.shrink(),
-              data: (b) {
-                final next =
-                    b.where((x) => x['status'] == 'confirmed').toList();
-                if (next.isEmpty) return const SizedBox.shrink();
-                return _TNextSessionBanner(booking: next.first);
-              },
+          // Next session
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            sliver: SliverToBoxAdapter(
+              child: bookingsAsync.when(
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
+                data: (b) {
+                  final next =
+                      b.where((x) => x['status'] == 'confirmed').toList();
+                  if (next.isEmpty) return const SizedBox.shrink();
+                  return _TNextSessionBanner(booking: next.first);
+                },
+              ),
             ),
           ),
-        ),
-        // Upcoming
-        const SliverPadding(
-          padding: EdgeInsets.fromLTRB(20, 24, 20, 8),
-          sliver:
-              SliverToBoxAdapter(child: _TLabel('Upcoming Sessions', '即将上课')),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-          sliver: SliverToBoxAdapter(
-            child: bookingsAsync.when(
-              loading: () => const Center(
-                  child: CircularProgressIndicator(color: _C.slateBlue)),
-              error: (e, _) => Text('$e'),
-              data: (b) {
-                final upcoming =
-                    b.where((x) => x['status'] == 'confirmed').toList();
-                if (upcoming.isEmpty) {
-                  return const _TEmpty('No upcoming sessions yet', '暂无即将上课的课程');
-                }
-                return Column(
-                    children: upcoming
-                        .take(5)
-                        .map((x) => _TBookingCard(
-                            booking: x, showComplete: true, ref: null))
-                        .toList());
-              },
+          // Upcoming
+          const SliverPadding(
+            padding: EdgeInsets.fromLTRB(20, 24, 20, 8),
+            sliver:
+                SliverToBoxAdapter(child: _TLabel('Upcoming Sessions', '即将上课')),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+            sliver: SliverToBoxAdapter(
+              child: bookingsAsync.when(
+                loading: () => const Center(
+                    child: CircularProgressIndicator(color: _C.slateBlue)),
+                error: (e, _) => Text('$e'),
+                data: (b) {
+                  final upcoming =
+                      b.where((x) => x['status'] == 'confirmed').toList();
+                  if (upcoming.isEmpty) {
+                    return const _TEmpty(
+                        'No upcoming sessions yet', '暂无即将上课的课程');
+                  }
+                  return Column(
+                      children: upcoming
+                          .take(5)
+                          .map((x) => _TBookingCard(
+                              booking: x, showComplete: true, ref: null))
+                          .toList());
+                },
+              ),
             ),
           ),
-        ),
-      ],
+        ],
       ),
     );
   }
