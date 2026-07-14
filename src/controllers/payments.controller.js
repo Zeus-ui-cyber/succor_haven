@@ -253,6 +253,19 @@ exports.requestPayment = async (req, res) => {
 // Idempotent: re-applying the same target status is a no-op, and only the
 // documented transitions (pending→succeeded/failed, succeeded→refunded) are
 // allowed — guards against double-confirming from duplicate admin clicks.
+//
+// ⚠️ FIXED (this pass): the credit/debit UPDATEs below used to target
+// student_profiles directly with a plain `UPDATE ... WHERE user_id = $2`.
+// Any student account created before student_profiles rows were reliably
+// backfilled at registration (see auth.controller.js's register() fix)
+// has NO row there — so that UPDATE silently matched zero rows. Postgres
+// doesn't error on a no-op UPDATE, so the transaction still committed, the
+// "confirmed"/notification still fired, but no credits were ever actually
+// written anywhere. Switched both the credit (succeeded) and debit
+// (refunded) paths to an upsert (INSERT ... ON CONFLICT (user_id) DO
+// UPDATE) so a missing row can never silently swallow a credit change
+// again, regardless of whether this particular gap or some future one
+// causes a student to be missing a profile row.
 const VALID_STATUSES = ["succeeded", "failed", "refunded"];
 
 exports.updatePaymentStatus = async (req, res) => {
@@ -317,9 +330,15 @@ exports.updatePaymentStatus = async (req, res) => {
     let flaggedForReview = false;
 
     if (status === "succeeded" && creditsAmount > 0) {
+      // Upsert instead of a plain UPDATE — see fix note above. If this
+      // student somehow has no student_profiles row yet, this creates one
+      // with the credited amount instead of silently doing nothing.
       await client.query(
-        `UPDATE student_profiles SET credits = credits + $1 WHERE user_id = $2`,
-        [creditsAmount, payment.user_id],
+        `INSERT INTO student_profiles (user_id, credits)
+         VALUES ($1, $2)
+         ON CONFLICT (user_id)
+         DO UPDATE SET credits = student_profiles.credits + EXCLUDED.credits`,
+        [payment.user_id, creditsAmount],
       );
       await client.query(
         `INSERT INTO credits_ledger (user_id, amount, reason, currency)
@@ -327,6 +346,10 @@ exports.updatePaymentStatus = async (req, res) => {
         [payment.user_id, creditsAmount, "Top-up"],
       );
     } else if (status === "refunded" && creditsAmount > 0) {
+      // FOR UPDATE lock still applies to the row if it exists; if it
+      // doesn't, balance is treated as 0 and we fall into the
+      // flaggedForReview path below rather than trying to subtract from
+      // a nonexistent row.
       const { rows: spRows } = await client.query(
         `SELECT credits FROM student_profiles WHERE user_id = $1 FOR UPDATE`,
         [payment.user_id],

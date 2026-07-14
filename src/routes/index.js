@@ -21,11 +21,12 @@ const settingsCtrl = require("../controllers/settings.controller");
 const studentsAdminCtrl = require("../controllers/studentsAdmin.controller");
 const appointmentsController = require("../controllers/appointments.controller");
 const sessionsController = require("../controllers/sessions.controller");
+const sessionRoomController = require("../controllers/sessionRoom.controller"); // ← NEW
 const modulesCtrl = require("../controllers/modules.controller");
 const announcementsCtrl = require("../controllers/announcements.controller");
 const announcementCommentsCtrl = require("../controllers/announcementComments.controller");
 const notificationsCtrl = require("../controllers/notifications.controller");
-const paymentsCtrl = require("../controllers/payments.controller"); // ← NEW
+const paymentsCtrl = require("../controllers/payments.controller");
 
 const router = express.Router();
 
@@ -139,6 +140,48 @@ const uploadAnnouncementFile = multer({
   },
 });
 
+// ── Session room · file-share upload config ───────────────────────────────────
+// NEW: files shared inside the live meeting room (distinct from Learning
+// Modules, which are admin/teacher reference material uploaded outside
+// any session). Stored outside src/ at project-root/uploads/session-files,
+// served by the same static /uploads mount as everything else above.
+const sessionFileDir = path.join(
+  __dirname,
+  "..",
+  "..",
+  "uploads",
+  "session-files",
+);
+fs.mkdirSync(sessionFileDir, { recursive: true });
+
+const sessionFileStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, sessionFileDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || "";
+    cb(null, `session-${req.params.id}-${Date.now()}${ext}`);
+  },
+});
+
+// Deliberately broader than the modules whitelist — sessions may share
+// images or zipped resources too, not just documents/slides.
+const ALLOWED_SESSION_FILE_TYPES = [
+  ...ALLOWED_IMAGE_TYPES,
+  ...ALLOWED_MODULE_TYPES,
+  "application/zip",
+  "text/plain",
+];
+
+const uploadSessionFile = multer({
+  storage: sessionFileStorage,
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB, same ceiling as modules
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_SESSION_FILE_TYPES.includes(file.mimetype)) {
+      return cb(new Error("This file type isn't supported for sharing."));
+    }
+    cb(null, true);
+  },
+});
+
 // ── Auth (public) ─────────────────────────────────────────────────────────────
 router.post("/auth/register", authCtrl.register);
 router.post("/auth/login", authCtrl.login);
@@ -151,11 +194,6 @@ router.post("/auth/logout", authCtrl.logout);
 router.get("/auth/me", authenticate, authCtrl.me);
 
 // ── Bookings ──────────────────────────────────────────────────────────────────
-// ⚠️ FIXED: requireApprovedTeacher was previously applied to GET /bookings
-// and PATCH /bookings/:id/cancel for everyone, including students — which
-// meant a student could never list or cancel their own bookings (they'd
-// fail the teacher-approval check). It now only gates the teacher-specific
-// complete action.
 router.get(
   "/bookings",
   authenticate,
@@ -173,8 +211,6 @@ router.patch(
 router.patch("/bookings/:id/cancel", authenticate, bookCtrl.cancel);
 
 // ── Teachers (public browse) ──────────────────────────────────────────────────
-// Profile update is allowed even while pending — teachers must be able to
-// fill in their bio/subjects/availability before the admin reviews them.
 router.get("/teachers", authenticate, teachCtrl.browse);
 router.get("/teachers/:id", authenticate, teachCtrl.getOne);
 router.patch(
@@ -250,39 +286,27 @@ router.get("/courses/:id", authenticate, courseCtrl.getOne);
 router.get("/rewards", authenticate, adminCtrl.listRewards);
 
 // ── Credit Packages (public read, any authenticated role) ────────────────────
-// NEW: "Buy Credits" screen reads active tiers from here. Admin CRUD is
-// registered further down in the ── Admin ── section.
 router.get("/credit-packages", authenticate, paymentsCtrl.listPackages);
 
 // ── Payments (student) ────────────────────────────────────────────────────────
-// NEW: student's own top-up history, shown under Profile/Settings.
 router.get(
   "/credits/payments/mine",
   authenticate,
   requireRole("student"),
   paymentsCtrl.listMyPayments,
 );
-// NEW: student submits a top-up request (manual-confirmation flow — see
-// payments.controller.js). Creates a `pending` payment row for the admin
-// Payments tab to confirm/reject.
 router.post(
   "/credits/payments",
   authenticate,
   requireRole("student"),
   paymentsCtrl.requestPayment,
 );
-// NEW: student flags a succeeded payment as wanting a refund — just a
-// timestamp for the admin Payments tab to prioritize; the actual refund
-// stays admin-initiated via PATCH /admin/payments/:id/status.
 router.post(
   "/credits/payments/:id/refund-request",
   authenticate,
   requireRole("student"),
   paymentsCtrl.requestRefund,
 );
-// NEW: student withdraws a still-pending request with a reason
-// (Shopee-style cancel flow). Only valid from 'pending' — once an admin
-// has acted, requestRefund above is the right tool instead.
 router.patch(
   "/credits/payments/:id/cancel",
   authenticate,
@@ -291,9 +315,6 @@ router.patch(
 );
 
 // ── Modules ───────────────────────────────────────────────────────────────────
-// Both admin and teacher can view/upload. Update/delete permission is
-// enforced inside modules.controller.js (admin: any; teacher: own only),
-// since requireRole alone can't express "own resource" logic.
 router.get(
   "/modules",
   authenticate,
@@ -445,17 +466,45 @@ router.patch(
 );
 
 // ── My Sessions (video meetings) ────────────────────────────────────────────
-// Unified feed of confirmed bookings + approved appointments, both surfaced
-// as `sessions` rows — see session.service.js. Read-only here; sessions are
-// only ever created as a side effect of the appointments/bookings flows
-// above. Ownership (student vs teacher) is enforced inside the controller
-// since both roles hit the same routes.
 router.get("/sessions/mine", authenticate, sessionsController.getMySessions);
 router.get("/sessions/:id", authenticate, sessionsController.getSessionById);
 router.get(
   "/sessions/:id/turn-credentials",
   authenticate,
   sessionsController.getTurnCredentials,
+);
+
+// ── Session Room (chat / notes / files / end) ───────────────────────────────
+// NEW: everything the live meeting room needs beyond the read-only
+// session details + TURN credentials above. Ownership (only the
+// session's own teacher/student may hit these) is enforced inside
+// sessionRoom.controller.js, same pattern as sessions.controller.js —
+// both roles hit the same routes.
+router.get("/sessions/:id/chat", authenticate, sessionRoomController.getChat);
+router.post("/sessions/:id/chat", authenticate, sessionRoomController.postChat);
+
+router.get("/sessions/:id/notes", authenticate, sessionRoomController.getNotes);
+router.patch(
+  "/sessions/:id/notes",
+  authenticate,
+  sessionRoomController.patchNotes,
+);
+
+router.get("/sessions/:id/files", authenticate, sessionRoomController.getFiles);
+router.post(
+  "/sessions/:id/files",
+  authenticate,
+  uploadSessionFile.single("file"),
+  sessionRoomController.postFile,
+);
+
+// Per spec: only the teacher ends the session — enforced inside the
+// controller (requireRole alone can't express "this specific teacher").
+router.patch(
+  "/sessions/:id/end",
+  authenticate,
+  requireRole("teacher"),
+  sessionRoomController.endSession,
 );
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
@@ -476,8 +525,6 @@ router.patch("/admin/rewards/:id", ...admin, adminCtrl.updateReward);
 router.delete("/admin/rewards/:id", ...admin, adminCtrl.deleteReward);
 
 // ── Admin · Credit Packages ("Buy Credits" tiers) ─────────────────────────────
-// NEW: admin-only create/update/delete. Public read (GET /credit-packages,
-// no /admin prefix) is registered earlier, open to any authenticated role.
 router.get("/admin/credit-packages", ...admin, paymentsCtrl.listPackagesAdmin);
 router.post("/admin/credit-packages", ...admin, paymentsCtrl.createPackage);
 router.patch(
@@ -492,10 +539,7 @@ router.delete(
 );
 
 // ── Admin · Payments ───────────────────────────────────────────────────────────
-// NEW: full transaction list + revenue totals, filterable by ?status=/?method=.
 router.get("/admin/payments", ...admin, paymentsCtrl.listPaymentsAdmin);
-// NEW: confirm/reject/refund a payment. On 'succeeded', credits the
-// student's balance in the same transaction (see payments.controller.js).
 router.patch(
   "/admin/payments/:id/status",
   ...admin,

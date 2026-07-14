@@ -1,16 +1,17 @@
 // lib/features/sessions/screens/session_detail_screen.dart
 //
-// Phase 1 stub: shows the session's confirmed details and, once inside
-// the join window, a placeholder for the meeting room. The actual
-// WebRTC video call (camera/mic, chat, whiteboard, etc. — Phase 2+ of
-// the "My Sessions" build-out) replaces the placeholder area below
-// without needing to change how this screen is reached.
+// Pre-join details screen. Once inside the join window, embeds the
+// real SessionRoomScreen in place of the old video-call placeholder —
+// routing (Navigator.pushNamed(context, '/sessions/$id')) is unchanged,
+// so this stays the single entry point for both states.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/session.dart';
+import '../../auth/repositories/auth_repository.dart';
 import '../../booking/utils/avatar_url.dart';
 import '../controllers/session_list_controller.dart';
+import 'session_room_screen.dart';
 
 class _P {
   static const ink = Color(0xFF3B0A1F);
@@ -20,6 +21,16 @@ class _P {
   static const magenta = Color(0xFFD64577);
 }
 
+// FIXED: this must be a stable top-level provider, not created inline
+// inside build(). `ref.watch(FutureProvider((r) => ...))` was
+// instantiating a NEW provider on every rebuild, which restarted
+// getMe() before the previous call ever resolved — the screen was
+// stuck in the `loading` branch forever, which is why joining a
+// session appeared to hang indefinitely on both the teacher and
+// student side (this gate sits in front of SessionRoomScreen).
+final _currentUserProvider =
+    FutureProvider<dynamic>((ref) => AuthRepository().getMe());
+
 class SessionDetailScreen extends ConsumerWidget {
   final String sessionId;
   const SessionDetailScreen({super.key, required this.sessionId});
@@ -27,33 +38,55 @@ class SessionDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionAsync = ref.watch(sessionDetailProvider(sessionId));
+    final meAsync = ref.watch(_currentUserProvider);
 
-    return Scaffold(
-      backgroundColor: _P.cream,
-      appBar: AppBar(
+    return sessionAsync.when(
+      loading: () => const Scaffold(
         backgroundColor: _P.cream,
-        elevation: 0,
-        foregroundColor: _P.ink,
-        title: const Text('Session Details · 课程详情'),
+        body: Center(child: CircularProgressIndicator(color: _P.magenta)),
       ),
-      body: sessionAsync.when(
-        loading: () =>
-            const Center(child: CircularProgressIndicator(color: _P.magenta)),
-        error: (e, _) => Center(child: Text('$e')),
-        data: (session) => _SessionDetailBody(session: session),
+      error: (e, _) => Scaffold(
+        backgroundColor: _P.cream,
+        appBar: AppBar(
+            backgroundColor: _P.cream, elevation: 0, foregroundColor: _P.ink),
+        body: Center(child: Text('$e')),
+      ),
+      data: (session) => meAsync.when(
+        loading: () => const Scaffold(
+          backgroundColor: _P.cream,
+          body: Center(child: CircularProgressIndicator(color: _P.magenta)),
+        ),
+        error: (e, _) => Scaffold(
+          backgroundColor: _P.cream,
+          body: Center(child: Text('$e')),
+        ),
+        data: (me) {
+          if (session.isJoinable()) {
+            // Real meeting room — dark theme, its own Scaffold.
+            return SessionRoomScreen(session: session, currentUser: me);
+          }
+          return Scaffold(
+            backgroundColor: _P.cream,
+            appBar: AppBar(
+              backgroundColor: _P.cream,
+              elevation: 0,
+              foregroundColor: _P.ink,
+              title: const Text('Session Details · 课程详情'),
+            ),
+            body: _WaitingBody(session: session),
+          );
+        },
       ),
     );
   }
 }
 
-class _SessionDetailBody extends StatelessWidget {
+class _WaitingBody extends StatelessWidget {
   final SessionModel session;
-  const _SessionDetailBody({required this.session});
+  const _WaitingBody({required this.session});
 
   @override
   Widget build(BuildContext context) {
-    final joinable = session.isJoinable();
-
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -64,7 +97,8 @@ class _SessionDetailBody extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: _P.line),
           ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(
               session.title?.trim().isNotEmpty == true
                   ? session.title!
@@ -99,25 +133,17 @@ class _SessionDetailBody extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         Container(
-          height: 260,
+          height: 220,
           decoration: BoxDecoration(
-            color: _P.ink,
-            borderRadius: BorderRadius.circular(20),
-          ),
+              color: _P.ink, borderRadius: BorderRadius.circular(20)),
           alignment: Alignment.center,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(
-              joinable ? Icons.videocam_rounded : Icons.lock_clock_outlined,
-              color: Colors.white70,
-              size: 40,
-            ),
-            const SizedBox(height: 12),
+          child: Column(mainAxisSize: MainAxisSize.min, children: const [
+            Icon(Icons.lock_clock_outlined, color: Colors.white70, size: 40),
+            SizedBox(height: 12),
             Text(
-              joinable
-                  ? 'Meeting room opens here\n(video call UI — coming next)'
-                  : 'The video meeting room will unlock at the\nscheduled start time.',
+              'The video meeting room will unlock at the\nscheduled start time.',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
+              style: TextStyle(color: Colors.white70, fontSize: 13),
             ),
           ]),
         ),
@@ -132,11 +158,9 @@ class _SessionDetailBody extends StatelessWidget {
       backgroundColor: _P.magenta.withValues(alpha: 0.15),
       backgroundImage: resolved != null ? NetworkImage(resolved) : null,
       child: resolved == null
-          ? Text(
-              (name?.isNotEmpty ?? false) ? name![0].toUpperCase() : '?',
+          ? Text((name?.isNotEmpty ?? false) ? name![0].toUpperCase() : '?',
               style: const TextStyle(
-                  fontSize: 11, color: _P.magenta, fontWeight: FontWeight.w700),
-            )
+                  fontSize: 11, color: _P.magenta, fontWeight: FontWeight.w700))
           : null,
     );
   }

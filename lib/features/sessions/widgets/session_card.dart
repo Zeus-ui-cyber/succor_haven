@@ -100,7 +100,9 @@ class SessionCard extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      isTeacherView ? 'Student: $otherName' : 'Teacher: $otherName',
+                      isTeacherView
+                          ? 'Student: $otherName'
+                          : 'Teacher: $otherName',
                       style: const TextStyle(fontSize: 13, color: _P.inkSoft),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -138,8 +140,18 @@ class _ScheduleRow extends StatelessWidget {
       ]);
     }
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final hour12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
     final ampm = dt.hour >= 12 ? 'PM' : 'AM';
@@ -230,16 +242,15 @@ class _JoinButtonState extends State<_JoinButton> {
       return SizedBox(
         width: double.infinity,
         child: ElevatedButton.icon(
-          onPressed: () =>
-              Navigator.pushNamed(context, '/sessions/${s.id}'),
+          onPressed: () => Navigator.pushNamed(context, '/sessions/${s.id}'),
           icon: const Icon(Icons.videocam_rounded, size: 18),
           label: const Text('Join Meeting · 加入课程'),
           style: ElevatedButton.styleFrom(
             backgroundColor: _P.green,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 12),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
       );
