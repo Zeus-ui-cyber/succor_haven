@@ -100,9 +100,7 @@ class SessionCard extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      isTeacherView
-                          ? 'Student: $otherName'
-                          : 'Teacher: $otherName',
+                      isTeacherView ? 'Student: $otherName' : 'Teacher: $otherName',
                       style: const TextStyle(fontSize: 13, color: _P.inkSoft),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -130,8 +128,8 @@ class _ScheduleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dt = session.scheduledAt;
-    if (dt == null) {
+    final label = session.formattedSchedule;
+    if (label == null) {
       return const Row(children: [
         Icon(Icons.schedule_outlined, size: 14, color: _P.inkSoft),
         SizedBox(width: 6),
@@ -139,24 +137,6 @@ class _ScheduleRow extends StatelessWidget {
             style: TextStyle(fontSize: 12, color: _P.inkSoft)),
       ]);
     }
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final hour12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
-    final label =
-        '${months[dt.month - 1]} ${dt.day}, ${dt.year} · $hour12:${dt.minute.toString().padLeft(2, '0')} $ampm';
     return Row(children: [
       const Icon(Icons.event_outlined, size: 14, color: _P.inkSoft),
       const SizedBox(width: 6),
@@ -242,15 +222,16 @@ class _JoinButtonState extends State<_JoinButton> {
       return SizedBox(
         width: double.infinity,
         child: ElevatedButton.icon(
-          onPressed: () => Navigator.pushNamed(context, '/sessions/${s.id}'),
+          onPressed: () =>
+              Navigator.pushNamed(context, '/sessions/${s.id}'),
           icon: const Icon(Icons.videocam_rounded, size: 18),
           label: const Text('Join Meeting · 加入课程'),
           style: ElevatedButton.styleFrom(
             backgroundColor: _P.green,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 12),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
           ),
         ),
       );

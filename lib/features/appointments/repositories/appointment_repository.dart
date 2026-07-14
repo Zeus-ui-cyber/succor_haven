@@ -43,6 +43,12 @@ class AppointmentRepository {
             '${preferredDate.month.toString().padLeft(2, '0')}-'
             '${preferredDate.day.toString().padLeft(2, '0')}',
         'preferredTime': preferredTime,
+        // The device's real UTC offset right now, e.g. 480 for UTC+8 —
+        // this is what lets the backend correctly figure out what
+        // real-world instant "9:30" actually means (see
+        // 0008_appointment_timezone.sql). Without it, the session this
+        // request eventually creates could unlock at the wrong clock time.
+        'timezoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
         'durationMins': durationMins,
         'description': description,
         'attachmentUrl': attachmentUrl,

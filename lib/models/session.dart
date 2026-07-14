@@ -138,13 +138,36 @@ class SessionModel {
     return diff.isNegative ? null : diff;
   }
 
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  /// Human-readable local schedule, e.g. "Jul 20, 2026 · 9:30 AM" — shared
+  /// by session_card.dart and session_detail_screen.dart so the two never
+  /// drift into showing different formats (or, worse, different times).
+  String? get formattedSchedule {
+    final dt = scheduledAt;
+    if (dt == null) return null;
+    final hour12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+    return '${_months[dt.month - 1]} ${dt.day}, ${dt.year} · '
+        '$hour12:${dt.minute.toString().padLeft(2, '0')} $ampm';
+  }
+
   factory SessionModel.fromJson(Map<String, dynamic> json) {
     final kind = json['kind'] as String? ?? 'session';
     final isPending = kind == 'pending_appointment';
 
     DateTime? scheduledAt;
     if (json['scheduled_at'] != null) {
-      scheduledAt = DateTime.parse(json['scheduled_at'] as String);
+      // ⚠️ FIXED: the backend returns scheduled_at as a UTC ISO string
+      // (TIMESTAMPTZ columns serialize with a 'Z' suffix). Without
+      // .toLocal(), every place that reads .hour/.minute/.day off this
+      // DateTime (session_card.dart, session_detail_screen.dart) would
+      // display the raw UTC digits instead of this device's actual local
+      // clock time — right instant, wrong-looking time on screen.
+      scheduledAt = DateTime.parse(json['scheduled_at'] as String).toLocal();
     } else if (json['preferred_date'] != null &&
         json['preferred_time'] != null) {
       final date = DateTime.parse(json['preferred_date'] as String);

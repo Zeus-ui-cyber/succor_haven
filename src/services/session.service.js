@@ -49,11 +49,25 @@ async function reconcileStale() {
 // 'approved' (either via approveAppointment or a student accepting a
 // proposed reschedule). ON CONFLICT DO NOTHING makes this safe to call
 // from both of those code paths without double-creating a session.
+// ⚠️ Combining preferred_date + preferred_time with plain `::date + ::time`
+// produces a timezone-naive timestamp. Casting that straight into
+// scheduled_at (TIMESTAMPTZ) would make Postgres silently assume the
+// database's own ambient session timezone (UTC on Neon) instead of the
+// student's real one — a student typing "9:30" could end up with a
+// session that actually unlocks at a totally different real-world clock
+// time. Fix: subtract the student's captured UTC offset first, then
+// explicitly interpret the result `AT TIME ZONE 'UTC'` — that's immune to
+// whatever the database's ambient timezone happens to be, unlike an
+// implicit cast. See 0008_appointment_timezone.sql.
 async function createFromAppointment(appointment) {
   const { rows } = await pool.query(
     `INSERT INTO sessions
        (appointment_id, teacher_id, student_id, subject, title, scheduled_at, duration_mins)
-     VALUES ($1, $2, $3, $4, $5, ($6::date + $7::time), $8)
+     VALUES (
+       $1, $2, $3, $4, $5,
+       (($6::date + $7::time) - ($8 * interval '1 minute')) AT TIME ZONE 'UTC',
+       $9
+     )
      ON CONFLICT (appointment_id) DO NOTHING
      RETURNING *`,
     [
@@ -64,6 +78,7 @@ async function createFromAppointment(appointment) {
       appointment.title,
       appointment.preferred_date,
       appointment.preferred_time,
+      appointment.timezone_offset_minutes ?? 480,
       appointment.duration_mins ?? 60,
     ],
   );

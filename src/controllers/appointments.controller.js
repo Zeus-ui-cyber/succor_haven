@@ -51,7 +51,11 @@ async function createAppointment(req, res) {
       purpose,
       subject,
       preferredDate, // 'YYYY-MM-DD'
-      preferredTime, // 'HH:MM'
+      preferredTime, // 'HH:MM' — wall-clock time as typed by the student,
+                     // meaningless on its own without the offset below
+      timezoneOffsetMinutes, // student's DateTime.now().timeZoneOffset.inMinutes
+                              // at submission time (e.g. 480 for UTC+8) —
+                              // see 0008_appointment_timezone.sql for why
       durationMins,  // 30 | 60 | 90 | 120
       description,
       attachmentUrl,
@@ -75,10 +79,22 @@ async function createAppointment(req, res) {
       });
     }
 
+    // -720 (UTC-12) .. 840 (UTC+14) covers every real-world UTC offset.
+    // Falls back to +480 (Asia/Manila) if the client didn't send one
+    // (e.g. an older app build) rather than rejecting the request outright.
+    let tzOffset = 480;
+    if (timezoneOffsetMinutes !== undefined && timezoneOffsetMinutes !== null) {
+      const parsed = Number(timezoneOffsetMinutes);
+      if (!Number.isInteger(parsed) || parsed < -720 || parsed > 840) {
+        return res.status(400).json({ error: "Invalid timezoneOffsetMinutes." });
+      }
+      tzOffset = parsed;
+    }
+
     const { rows } = await pool.query(
       `INSERT INTO appointments
-        (student_id, teacher_id, title, purpose, subject, preferred_date, preferred_time, duration_mins, description, attachment_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        (student_id, teacher_id, title, purpose, subject, preferred_date, preferred_time, duration_mins, timezone_offset_minutes, description, attachment_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
       [
         studentId,
@@ -89,6 +105,7 @@ async function createAppointment(req, res) {
         preferredDate,
         preferredTime,
         duration,
+        tzOffset,
         description ?? null,
         attachmentUrl ?? null,
       ],
