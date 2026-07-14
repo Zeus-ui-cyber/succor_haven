@@ -96,28 +96,34 @@ class _SessionDetailBody extends StatelessWidget {
           ]),
         ),
         const SizedBox(height: 20),
-        Container(
-          height: 260,
-          decoration: BoxDecoration(
-            color: _P.ink,
+        Material(
+          color: _P.ink,
+          borderRadius: BorderRadius.circular(20),
+          child: InkWell(
             borderRadius: BorderRadius.circular(20),
+            onTap: joinable
+                ? () => Navigator.pushNamed(context, '/sessions/${session.id}/room')
+                : null,
+            child: Container(
+              height: 260,
+              alignment: Alignment.center,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(
+                  joinable ? Icons.videocam_rounded : Icons.lock_clock_outlined,
+                  color: Colors.white70,
+                  size: 40,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  joinable
+                      ? 'Tap to join the meeting room'
+                      : 'The video meeting room will unlock at the\nscheduled start time.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              ]),
+            ),
           ),
-          alignment: Alignment.center,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(
-              joinable ? Icons.videocam_rounded : Icons.lock_clock_outlined,
-              color: Colors.white70,
-              size: 40,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              joinable
-                  ? 'Meeting room opens here\n(video call UI — coming next)'
-                  : 'The video meeting room will unlock at the\nscheduled start time.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-          ]),
         ),
       ],
     );

@@ -1,274 +1,246 @@
 // lib/features/sessions/widgets/whiteboard_panel.dart
-//
-// Custom-canvas drawing: pen/eraser/line/rect/ellipse, undo/redo/clear,
-// synced live via SessionRoomController -> SocketRoomService. Points
-// are stored normalized (0..1) against the canvas's own size so both
-// sides render correctly regardless of their panel's actual pixel
-// dimensions (mobile tab vs. desktop side rail differ a lot).
-
 import 'package:flutter/material.dart';
-import '../models/session_room_models.dart';
-import '../controllers/session_room_controller.dart';
-import '../screens/session_room_screen.dart' show D;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../controllers/whiteboard_controller.dart';
+import 'room_theme.dart';
 
-enum _Tool { pen, eraser, line, rect, ellipse }
-
-class WhiteboardPanel extends StatefulWidget {
-  final SessionRoomState state;
-  final SessionRoomController controller;
+class WhiteboardPanel extends ConsumerStatefulWidget {
+  final String sessionId;
   final bool isTeacher;
-  const WhiteboardPanel({
-    super.key,
-    required this.state,
-    required this.controller,
-    required this.isTeacher,
-  });
+  const WhiteboardPanel({super.key, required this.sessionId, required this.isTeacher});
 
   @override
-  State<WhiteboardPanel> createState() => _WhiteboardPanelState();
+  ConsumerState<WhiteboardPanel> createState() => _WhiteboardPanelState();
 }
 
-class _WhiteboardPanelState extends State<WhiteboardPanel> {
-  _Tool _tool = _Tool.pen;
-  Color _color = Colors.white;
-  final double _width = 3;
-  List<Offset> _liveDraft = [];
-  Size _canvasSize = Size.zero;
+class _WhiteboardPanelState extends ConsumerState<WhiteboardPanel> {
+  List<Offset> _liveStroke = [];
+  Color _color = RoomColors.magenta;
+  double _strokeWidth = 3;
+  String _tool = 'pen'; // 'pen' | 'eraser'
 
-  static const _palette = [
-    Colors.white,
-    Color(0xFFD64577),
-    Color(0xFF5C8FBD),
-    Color(0xFF00C48C),
-    Color(0xFFE0A800),
-  ];
+  ({String sessionId, bool isTeacher}) get _args =>
+      (sessionId: widget.sessionId, isTeacher: widget.isTeacher);
 
-  bool get _canDraw => widget.isTeacher || widget.state.canDrawWhiteboard;
-
-  Offset _normalize(Offset local) {
-    if (_canvasSize.width == 0 || _canvasSize.height == 0) return Offset.zero;
-    return Offset(local.dx / _canvasSize.width, local.dy / _canvasSize.height);
-  }
-
-  void _onPanStart(DragStartDetails d, Size size) {
-    if (!_canDraw) return;
-    _canvasSize = size;
-    setState(() => _liveDraft = [d.localPosition]);
-  }
-
-  void _onPanUpdate(DragUpdateDetails d) {
-    if (!_canDraw) return;
-    setState(() {
-      if (_tool == _Tool.pen || _tool == _Tool.eraser) {
-        _liveDraft = [..._liveDraft, d.localPosition];
-      } else {
-        // shape tools only need start + current point
-        _liveDraft = [_liveDraft.first, d.localPosition];
-      }
-    });
-  }
+  void _onPanStart(DragStartDetails d) => setState(() => _liveStroke = [d.localPosition]);
+  void _onPanUpdate(DragUpdateDetails d) =>
+      setState(() => _liveStroke = [..._liveStroke, d.localPosition]);
 
   void _onPanEnd(DragEndDetails d) {
-    if (!_canDraw || _liveDraft.isEmpty) return;
-    final stroke = WhiteboardStroke(
-      id: '${DateTime.now().microsecondsSinceEpoch}-${widget.controller.currentUserId}',
-      authorId: widget.controller.currentUserId,
-      tool: switch (_tool) {
-        _Tool.pen => 'pen',
-        _Tool.eraser => 'eraser',
-        _Tool.line => 'line',
-        _Tool.rect => 'rect',
-        _Tool.ellipse => 'ellipse',
-      },
-      color:
-          '#${_color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}',
-      width: _tool == _Tool.eraser ? _width * 3 : _width,
-      points: _liveDraft.map((p) {
-        final n = _normalize(p);
-        return [n.dx, n.dy];
-      }).toList(),
-    );
-    widget.controller.addStroke(stroke);
-    setState(() => _liveDraft = []);
+    if (_liveStroke.length < 2) {
+      setState(() => _liveStroke = []);
+      return;
+    }
+    final stroke = {
+      'points': _liveStroke.map((p) => [p.dx, p.dy]).toList(),
+      'color': '#${(_color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}',
+      'width': _tool == 'eraser' ? _strokeWidth * 5 : _strokeWidth,
+      'tool': _tool,
+    };
+    ref.read(whiteboardControllerProvider(_args).notifier).addLocalStroke(stroke);
+    setState(() => _liveStroke = []);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(children: [
-      _toolbar(),
-      Expanded(
-        child: Container(
-          margin: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-              color: const Color(0xFF120C14),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: D.border)),
-          clipBehavior: Clip.antiAlias,
-          child: LayoutBuilder(builder: (context, constraints) {
-            _canvasSize = Size(constraints.maxWidth, constraints.maxHeight);
-            return GestureDetector(
-              onPanStart: (d) => _onPanStart(d, _canvasSize),
-              onPanUpdate: _onPanUpdate,
-              onPanEnd: _onPanEnd,
-              child: CustomPaint(
-                size: _canvasSize,
-                painter: _BoardPainter(
-                  strokes: widget.state.strokes,
-                  liveDraft: _liveDraft,
-                  liveTool: _tool,
-                  liveColor: _color,
-                  liveWidth: _width,
-                  canvasSize: _canvasSize,
+    final wbState = ref.watch(whiteboardControllerProvider(_args));
+    final controller = ref.read(whiteboardControllerProvider(_args).notifier);
+    final canDraw = controller.canIDraw;
+
+    return Container(
+      decoration: roomPanelDecoration(),
+      child: Column(children: [
+        _WhiteboardToolbar(
+          isTeacher: widget.isTeacher,
+          color: _color,
+          tool: _tool,
+          studentCanDraw: wbState.studentCanDraw,
+          onColor: (c) => setState(() => _color = c),
+          onTool: (t) => setState(() => _tool = t),
+          onClear: controller.clear,
+          onTogglePermission: () =>
+              controller.setStudentPermission(!wbState.studentCanDraw),
+        ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+            child: Container(
+              color: Colors.white,
+              child: GestureDetector(
+                onPanStart: canDraw ? _onPanStart : null,
+                onPanUpdate: canDraw ? _onPanUpdate : null,
+                onPanEnd: canDraw ? _onPanEnd : null,
+                child: CustomPaint(
+                  size: Size.infinite,
+                  painter: _WhiteboardPainter(
+                    strokes: wbState.strokes,
+                    liveStroke: _liveStroke,
+                    liveColor: _tool == 'eraser' ? Colors.white : _color,
+                    liveWidth: _tool == 'eraser' ? _strokeWidth * 5 : _strokeWidth,
+                  ),
                 ),
               ),
-            );
-          }),
+            ),
+          ),
         ),
-      ),
-      if (!_canDraw)
-        const Padding(
-          padding: EdgeInsets.only(bottom: 8),
-          child: Text('The teacher hasn\'t enabled drawing for you yet',
-              style: TextStyle(fontSize: 11, color: D.textSoft)),
-        ),
-    ]);
+        if (!canDraw)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 6),
+            child: Text('The teacher has disabled drawing for students',
+                style: TextStyle(fontSize: 11, color: RoomColors.textSecondary)),
+          ),
+      ]),
+    );
   }
+}
 
-  Widget _toolbar() {
-    return Container(
-      color: D.surface,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+class _WhiteboardToolbar extends StatelessWidget {
+  final bool isTeacher;
+  final Color color;
+  final String tool;
+  final bool studentCanDraw;
+  final ValueChanged<Color> onColor;
+  final ValueChanged<String> onTool;
+  final VoidCallback onClear;
+  final VoidCallback onTogglePermission;
+
+  const _WhiteboardToolbar({
+    required this.isTeacher,
+    required this.color,
+    required this.tool,
+    required this.studentCanDraw,
+    required this.onColor,
+    required this.onTool,
+    required this.onClear,
+    required this.onTogglePermission,
+  });
+
+  static const _palette = [
+    RoomColors.magenta,
+    RoomColors.burgundy,
+    RoomColors.green,
+    RoomColors.gold,
+    Colors.white,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       child: Row(children: [
-        _toolIcon(Icons.edit_rounded, _Tool.pen),
-        _toolIcon(Icons.horizontal_rule_rounded, _Tool.line),
-        _toolIcon(Icons.crop_square_rounded, _Tool.rect),
-        _toolIcon(Icons.circle_outlined, _Tool.ellipse),
-        _toolIcon(Icons.auto_fix_normal_rounded, _Tool.eraser),
+        const Icon(Icons.draw_rounded, size: 16, color: RoomColors.magenta),
         const SizedBox(width: 8),
+        const Text('Whiteboard',
+            style: TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w800, color: RoomColors.textPrimary)),
+        const SizedBox(width: 12),
         ..._palette.map((c) => GestureDetector(
-              onTap: () => setState(() => _color = c),
+              onTap: () => onColor(c),
               child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 3),
+                margin: const EdgeInsets.only(right: 6),
                 width: 18,
                 height: 18,
                 decoration: BoxDecoration(
                   color: c,
                   shape: BoxShape.circle,
                   border: Border.all(
-                      color: _color == c ? Colors.white : Colors.transparent,
-                      width: 2),
+                    color: color == c ? Colors.white : Colors.transparent,
+                    width: 2,
+                  ),
                 ),
               ),
             )),
+        const SizedBox(width: 6),
+        IconButton(
+          tooltip: 'Pen',
+          onPressed: () => onTool('pen'),
+          icon: Icon(Icons.edit_rounded,
+              size: 18, color: tool == 'pen' ? RoomColors.magenta : RoomColors.textSecondary),
+        ),
+        IconButton(
+          tooltip: 'Eraser',
+          onPressed: () => onTool('eraser'),
+          icon: Icon(Icons.auto_fix_normal_rounded,
+              size: 18,
+              color: tool == 'eraser' ? RoomColors.magenta : RoomColors.textSecondary),
+        ),
         const Spacer(),
-        IconButton(
-          onPressed: widget.controller.undoLastStroke,
-          icon: const Icon(Icons.undo_rounded, size: 18, color: D.textSoft),
-        ),
-        IconButton(
-          onPressed: widget.controller.redoLastStroke,
-          icon: const Icon(Icons.redo_rounded, size: 18, color: D.textSoft),
-        ),
-        IconButton(
-          onPressed: widget.controller.clearWhiteboard,
-          icon:
-              const Icon(Icons.delete_outline_rounded, size: 18, color: D.red),
-        ),
+        if (isTeacher)
+          IconButton(
+            tooltip: studentCanDraw ? 'Disable student drawing' : 'Enable student drawing',
+            onPressed: onTogglePermission,
+            icon: Icon(
+              studentCanDraw ? Icons.lock_open_rounded : Icons.lock_rounded,
+              size: 18,
+              color: RoomColors.textSecondary,
+            ),
+          ),
+        if (isTeacher)
+          IconButton(
+            tooltip: 'Clear',
+            onPressed: onClear,
+            icon: const Icon(Icons.delete_outline_rounded,
+                size: 18, color: RoomColors.textSecondary),
+          ),
       ]),
-    );
-  }
-
-  Widget _toolIcon(IconData icon, _Tool tool) {
-    final active = _tool == tool;
-    return IconButton(
-      onPressed: () => setState(() => _tool = tool),
-      icon: Icon(icon, size: 18, color: active ? D.magenta : D.textSoft),
     );
   }
 }
 
-class _BoardPainter extends CustomPainter {
-  final List<WhiteboardStroke> strokes;
-  final List<Offset> liveDraft;
-  final _Tool liveTool;
+class _WhiteboardPainter extends CustomPainter {
+  final List<Map<String, dynamic>> strokes;
+  final List<Offset> liveStroke;
   final Color liveColor;
   final double liveWidth;
-  final Size canvasSize;
 
-  _BoardPainter({
+  _WhiteboardPainter({
     required this.strokes,
-    required this.liveDraft,
-    required this.liveTool,
+    required this.liveStroke,
     required this.liveColor,
     required this.liveWidth,
-    required this.canvasSize,
   });
-
-  Color _parseColor(String hex) {
-    final v = int.tryParse(hex.replaceFirst('#', ''), radix: 16) ?? 0xFFFFFF;
-    return Color(0xFF000000 | v);
-  }
-
-  void _paintStroke(Canvas canvas, List<Offset> points, String tool,
-      Color color, double width) {
-    final paint = Paint()
-      ..color = tool == 'eraser' ? const Color(0xFF120C14) : color
-      ..strokeWidth = width
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-
-    if (points.isEmpty) return;
-    switch (tool) {
-      case 'line':
-        if (points.length >= 2) {
-          canvas.drawLine(points.first, points.last, paint);
-        }
-        break;
-      case 'rect':
-        if (points.length >= 2) {
-          canvas.drawRect(Rect.fromPoints(points.first, points.last), paint);
-        }
-        break;
-      case 'ellipse':
-        if (points.length >= 2) {
-          canvas.drawOval(Rect.fromPoints(points.first, points.last), paint);
-        }
-        break;
-      default: // pen, eraser
-        final path = Path()..moveTo(points.first.dx, points.first.dy);
-        for (final p in points.skip(1)) {
-          path.lineTo(p.dx, p.dy);
-        }
-        canvas.drawPath(path, paint);
-    }
-  }
 
   @override
   void paint(Canvas canvas, Size size) {
-    for (final s in strokes) {
-      final pts = s.points
-          .map((p) => Offset(p[0] * size.width, p[1] * size.height))
+    for (final stroke in strokes) {
+      final rawPoints = stroke['points'] as List? ?? [];
+      final points = rawPoints
+          .map((p) => Offset((p[0] as num).toDouble(), (p[1] as num).toDouble()))
           .toList();
-      _paintStroke(canvas, pts, s.tool, _parseColor(s.color), s.width);
+      final tool = stroke['tool'] as String? ?? 'pen';
+      final colorHex = stroke['color'] as String? ?? '#D64577';
+      final width = (stroke['width'] as num?)?.toDouble() ?? 3;
+      final paint = Paint()
+        ..color = tool == 'eraser' ? Colors.white : _colorFromHex(colorHex)
+        ..strokeWidth = width
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke;
+      _drawPolyline(canvas, points, paint);
     }
-    if (liveDraft.isNotEmpty) {
-      _paintStroke(
-        canvas,
-        liveDraft,
-        switch (liveTool) {
-          _Tool.pen => 'pen',
-          _Tool.eraser => 'eraser',
-          _Tool.line => 'line',
-          _Tool.rect => 'rect',
-          _Tool.ellipse => 'ellipse',
-        },
-        liveColor,
-        liveTool == _Tool.eraser ? liveWidth * 3 : liveWidth,
-      );
+    if (liveStroke.length > 1) {
+      final paint = Paint()
+        ..color = liveColor
+        ..strokeWidth = liveWidth
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke;
+      _drawPolyline(canvas, liveStroke, paint);
     }
   }
 
+  void _drawPolyline(Canvas canvas, List<Offset> points, Paint paint) {
+    if (points.length < 2) return;
+    final path = Path()..moveTo(points.first.dx, points.first.dy);
+    for (final p in points.skip(1)) {
+      path.lineTo(p.dx, p.dy);
+    }
+    canvas.drawPath(path, paint);
+  }
+
+  Color _colorFromHex(String hex) {
+    final clean = hex.replaceFirst('#', '').padLeft(6, '0');
+    return Color(int.parse('FF$clean', radix: 16));
+  }
+
   @override
-  bool shouldRepaint(covariant _BoardPainter old) =>
-      old.strokes != strokes || old.liveDraft != liveDraft;
+  bool shouldRepaint(covariant _WhiteboardPainter oldDelegate) => true;
 }

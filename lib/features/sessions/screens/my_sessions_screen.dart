@@ -48,23 +48,17 @@ class MySessionsView extends ConsumerWidget {
             ]);
           }
 
-          final pending = items
-              .where((s) =>
-                  s.status == SessionCardStatus.pending ||
-                  s.status == SessionCardStatus.rescheduled)
-              .toList();
-          final upcoming = items
-              .where((s) =>
-                  s.status == SessionCardStatus.upcoming ||
-                  s.status == SessionCardStatus.inProgress)
-              .toList();
-          final past = items
-              .where((s) =>
-                  s.status == SessionCardStatus.completed ||
-                  s.status == SessionCardStatus.cancelled ||
-                  s.status == SessionCardStatus.missed ||
-                  s.status == SessionCardStatus.declined)
-              .toList();
+          final pending = items.where((s) =>
+              s.status == SessionCardStatus.pending ||
+              s.status == SessionCardStatus.rescheduled).toList();
+          final upcoming = items.where((s) =>
+              s.status == SessionCardStatus.upcoming ||
+              s.status == SessionCardStatus.inProgress).toList();
+          final past = items.where((s) =>
+              s.status == SessionCardStatus.completed ||
+              s.status == SessionCardStatus.cancelled ||
+              s.status == SessionCardStatus.missed ||
+              s.status == SessionCardStatus.declined).toList();
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
@@ -84,9 +78,8 @@ class MySessionsView extends ConsumerWidget {
                       session: s,
                       isTeacherView: isTeacher,
                       onTap: s.isJoinable()
-                          ? () =>
-                              Navigator.pushNamed(context, '/sessions/${s.id}')
-                          : null,
+                          ? () => Navigator.pushNamed(context, '/sessions/${s.id}/room')
+                          : () => Navigator.pushNamed(context, '/sessions/${s.id}'),
                     )),
                 const SizedBox(height: 16),
               ],
@@ -95,8 +88,7 @@ class MySessionsView extends ConsumerWidget {
                 ...past.map((s) => SessionCard(
                       session: s,
                       isTeacherView: isTeacher,
-                      onTap: () =>
-                          Navigator.pushNamed(context, '/sessions/${s.id}'),
+                      onTap: () => Navigator.pushNamed(context, '/sessions/${s.id}'),
                     )),
               ],
             ],
@@ -127,14 +119,15 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Column(children: [
+    return Column(children: const [
       Icon(Icons.video_camera_front_outlined, size: 48, color: _P.inkSoft),
       SizedBox(height: 12),
       Text('No sessions yet',
           style: TextStyle(
               fontSize: 16, fontWeight: FontWeight.w700, color: _P.ink)),
       SizedBox(height: 4),
-      Text('暂无课程', style: TextStyle(fontSize: 12, color: _P.inkSoft)),
+      Text('暂无课程',
+          style: TextStyle(fontSize: 12, color: _P.inkSoft)),
     ]);
   }
 }

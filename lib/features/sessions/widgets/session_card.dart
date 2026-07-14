@@ -223,7 +223,7 @@ class _JoinButtonState extends State<_JoinButton> {
         width: double.infinity,
         child: ElevatedButton.icon(
           onPressed: () =>
-              Navigator.pushNamed(context, '/sessions/${s.id}'),
+              Navigator.pushNamed(context, '/sessions/${s.id}/room'),
           icon: const Icon(Icons.videocam_rounded, size: 18),
           label: const Text('Join Meeting · 加入课程'),
           style: ElevatedButton.styleFrom(

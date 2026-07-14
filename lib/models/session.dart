@@ -97,6 +97,7 @@ class SessionModel {
   final String? teacherAvatarUrl;
   final String? studentAvatarUrl;
   final String? roomId; // only present once it's a real session
+  final DateTime? startedAt; // set once someone actually joins the room
 
   const SessionModel({
     required this.id,
@@ -113,6 +114,7 @@ class SessionModel {
     this.teacherAvatarUrl,
     this.studentAvatarUrl,
     this.roomId,
+    this.startedAt,
   });
 
   DateTime? get scheduledEndAt =>
@@ -196,6 +198,9 @@ class SessionModel {
       teacherAvatarUrl: json['teacher_avatar_url'] as String?,
       studentAvatarUrl: json['student_avatar_url'] as String?,
       roomId: json['room_id'] as String?,
+      startedAt: json['started_at'] != null
+          ? DateTime.parse(json['started_at'] as String).toLocal()
+          : null,
     );
   }
 }

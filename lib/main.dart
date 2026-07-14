@@ -46,6 +46,8 @@ import 'features/appointments/screens/request_appointment_screen.dart'
     show RequestAppointmentScreen; // ← NEW
 import 'features/sessions/screens/session_detail_screen.dart'
     show SessionDetailScreen; // ← NEW
+import 'features/sessions/screens/session_room_screen.dart'
+    show SessionRoomScreen; // ← NEW
 import 'features/appointments/screens/my_appointments_screen.dart'
     show MyAppointmentsScreen; // ← NEW
 
@@ -409,6 +411,15 @@ class SuccorHavenApp extends StatelessWidget {
           return MaterialPageRoute(
             settings: settings,
             builder: (_) => TeacherDetailScreen(teacherId: teacherId),
+          );
+        }
+
+        if (segments.length == 3 && segments[0] == 'sessions' && segments[2] == 'room') {
+          final sessionId = segments[1];
+          return MaterialPageRoute(
+            settings: settings,
+            fullscreenDialog: true,
+            builder: (_) => SessionRoomScreen(sessionId: sessionId),
           );
         }
 

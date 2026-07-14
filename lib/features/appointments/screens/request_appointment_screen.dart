@@ -50,11 +50,19 @@ class _RequestAppointmentScreenState
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
+    // ⚠️ FIXED: this used to pre-highlight tomorrow (now.add(days: 1)) by
+    // default, so confirming the picker without explicitly changing the
+    // day silently scheduled for the wrong date — a session requested
+    // "for right now" would land a full day later. Defaults to today
+    // instead; also normalized to midnight (no time-of-day component) so
+    // firstDate/initialDate comparisons don't get thrown off by "now"
+    // already being partway through the day.
+    final today = DateTime(now.year, now.month, now.day);
     final picked = await showDatePicker(
       context: context,
-      initialDate: _preferredDate ?? now.add(const Duration(days: 1)),
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 180)),
+      initialDate: _preferredDate ?? today,
+      firstDate: today,
+      lastDate: today.add(const Duration(days: 180)),
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
           colorScheme: Theme.of(context).colorScheme.copyWith(
@@ -121,19 +129,18 @@ class _RequestAppointmentScreenState
       return;
     }
 
-    final ok =
-        await ref.read(appointmentActionsProvider.notifier).submitRequest(
-              teacherId: widget.teacher.id,
-              title: _titleCtrl.text.trim(),
-              purpose: _purposeCtrl.text.trim(),
-              subject: _subject!,
-              preferredDate: _preferredDate!,
-              preferredTime: _formatTime24(_preferredTime!),
-              durationMins: _durationMins,
-              description: _descriptionCtrl.text.trim().isEmpty
-                  ? null
-                  : _descriptionCtrl.text.trim(),
-            );
+    final ok = await ref.read(appointmentActionsProvider.notifier).submitRequest(
+          teacherId: widget.teacher.id,
+          title: _titleCtrl.text.trim(),
+          purpose: _purposeCtrl.text.trim(),
+          subject: _subject!,
+          preferredDate: _preferredDate!,
+          preferredTime: _formatTime24(_preferredTime!),
+          durationMins: _durationMins,
+          description: _descriptionCtrl.text.trim().isEmpty
+              ? null
+              : _descriptionCtrl.text.trim(),
+        );
 
     if (!mounted) return;
 
@@ -204,17 +211,17 @@ class _RequestAppointmentScreenState
       body: Stack(
         children: [
           // ── Ambient glow field ─────────────────────────────────────
-          const Positioned(
+          Positioned(
             top: -80,
             right: -60,
             child: _Glow(color: SHColors.magenta, size: 260, opacity: 0.16),
           ),
-          const Positioned(
+          Positioned(
             top: 220,
             left: -100,
             child: _Glow(color: SHColors.burgundy, size: 220, opacity: 0.10),
           ),
-          const Positioned(
+          Positioned(
             bottom: -60,
             right: -40,
             child: _Glow(color: SHColors.blushPink, size: 240, opacity: 0.20),
@@ -240,6 +247,7 @@ class _RequestAppointmentScreenState
                     ),
                   ),
                   const SizedBox(height: 20),
+
                   _StaggerIn(
                     index: 2,
                     child: _SectionCard(
@@ -247,7 +255,7 @@ class _RequestAppointmentScreenState
                       titleEn: 'Appointment Details',
                       titleZh: '预约详情',
                       children: [
-                        const _FieldLabel('Appointment Title', '预约标题'),
+                        _FieldLabel('Appointment Title', '预约标题'),
                         _PremiumTextField(
                           controller: _titleCtrl,
                           hint: 'e.g. Thesis proposal review',
@@ -257,7 +265,7 @@ class _RequestAppointmentScreenState
                               : null,
                         ),
                         const SizedBox(height: 18),
-                        const _FieldLabel('Purpose of Consultation', '咨询目的'),
+                        _FieldLabel('Purpose of Consultation', '咨询目的'),
                         _PremiumTextField(
                           controller: _purposeCtrl,
                           hint: 'e.g. Academic Consultation, Exam Review',
@@ -267,7 +275,7 @@ class _RequestAppointmentScreenState
                               : null,
                         ),
                         const SizedBox(height: 18),
-                        const _FieldLabel('Subject / Course', '科目 / 课程'),
+                        _FieldLabel('Subject / Course', '科目 / 课程'),
                         widget.teacher.subjects.isEmpty
                             ? _PremiumTextField(
                                 hint: 'e.g. English, Mathematics',
@@ -281,12 +289,15 @@ class _RequestAppointmentScreenState
                             : _PremiumDropdown(
                                 value: _subject,
                                 items: widget.teacher.subjects,
-                                onChanged: (v) => setState(() => _subject = v),
+                                onChanged: (v) =>
+                                    setState(() => _subject = v),
                               ),
                       ],
                     ),
                   ),
+
                   const SizedBox(height: 16),
+
                   _StaggerIn(
                     index: 3,
                     child: _SectionCard(
@@ -294,7 +305,7 @@ class _RequestAppointmentScreenState
                       titleEn: 'Schedule',
                       titleZh: '日程安排',
                       children: [
-                        const _FieldLabel('Preferred Date', '首选日期'),
+                        _FieldLabel('Preferred Date', '首选日期'),
                         _PickerTile(
                           icon: Icons.calendar_today_rounded,
                           label: _preferredDate == null
@@ -304,7 +315,7 @@ class _RequestAppointmentScreenState
                           onTap: _pickDate,
                         ),
                         const SizedBox(height: 18),
-                        const _FieldLabel('Preferred Time', '首选时间'),
+                        _FieldLabel('Preferred Time', '首选时间'),
                         _PickerTile(
                           icon: Icons.access_time_rounded,
                           label: _preferredTime == null
@@ -314,7 +325,7 @@ class _RequestAppointmentScreenState
                           onTap: _pickTime,
                         ),
                         const SizedBox(height: 18),
-                        const _FieldLabel('Estimated Duration', '预计时长'),
+                        _FieldLabel('Estimated Duration', '预计时长'),
                         _DurationChips(
                           value: _durationMins,
                           onChanged: (v) => setState(() => _durationMins = v),
@@ -322,7 +333,9 @@ class _RequestAppointmentScreenState
                       ],
                     ),
                   ),
+
                   const SizedBox(height: 16),
+
                   _StaggerIn(
                     index: 4,
                     child: _SectionCard(
@@ -330,17 +343,16 @@ class _RequestAppointmentScreenState
                       titleEn: 'Additional Info',
                       titleZh: '附加信息',
                       children: [
-                        const _FieldLabel(
+                        _FieldLabel(
                             'Description or Concern (optional)', '描述或问题（可选）'),
                         _PremiumTextField(
                           controller: _descriptionCtrl,
-                          hint:
-                              'Any additional details the teacher should know...',
+                          hint: 'Any additional details the teacher should know...',
                           icon: Icons.chat_bubble_outline_rounded,
                           maxLines: 4,
                         ),
                         const SizedBox(height: 18),
-                        const _FieldLabel('Attachment (optional)', '附件（可选）'),
+                        _FieldLabel('Attachment (optional)', '附件（可选）'),
                         // ⚠️ NOT YET FUNCTIONAL: no file-upload endpoint exists
                         // on the backend yet (attachment_url is just accepted
                         // as a plain string with nothing to populate it — see
@@ -353,7 +365,9 @@ class _RequestAppointmentScreenState
                       ],
                     ),
                   ),
+
                   const SizedBox(height: 28),
+
                   _StaggerIn(
                     index: 5,
                     child: _SubmitButton(
@@ -461,7 +475,7 @@ class _ProgressRibbon extends StatelessWidget {
             widthFactor: value,
             child: Container(
               height: 4,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [SHColors.burgundy, SHColors.magenta],
                 ),
@@ -485,9 +499,7 @@ class _ProgressLabel extends StatelessWidget {
     return Row(
       children: [
         Icon(
-          done
-              ? Icons.check_circle_rounded
-              : Icons.radio_button_unchecked_rounded,
+          done ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
           size: 16,
           color: done ? SHColors.green : SHColors.inkSoft,
         ),
@@ -539,7 +551,7 @@ class _TeacherContextCard extends StatelessWidget {
               padding: const EdgeInsets.all(3),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   colors: [SHColors.magenta, SHColors.burgundy],
                 ),
                 boxShadow: [
@@ -565,7 +577,7 @@ class _TeacherContextCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('REQUESTING WITH · 预约老师',
+                  Text('REQUESTING WITH · 预约老师',
                       style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
@@ -586,8 +598,7 @@ class _TeacherContextCard extends StatelessWidget {
                 color: SHColors.softPink,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.school_rounded,
-                  size: 16, color: SHColors.magenta),
+              child: Icon(Icons.school_rounded, size: 16, color: SHColors.magenta),
             ),
           ]),
         ),
@@ -634,7 +645,7 @@ class _SectionCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   colors: [
                     SHColors.blushPink,
                     SHColors.softPink,
@@ -654,15 +665,13 @@ class _SectionCard extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         color: SHColors.ink)),
                 Text(titleZh,
-                    style:
-                        const TextStyle(fontSize: 11, color: SHColors.magenta)),
+                    style: TextStyle(fontSize: 11, color: SHColors.magenta)),
               ],
             ),
           ]),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 14),
-            child:
-                Divider(height: 1, color: SHColors.line.withValues(alpha: 0.7)),
+            child: Divider(height: 1, color: SHColors.line.withValues(alpha: 0.7)),
           ),
           ...children,
         ],
@@ -683,9 +692,7 @@ class _FieldLabel extends StatelessWidget {
         child: Row(children: [
           Text(en,
               style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: SHColors.ink)),
+                  fontSize: 13, fontWeight: FontWeight.w700, color: SHColors.ink)),
           const SizedBox(width: 5),
           Text('· $zh',
               style: const TextStyle(fontSize: 11, color: SHColors.magenta)),
@@ -742,7 +749,7 @@ class _PremiumTextField extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: SHColors.magenta, width: 1.6),
+          borderSide: BorderSide(color: SHColors.magenta, width: 1.6),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -770,14 +777,12 @@ class _PremiumDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
       initialValue: value,
-      icon: const Icon(Icons.keyboard_arrow_down_rounded,
-          color: SHColors.magenta),
+      icon: Icon(Icons.keyboard_arrow_down_rounded, color: SHColors.magenta),
       decoration: InputDecoration(
         hintText: 'Select a subject',
-        prefixIcon: const Padding(
-          padding: EdgeInsets.only(left: 4, right: 2),
-          child:
-              Icon(Icons.menu_book_rounded, size: 18, color: SHColors.magenta),
+        prefixIcon: Padding(
+          padding: const EdgeInsets.only(left: 4, right: 2),
+          child: Icon(Icons.menu_book_rounded, size: 18, color: SHColors.magenta),
         ),
         filled: true,
         fillColor: SHColors.softPink.withValues(alpha: 0.5),
@@ -793,11 +798,12 @@ class _PremiumDropdown extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: SHColors.magenta, width: 1.6),
+          borderSide: BorderSide(color: SHColors.magenta, width: 1.6),
         ),
       ),
-      items:
-          items.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+      items: items
+          .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+          .toList(),
       onChanged: onChanged,
       validator: (v) => v == null ? 'Required' : null,
     );
@@ -871,10 +877,10 @@ class _PickerTile extends StatelessWidget {
                       color: filled ? SHColors.ink : SHColors.inkSoft)),
             ),
             if (filled)
-              const Icon(Icons.check_circle_rounded,
+              Icon(Icons.check_circle_rounded,
                   size: 16, color: SHColors.magenta)
             else
-              const Icon(Icons.chevron_right_rounded,
+              Icon(Icons.chevron_right_rounded,
                   size: 16, color: SHColors.inkSoft),
           ]),
         ),
@@ -908,15 +914,15 @@ class _DurationChips extends StatelessWidget {
             onTap: () => onChanged(mins),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 gradient: selected
-                    ? const LinearGradient(
+                    ? LinearGradient(
                         colors: [SHColors.softPink, SHColors.blushPink],
                       )
                     : null,
-                color:
-                    selected ? null : SHColors.softPink.withValues(alpha: 0.5),
+                color: selected ? null : SHColors.softPink.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: selected
@@ -961,10 +967,10 @@ class _AttachmentPlaceholder extends StatelessWidget {
               color: SHColors.softPink.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Column(children: [
+            child: Column(children: [
               Icon(Icons.cloud_upload_outlined,
                   color: SHColors.inkSoft, size: 22),
-              SizedBox(height: 6),
+              const SizedBox(height: 6),
               Text('Attachments coming soon',
                   style: TextStyle(fontSize: 13, color: SHColors.inkSoft)),
               Text('附件功能即将推出',
@@ -1002,8 +1008,8 @@ class _DashedBorderPainter extends CustomPainter {
       ..color = color
       ..strokeWidth = 1.4
       ..style = PaintingStyle.stroke;
-    final rrect =
-        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(14));
+    final rrect = RRect.fromRectAndRadius(
+        Offset.zero & size, const Radius.circular(14));
     final path = Path()..addRRect(rrect);
     final metrics = path.computeMetrics();
     for (final metric in metrics) {
@@ -1074,9 +1080,9 @@ class _SubmitButton extends StatelessWidget {
                       child: CircularProgressIndicator(
                           strokeWidth: 2.5, color: Colors.white),
                     )
-                  : const Row(
+                  : Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: [
+                      children: const [
                         Icon(Icons.send_rounded, size: 18, color: Colors.white),
                         SizedBox(width: 8),
                         Text('Submit Request · 提交请求',

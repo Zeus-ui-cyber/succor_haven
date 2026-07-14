@@ -6,28 +6,21 @@
 // the rest of the backend. No Google/Firebase services involved anywhere
 // in this file, by design (China-deployment requirement).
 //
-// Phase 0 scope was connection auth + join/leave a per-session room. This
-// pass wires in the four handler modules (signaling/chat/whiteboard/
-// presence) that were previously just planned as "land in later phases
-// as separate files under this same directory" — they're registered
-// below, right after session:join, so their event listeners are live
-// for the whole lifetime of the socket connection (checking
-// socket.data.sessionId internally before doing anything, since a
-// client can have connected but not yet joined a room).
+// Connection auth + join/leave a per-session room, with an ownership
+// check against the `sessions` table so only the assigned teacher/student
+// can be in the room. WebRTC offer/answer/ICE relay, chat, whiteboard,
+// and presence each live in their own handler file under this directory
+// and get registered per-socket below — this file owns only the
+// join/leave lifecycle (room membership, attendance, in-progress status)
+// that the others depend on.
 
 const { Server } = require("socket.io");
 const { verifyAccess } = require("../services/jwt.service");
 const sessionService = require("../services/session.service");
-const {
-  registerSignalingHandlers,
-} = require("../sockets/handlers/signaling.handlers");
-const { registerChatHandlers } = require("../sockets/handlers/chat.handlers");
-const {
-  registerWhiteboardHandlers,
-} = require("../sockets/handlers/whiteboard.handlers");
-const {
-  registerPresenceHandlers,
-} = require("../sockets/handlers/presence.handlers");
+const { registerSignalingHandlers } = require("./signaling.handlers");
+const { registerChatHandlers } = require("./chat.handlers");
+const { registerWhiteboardHandlers } = require("./whiteboard.handlers");
+const { registerPresenceHandlers } = require("./presence.handlers");
 
 function initSocketServer(httpServer) {
   const io = new Server(httpServer, {
@@ -57,17 +50,6 @@ function initSocketServer(httpServer) {
   });
 
   io.on("connection", (socket) => {
-    // NEW: signaling/chat/whiteboard/presence event listeners, live for
-    // this whole connection. Each one no-ops until socket.data.sessionId
-    // is set by session:join below, so registering them here (rather
-    // than inside the join handler) is safe — there's no window where a
-    // client could fire e.g. "chat:send" before joining and have it do
-    // anything, since every handler checks socket.data.sessionId first.
-    registerSignalingHandlers(io, socket);
-    registerChatHandlers(io, socket);
-    registerWhiteboardHandlers(io, socket);
-    registerPresenceHandlers(io, socket);
-
     socket.on("session:join", async (sessionId, ack) => {
       try {
         const session = await sessionService.getById(sessionId);
@@ -79,43 +61,43 @@ function initSocketServer(httpServer) {
           return ack?.({ error: "Not authorized for this session." });
         }
         const room = `session:${sessionId}`;
-
-        // FIXED: `socket.to(room).emit("session:peer-joined", ...)` below
-        // only reaches sockets ALREADY in the room at the moment this
-        // fires — it never tells the NEW joiner whether someone else was
-        // already there. Since the teacher's WebRTC offer is only ever
-        // triggered by receiving a "session:peer-joined" event, this
-        // meant: if the student joined first and the teacher joined
-        // second, the teacher would never receive that event (nobody
-        // was in the room to receive it when the teacher's own join
-        // fired the broadcast) — so no offer was ever sent, and the two
-        // sides never connected, regardless of how long either side
-        // waited. Checking room size BEFORE this socket joins and
-        // returning `peerAlreadyPresent` in the ack lets the client that
-        // joined SECOND immediately know the other side is already
-        // there, so it can trigger the call itself instead of waiting
-        // for an event that was never coming.
-        const roomSet = io.sockets.adapter.rooms.get(room);
-        const peerAlreadyPresent = !!roomSet && roomSet.size > 0;
-
         socket.join(room);
         socket.data.sessionId = sessionId;
-        socket
-          .to(room)
-          .emit("session:peer-joined", { userId: socket.user.sub });
-        ack?.({ ok: true, peerAlreadyPresent });
+
+        // First real join flips "Upcoming" -> "In Progress" and starts
+        // the in-call timer; every join (including reconnects) gets its
+        // own attendance row so join/leave/duration can be summed later.
+        await sessionService.markInProgress(sessionId);
+        socket.data.attendanceId = await sessionService.recordJoin(
+          sessionId,
+          socket.user.sub,
+        );
+
+        socket.to(room).emit("session:peer-joined", { userId: socket.user.sub });
+        ack?.({ ok: true });
       } catch (err) {
         console.error("session:join error:", err);
         ack?.({ error: "Failed to join session." });
       }
     });
 
-    socket.on("disconnect", () => {
+    registerSignalingHandlers(io, socket);
+    registerChatHandlers(io, socket);
+    registerWhiteboardHandlers(io, socket);
+    registerPresenceHandlers(io, socket);
+
+    socket.on("disconnect", async () => {
       const sessionId = socket.data.sessionId;
-      if (sessionId) {
-        socket.to(`session:${sessionId}`).emit("session:peer-left", {
-          userId: socket.user.sub,
-        });
+      if (!sessionId) return;
+      socket.to(`session:${sessionId}`).emit("session:peer-left", {
+        userId: socket.user.sub,
+      });
+      if (socket.data.attendanceId) {
+        try {
+          await sessionService.recordLeave(socket.data.attendanceId);
+        } catch (err) {
+          console.error("recordLeave error:", err);
+        }
       }
     });
   });

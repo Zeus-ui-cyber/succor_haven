@@ -1,14 +1,5 @@
-// run_sessions_migration.js
-// Run with: node run_sessions_migration.js
-//
-// Same situation as run_appointments_migration.js: migrate.js doesn't know
-// about src/db/migrations/, so new migration files never run just by
-// existing in the repo. This applies 0007_sessions.sql directly against
-// DATABASE_URL from .env.
-//
-// ⚠️ Read the type-warning comment at the top of 0007_sessions.sql first —
-// confirm users.id's real live column type with check_schema.js before
-// running this.
+// run_session_room_migration.js
+// Run with: node run_session_room_migration.js
 
 const fs = require("fs");
 const path = require("path");
@@ -25,7 +16,7 @@ const MIGRATION_FILE = path.join(
   "src",
   "db",
   "migrations",
-  "0007_sessions.sql",
+  "0009_session_room.sql",
 );
 
 async function main() {
@@ -42,11 +33,12 @@ async function main() {
   console.log(`Running ${MIGRATION_FILE} ...\n`);
 
   await pool.query(sql);
-  console.log("✅ 0007_sessions.sql applied successfully!");
+  console.log("✅ 0009_session_room.sql applied successfully!");
 
   const { rows } = await pool.query(
     `SELECT table_name FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_name IN ('sessions', 'session_attendance')
+     WHERE table_schema = 'public'
+       AND table_name IN ('session_chat_messages', 'session_notes', 'session_files')
      ORDER BY table_name`,
   );
   console.log(

@@ -181,10 +181,157 @@ async function getById(sessionId) {
   return rows[0] ?? null;
 }
 
+// ── Room lifecycle ──────────────────────────────────────────────────────
+// Called from socket.server.js's 'session:join' handler the first time
+// either participant actually joins the room — this is what flips the
+// "Upcoming" badge to "In Progress" and starts the in-call timer. Scoped
+// to status='upcoming' so it only ever fires once per session.
+async function markInProgress(sessionId) {
+  const { rows } = await pool.query(
+    `UPDATE sessions SET status = 'in_progress', started_at = COALESCE(started_at, now())
+     WHERE id = $1 AND status = 'upcoming'
+     RETURNING *`,
+    [sessionId],
+  );
+  return rows[0] ?? null;
+}
+
+// Teacher-only, per the spec's "Session Completed" / End Session button.
+// Deliberately allowed from 'upcoming' too (not just 'in_progress') so a
+// teacher can end a session even if the student never actually joined.
+async function endSession(sessionId, teacherId) {
+  const { rows } = await pool.query(
+    `UPDATE sessions
+     SET status = 'completed', ended_at = now()
+     WHERE id = $1 AND teacher_id = $2 AND status IN ('upcoming', 'in_progress')
+     RETURNING *`,
+    [sessionId, teacherId],
+  );
+  return rows[0] ?? null;
+}
+
+// ── Attendance ───────────────────────────────────────────────────────────
+// One row per join (a reconnect creates a new row rather than reusing the
+// old one) — session_card.dart/end-of-session summary sums these for
+// total duration + attendance %, per the spec's "Automatically record
+// Join Time / Leave Time / Duration" requirement.
+async function recordJoin(sessionId, userId) {
+  const { rows } = await pool.query(
+    `INSERT INTO session_attendance (session_id, user_id, joined_at)
+     VALUES ($1, $2, now())
+     RETURNING id`,
+    [sessionId, userId],
+  );
+  return rows[0].id;
+}
+
+async function recordLeave(attendanceId) {
+  await pool.query(
+    `UPDATE session_attendance
+     SET left_at = now(),
+         duration_secs = EXTRACT(EPOCH FROM (now() - joined_at))::int
+     WHERE id = $1`,
+    [attendanceId],
+  );
+}
+
+// ── Live notes (student-only — see 0009_session_room.sql) ────────────────
+async function getNotes(sessionId, studentId) {
+  const { rows } = await pool.query(
+    `SELECT * FROM session_notes WHERE session_id = $1 AND student_id = $2`,
+    [sessionId, studentId],
+  );
+  return rows[0] ?? null;
+}
+
+async function saveNotes(sessionId, studentId, content) {
+  const { rows } = await pool.query(
+    `INSERT INTO session_notes (session_id, student_id, content)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (session_id, student_id)
+     DO UPDATE SET content = EXCLUDED.content, updated_at = now()
+     RETURNING *`,
+    [sessionId, studentId, content],
+  );
+  return rows[0];
+}
+
+// ── Chat ─────────────────────────────────────────────────────────────────
+const CHAT_JOIN_SELECT = `
+  c.*,
+  (u.first_name || ' ' || u.last_name) AS sender_name,
+  u.avatar_url AS sender_avatar_url,
+  u.role AS sender_role
+`;
+
+async function listChat(sessionId) {
+  const { rows } = await pool.query(
+    `SELECT ${CHAT_JOIN_SELECT}
+     FROM session_chat_messages c
+     JOIN users u ON u.id = c.sender_id
+     WHERE c.session_id = $1
+     ORDER BY c.created_at ASC`,
+    [sessionId],
+  );
+  return rows;
+}
+
+// Called from chat.handlers.js on every 'chat:send' socket event — persists
+// then returns the joined row so it can be broadcast to the room as-is.
+async function addChatMessage(sessionId, senderId, body) {
+  const { rows } = await pool.query(
+    `INSERT INTO session_chat_messages (session_id, sender_id, body)
+     VALUES ($1, $2, $3)
+     RETURNING id`,
+    [sessionId, senderId, body],
+  );
+  const { rows: joined } = await pool.query(
+    `SELECT ${CHAT_JOIN_SELECT}
+     FROM session_chat_messages c
+     JOIN users u ON u.id = c.sender_id
+     WHERE c.id = $1`,
+    [rows[0].id],
+  );
+  return joined[0];
+}
+
+// ── Teaching materials ────────────────────────────────────────────────────
+async function listFiles(sessionId) {
+  const { rows } = await pool.query(
+    `SELECT f.*, (u.first_name || ' ' || u.last_name) AS uploaded_by_name
+     FROM session_files f
+     JOIN users u ON u.id = f.uploaded_by
+     WHERE f.session_id = $1
+     ORDER BY f.created_at DESC`,
+    [sessionId],
+  );
+  return rows;
+}
+
+async function addFile(sessionId, uploadedBy, { fileUrl, fileName, fileType, fileSize }) {
+  const { rows } = await pool.query(
+    `INSERT INTO session_files (session_id, uploaded_by, file_url, file_name, file_type, file_size)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING *`,
+    [sessionId, uploadedBy, fileUrl, fileName, fileType ?? null, fileSize ?? null],
+  );
+  return rows[0];
+}
+
 module.exports = {
   VALID_DURATIONS,
   createFromAppointment,
   createFromBooking,
   listMine,
   getById,
+  markInProgress,
+  endSession,
+  recordJoin,
+  recordLeave,
+  getNotes,
+  saveNotes,
+  listChat,
+  addChatMessage,
+  listFiles,
+  addFile,
 };

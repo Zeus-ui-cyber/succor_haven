@@ -1,546 +1,670 @@
 // lib/features/sessions/screens/session_room_screen.dart
 //
-// The real in-session meeting room — dark theme, responsive: 3-column
-// on wide screens (video | tool panel | chat rail collapses into tabs),
-// tabbed single-column below ~900px. Embeds video_call_panel,
-// whiteboard_panel, notes_panel, files_panel, chat_panel,
-// presence_widgets.
+// The actual in-session meeting room — replaces the "coming next"
+// placeholder in session_detail_screen.dart once a session is joinable.
+// Layout matches the reference mockup: 3-column on desktop/wide tablet
+// (session sidebar | video+controls+whiteboard/notes | chat+files),
+// collapsing to a single scrollable column with a tab switcher on
+// mobile/narrow tablet.
+//
+// ⚠️ The video call itself (video_call_controller.dart) is unverified in
+// a live two-device scenario — this environment has no Flutter SDK to
+// run it. Everything else here (whiteboard, notes, chat, files, timer,
+// end-of-session) is plain Flutter/Riverpod UI wired to already-tested
+// REST endpoints and doesn't depend on WebRTC actually connecting to work.
 
 import 'dart:async';
+import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/session.dart';
 import '../../../models/user.dart';
-import '../controllers/session_room_controller.dart';
-import '../widgets/video_call_panel.dart';
+import '../../auth/repositories/auth_repository.dart';
+import '../controllers/session_list_controller.dart'
+    show sessionDetailProvider, sessionsRepositoryProvider;
+import '../controllers/video_call_controller.dart';
+import '../controllers/presence_controller.dart';
+import '../widgets/room_theme.dart';
+import '../widgets/video_tile.dart';
+import '../widgets/room_control_bar.dart';
 import '../widgets/whiteboard_panel.dart';
-import '../widgets/chat_panel.dart';
 import '../widgets/notes_panel.dart';
+import '../widgets/chat_panel.dart';
 import '../widgets/files_panel.dart';
-import '../widgets/presence_widgets.dart';
-import '../services/socket_room_service.dart' show RoomConnectionStatus;
 
-class D {
-  static const bg = Color(0xFF17101A);
-  static const surface = Color(0xFF241A28);
-  static const surfaceRaised = Color(0xFF2F2233);
-  static const border = Color(0xFF3D2C42);
-  static const textPrimary = Color(0xFFF5EAF0);
-  static const textSoft = Color(0xFFB79EBE);
-  static const magenta = Color(0xFFD64577);
-  static const slateBlue = Color(0xFF5C8FBD);
-  static const green = Color(0xFF00C48C);
-  static const red = Color(0xFFE5484D);
-  static const amber = Color(0xFFE0A800);
-}
+final _roomAuthRepoProvider = Provider((_) => AuthRepository());
+final _roomMeProvider =
+    FutureProvider.autoDispose<UserModel>((ref) => ref.read(_roomAuthRepoProvider).getMe());
+
+enum _RoomTab { whiteboard, notes, chat, files }
 
 class SessionRoomScreen extends ConsumerStatefulWidget {
-  final SessionModel session;
-  final UserModel currentUser;
-  const SessionRoomScreen(
-      {super.key, required this.session, required this.currentUser});
+  final String sessionId;
+  const SessionRoomScreen({super.key, required this.sessionId});
 
   @override
   ConsumerState<SessionRoomScreen> createState() => _SessionRoomScreenState();
 }
 
 class _SessionRoomScreenState extends ConsumerState<SessionRoomScreen> {
-  Timer? _tick;
-  late final bool _isTeacher;
-
-  @override
-  void initState() {
-    super.initState();
-    _isTeacher = widget.currentUser.id == widget.session.teacherId;
-    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
-  }
+  _RoomTab _mobileTab = _RoomTab.chat;
+  bool _sessionEnded = false;
+  bool _autoEndFired = false;
+  Timer? _timer;
+  Duration _remaining = Duration.zero;
 
   @override
   void dispose() {
-    _tick?.cancel();
+    _timer?.cancel();
     super.dispose();
   }
 
-  SessionRoomArgs get _args => SessionRoomArgs(
-        session: widget.session,
-        currentUserId: widget.currentUser.id,
-        isTeacher: _isTeacher,
-      );
-
-  Duration get _remaining {
-    final end = widget.session.scheduledEndAt;
-    if (end == null) return Duration.zero;
-    final d = end.difference(DateTime.now());
-    return d.isNegative ? Duration.zero : d;
+  void _ensureTimer(SessionModel session, bool isTeacher) {
+    if (_timer != null) return;
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick(session, isTeacher));
+    _tick(session, isTeacher);
   }
 
-  String _fmt(Duration d) {
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    final h = d.inHours;
-    return h > 0 ? '$h:$m:$s' : '$m:$s';
+  // Per spec: "When timer reaches 00:00, Meeting ends automatically" —
+  // the teacher's device is the one that calls the actual end-session
+  // API (only a teacher is authorized to); the student's device just
+  // reacts locally to the same countdown reaching zero.
+  void _tick(SessionModel session, bool isTeacher) {
+    final reference = session.startedAt ?? session.scheduledAt ?? DateTime.now();
+    final elapsed = DateTime.now().difference(reference);
+    final total = Duration(minutes: session.durationMins);
+    final remaining = total - elapsed;
+    if (!mounted) return;
+    setState(() => _remaining = remaining.isNegative ? Duration.zero : remaining);
+    if (remaining <= Duration.zero && !_autoEndFired) {
+      _autoEndFired = true;
+      if (isTeacher) {
+        ref.read(sessionsRepositoryProvider).endSession(widget.sessionId).catchError((_) {});
+      }
+      setState(() => _sessionEnded = true);
+    }
+  }
+
+  Future<void> _leave(bool isTeacher) async {
+    if (isTeacher && !_sessionEnded) {
+      try {
+        await ref.read(sessionsRepositoryProvider).endSession(widget.sessionId);
+      } catch (_) {
+        // Session still auto-completes later via the backend's own
+        // reconcileStale() sweep even if this explicit call fails.
+      }
+    }
+    if (mounted) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(sessionRoomControllerProvider(_args));
-    final controller = ref.read(sessionRoomControllerProvider(_args).notifier);
-
-    ref.listen(sessionRoomControllerProvider(_args), (prev, next) {
-      if (next.sessionEnded && (prev == null || !prev.sessionEnded)) {
-        _showEndedDialog(context);
-      }
-      if (next.error != null && next.error != prev?.error) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(next.error!), backgroundColor: D.red),
-        );
-      }
-    });
-
-    final accent = _isTeacher ? D.slateBlue : D.magenta;
+    final meAsync = ref.watch(_roomMeProvider);
+    final sessionAsync = ref.watch(sessionDetailProvider(widget.sessionId));
 
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, _) async {
-        if (didPop) return;
-        await _confirmLeave(context, controller, isTeacher: _isTeacher);
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) Navigator.of(context).pop();
       },
       child: Scaffold(
-        backgroundColor: D.bg,
+        backgroundColor: RoomColors.bg,
         body: SafeArea(
-          child: Column(children: [
-            _TopBar(
-              session: widget.session,
-              accent: accent,
-              connectionStatus: state.connectionStatus,
-              remainingLabel: _fmt(_remaining),
-              isTeacher: _isTeacher,
-              peerPresent: state.peerPresent,
-              onLeave: () =>
-                  _confirmLeave(context, controller, isTeacher: _isTeacher),
-            ),
-            Expanded(
-              child: LayoutBuilder(builder: (context, constraints) {
-                final wide = constraints.maxWidth >= 900;
-                return wide
-                    ? _WideLayout(
-                        session: widget.session,
-                        state: state,
-                        controller: controller,
-                        isTeacher: _isTeacher,
-                        accent: accent,
-                      )
-                    : _NarrowLayout(
-                        session: widget.session,
-                        state: state,
-                        controller: controller,
-                        isTeacher: _isTeacher,
-                        accent: accent,
-                      );
-              }),
-            ),
-            ReactionOverlayBar(
-                state: state, controller: controller, accent: accent),
-            ControlBar(
-              state: state,
-              controller: controller,
-              isTeacher: _isTeacher,
-              accent: accent,
-              onLeave: () =>
-                  _confirmLeave(context, controller, isTeacher: _isTeacher),
-            ),
-          ]),
-        ),
-      ),
-    );
-  }
+          child: meAsync.when(
+            loading: () =>
+                const Center(child: CircularProgressIndicator(color: RoomColors.magenta)),
+            error: (e, _) =>
+                Center(child: Text('$e', style: const TextStyle(color: Colors.white))),
+            data: (me) => sessionAsync.when(
+              loading: () =>
+                  const Center(child: CircularProgressIndicator(color: RoomColors.magenta)),
+              error: (e, _) =>
+                  Center(child: Text('$e', style: const TextStyle(color: Colors.white))),
+              data: (session) {
+                final isTeacher = me.id == session.teacherId;
+                _ensureTimer(session, isTeacher);
 
-  Future<void> _confirmLeave(
-      BuildContext context, SessionRoomController controller,
-      {required bool isTeacher}) async {
-    final action = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: D.surfaceRaised,
-        title: const Text('Leave meeting?',
-            style: TextStyle(color: D.textPrimary)),
-        content: Text(
-          isTeacher
-              ? 'You can leave (the room stays open) or end the session for both participants.'
-              : 'You can rejoin later if the session is still open.',
-          style: const TextStyle(color: D.textSoft),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel', style: TextStyle(color: D.textSoft))),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, 'leave'),
-              child:
-                  const Text('Leave', style: TextStyle(color: D.textPrimary))),
-          if (isTeacher)
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, 'end'),
-              style: FilledButton.styleFrom(backgroundColor: D.red),
-              child: const Text('End Session'),
+                if (_sessionEnded) {
+                  return _SessionEndedView(onDone: () => Navigator.of(context).pop());
+                }
+
+                return _RoomBody(
+                  session: session,
+                  me: me,
+                  isTeacher: isTeacher,
+                  remaining: _remaining,
+                  mobileTab: _mobileTab,
+                  onMobileTabChanged: (t) => setState(() => _mobileTab = t),
+                  onLeave: () => _leave(isTeacher),
+                );
+              },
             ),
-        ],
-      ),
-    );
-
-    if (action == 'leave') {
-      await controller.leaveRoom();
-      if (context.mounted) Navigator.of(context).pop();
-    } else if (action == 'end') {
-      await controller.endSessionAsTeacher();
-    }
-  }
-
-  void _showEndedDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: D.surfaceRaised,
-        title:
-            const Text('Session ended', style: TextStyle(color: D.textPrimary)),
-        content: const Text(
-          'This session has ended. A full summary screen is coming in a later update.',
-          style: TextStyle(color: D.textSoft),
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              Navigator.of(context).pop();
-            },
-            child: const Text('Done'),
           ),
-        ],
+        ),
       ),
     );
+  }
+}
+
+class _RoomBody extends ConsumerWidget {
+  final SessionModel session;
+  final UserModel me;
+  final bool isTeacher;
+  final Duration remaining;
+  final _RoomTab mobileTab;
+  final ValueChanged<_RoomTab> onMobileTabChanged;
+  final VoidCallback onLeave;
+
+  const _RoomBody({
+    required this.session,
+    required this.me,
+    required this.isTeacher,
+    required this.remaining,
+    required this.mobileTab,
+    required this.onMobileTabChanged,
+    required this.onLeave,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final callState = ref.watch(videoCallControllerProvider(session.id));
+    final callController = ref.read(videoCallControllerProvider(session.id).notifier);
+    final presenceArgs = (sessionId: session.id, myUserId: me.id);
+    final presenceState = ref.watch(presenceControllerProvider(presenceArgs));
+    final presenceController = ref.read(presenceControllerProvider(presenceArgs).notifier);
+
+    return Column(children: [
+      _TopBar(session: session, remaining: remaining, connectionState: callState.connectionState),
+      Expanded(
+        child: LayoutBuilder(builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 900;
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: wide
+                ? _WideBody(
+                    session: session,
+                    me: me,
+                    isTeacher: isTeacher,
+                    callState: callState,
+                    callController: callController,
+                    presenceState: presenceState,
+                    presenceController: presenceController,
+                    onLeave: onLeave,
+                  )
+                : _NarrowBody(
+                    session: session,
+                    me: me,
+                    isTeacher: isTeacher,
+                    callState: callState,
+                    callController: callController,
+                    presenceState: presenceState,
+                    presenceController: presenceController,
+                    tab: mobileTab,
+                    onTabChanged: onMobileTabChanged,
+                    onLeave: onLeave,
+                  ),
+          );
+        }),
+      ),
+      _FooterBar(session: session),
+    ]);
   }
 }
 
 class _TopBar extends StatelessWidget {
   final SessionModel session;
-  final Color accent;
-  final RoomConnectionStatus connectionStatus;
-  final String remainingLabel;
+  final Duration remaining;
+  final CallConnectionState connectionState;
+
+  const _TopBar({required this.session, required this.remaining, required this.connectionState});
+
+  String get _remainingLabel {
+    final h = remaining.inHours;
+    final m = remaining.inMinutes % 60;
+    final s = remaining.inSeconds % 60;
+    final mm = m.toString().padLeft(2, '0');
+    final ss = s.toString().padLeft(2, '0');
+    return h > 0 ? '$h:$mm:$ss' : '$mm:$ss';
+  }
+
+  String get _connectionLabel => switch (connectionState) {
+        CallConnectionState.idle => 'Starting…',
+        CallConnectionState.requestingPermissions => 'Requesting camera…',
+        CallConnectionState.connectingSignaling => 'Connecting…',
+        CallConnectionState.waitingForPeer => 'Waiting for the other participant…',
+        CallConnectionState.negotiating => 'Connecting…',
+        CallConnectionState.connected => 'Connected',
+        CallConnectionState.failed => 'Connection issue',
+      };
+
+  Color get _connectionColor => connectionState == CallConnectionState.connected
+      ? RoomColors.green
+      : connectionState == CallConnectionState.failed
+          ? RoomColors.red
+          : RoomColors.gold;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: RoomColors.line)),
+      ),
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        runSpacing: 8,
+        children: [
+          Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text(
+              session.title?.trim().isNotEmpty == true ? session.title! : session.subject,
+              style: const TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.w800, color: RoomColors.textPrimary),
+            ),
+            const Text('1-on-1 Session',
+                style: TextStyle(fontSize: 11, color: RoomColors.textSecondary)),
+          ]),
+          Wrap(
+            spacing: 18,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: RoomColors.red.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                  _Dot(color: RoomColors.red),
+                  SizedBox(width: 5),
+                  Text('LIVE',
+                      style: TextStyle(
+                          fontSize: 10, fontWeight: FontWeight.w800, color: RoomColors.red)),
+                ]),
+              ),
+              Column(mainAxisSize: MainAxisSize.min, children: [
+                Text(_remainingLabel,
+                    style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: RoomColors.textPrimary,
+                        fontFeatures: [FontFeature.tabularFigures()])),
+                const Text('Remaining',
+                    style: TextStyle(fontSize: 9.5, color: RoomColors.textSecondary)),
+              ]),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                _Dot(color: _connectionColor),
+                const SizedBox(width: 6),
+                Text(_connectionLabel,
+                    style: const TextStyle(fontSize: 11, color: RoomColors.textSecondary)),
+              ]),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Dot extends StatelessWidget {
+  final Color color;
+  const _Dot({required this.color});
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 7,
+        height: 7,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      );
+}
+
+class _WideBody extends StatelessWidget {
+  final SessionModel session;
+  final UserModel me;
   final bool isTeacher;
-  final bool peerPresent;
+  final VideoCallState callState;
+  final VideoCallController callController;
+  final PresenceState presenceState;
+  final PresenceController presenceController;
   final VoidCallback onLeave;
 
-  const _TopBar({
+  const _WideBody({
     required this.session,
-    required this.accent,
-    required this.connectionStatus,
-    required this.remainingLabel,
+    required this.me,
     required this.isTeacher,
-    required this.peerPresent,
+    required this.callState,
+    required this.callController,
+    required this.presenceState,
+    required this.presenceController,
     required this.onLeave,
   });
 
   @override
   Widget build(BuildContext context) {
-    final statusLabel = switch (connectionStatus) {
-      RoomConnectionStatus.joined => 'Connected',
-      RoomConnectionStatus.connecting => 'Connecting…',
-      RoomConnectionStatus.reconnecting => 'Reconnecting…',
-      RoomConnectionStatus.disconnected => 'Disconnected',
-      RoomConnectionStatus.error => 'Connection error',
-    };
-    final statusColor = connectionStatus == RoomConnectionStatus.joined
-        ? D.green
-        : connectionStatus == RoomConnectionStatus.error
-            ? D.red
-            : D.amber;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [D.surface, D.surfaceRaised.withValues(alpha: 0.6)],
-        ),
-        border: const Border(bottom: BorderSide(color: D.border)),
-      ),
-      child: Row(children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-          decoration: BoxDecoration(
-              gradient:
-                  const LinearGradient(colors: [D.red, Color(0xFFB93A63)]),
-              borderRadius: BorderRadius.circular(6),
-              boxShadow: [
-                BoxShadow(
-                    color: D.red.withValues(alpha: 0.35),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2)),
-              ]),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              width: 6,
-              height: 6,
-              decoration: const BoxDecoration(
-                  color: Colors.white, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 5),
-            const Text('LIVE',
-                style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.4,
-                    color: Colors.white)),
-          ]),
-        ),
-        const SizedBox(width: 8),
-        Icon(Icons.shield_rounded,
-            size: 14, color: D.green.withValues(alpha: 0.8)),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                session.title?.trim().isNotEmpty == true
-                    ? session.title!
-                    : session.subject,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: D.textPrimary),
-              ),
-              const Text('1-on-1 Session',
-                  style: TextStyle(fontSize: 10.5, color: D.textSoft)),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
-        _Pill(children: [
-          const Icon(Icons.people_alt_rounded, size: 13, color: D.textSoft),
-          const SizedBox(width: 5),
-          Text(peerPresent ? '2' : '1',
-              style: const TextStyle(
-                  fontSize: 11.5,
-                  color: D.textPrimary,
-                  fontWeight: FontWeight.w700)),
-        ]),
-        const SizedBox(width: 8),
-        _Pill(children: [
-          const Icon(Icons.timer_outlined, size: 13, color: D.textSoft),
-          const SizedBox(width: 5),
-          Text(remainingLabel,
-              style: const TextStyle(
-                  fontSize: 11.5,
-                  color: D.textPrimary,
-                  fontWeight: FontWeight.w600)),
-        ]),
-        const SizedBox(width: 8),
-        _Pill(children: [
-          Container(
-              width: 7,
-              height: 7,
-              decoration:
-                  BoxDecoration(color: statusColor, shape: BoxShape.circle)),
-          const SizedBox(width: 6),
-          Text(statusLabel, style: TextStyle(fontSize: 11, color: statusColor)),
-        ]),
-        const SizedBox(width: 12),
-        FilledButton.icon(
-          onPressed: onLeave,
-          icon: Icon(
-              isTeacher ? Icons.stop_circle_rounded : Icons.logout_rounded,
-              size: 16),
-          label: Text(isTeacher ? 'End Session' : 'Leave',
-              style:
-                  const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
-          style: FilledButton.styleFrom(
-            backgroundColor: D.magenta,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        ),
-      ]),
-    );
-  }
-}
-
-class _Pill extends StatelessWidget {
-  final List<Widget> children;
-  const _Pill({required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-      decoration: BoxDecoration(
-        color: D.surfaceRaised,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: D.border),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: children),
-    );
-  }
-}
-
-class _ToolTabs extends StatelessWidget {
-  final ActiveTool active;
-  final ValueChanged<ActiveTool> onChanged;
-  final Color accent;
-  const _ToolTabs(
-      {required this.active, required this.onChanged, required this.accent});
-
-  @override
-  Widget build(BuildContext context) {
-    final tabs = [
-      (ActiveTool.chat, Icons.chat_bubble_outline_rounded, 'Chat'),
-      (ActiveTool.whiteboard, Icons.draw_outlined, 'Board'),
-      (ActiveTool.notes, Icons.notes_rounded, 'Notes'),
-      (ActiveTool.files, Icons.folder_outlined, 'Files'),
-    ];
-    return Container(
-      color: D.surface,
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-      child: Row(
-        children: tabs.map((t) {
-          final isActive = active == t.$1;
-          return Expanded(
-            child: InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: () => onChanged(t.$1),
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                decoration: BoxDecoration(
-                  color: isActive
-                      ? accent.withValues(alpha: 0.16)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                      color: isActive
-                          ? accent.withValues(alpha: 0.4)
-                          : Colors.transparent),
-                ),
-                child: Column(children: [
-                  Icon(t.$2, size: 17, color: isActive ? accent : D.textSoft),
-                  const SizedBox(height: 3),
-                  Text(t.$3,
-                      style: TextStyle(
-                          fontSize: 10,
-                          fontWeight:
-                              isActive ? FontWeight.w700 : FontWeight.w500,
-                          color: isActive ? accent : D.textSoft)),
-                ]),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-}
-
-Widget _toolBody(ActiveTool tool, SessionRoomState state,
-    SessionRoomController controller, bool isTeacher) {
-  switch (tool) {
-    case ActiveTool.chat:
-      return ChatPanel(state: state, controller: controller);
-    case ActiveTool.whiteboard:
-      return WhiteboardPanel(
-          state: state, controller: controller, isTeacher: isTeacher);
-    case ActiveTool.notes:
-      return NotesPanel(state: state, controller: controller);
-    case ActiveTool.files:
-      return FilesPanel(
-          state: state, controller: controller, isTeacher: isTeacher);
-  }
-}
-
-class _WideLayout extends StatelessWidget {
-  final SessionModel session;
-  final SessionRoomState state;
-  final SessionRoomController controller;
-  final bool isTeacher;
-  final Color accent;
-  const _WideLayout({
-    required this.session,
-    required this.state,
-    required this.controller,
-    required this.isTeacher,
-    required this.accent,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(children: [
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      SizedBox(width: 230, child: _Sidebar(session: session)),
+      const SizedBox(width: 16),
       Expanded(
         flex: 3,
-        child: VideoCallPanel(
-          session: session,
-          state: state,
-          controller: controller,
-          isTeacher: isTeacher,
-        ),
-      ),
-      Container(width: 1, color: D.border),
-      SizedBox(
-        width: 380,
         child: Column(children: [
-          _ToolTabs(
-              active: state.activeTool,
-              onChanged: controller.setActiveTool,
-              accent: accent),
           Expanded(
-              child: _toolBody(state.activeTool, state, controller, isTeacher)),
+            flex: 3,
+            child: Row(children: [
+              Expanded(
+                child: VideoTile(
+                  renderer: callController.localRenderer,
+                  label: 'You',
+                  micOn: callState.micOn,
+                  hasStream: true,
+                  mirror: true,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: VideoTile(
+                  renderer: callController.remoteRenderer,
+                  label: isTeacher
+                      ? (session.studentName ?? 'Student')
+                      : (session.teacherName ?? 'Teacher'),
+                  micOn: true,
+                  hasStream: callState.remoteConnected,
+                  badgeColor: RoomColors.burgundy,
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 12),
+          RoomControlBar(
+            cameraOn: callState.cameraOn,
+            micOn: callState.micOn,
+            speakerOn: callState.speakerOn,
+            whiteboardOpen: true,
+            handRaised: presenceState.myHandRaised,
+            isTeacher: isTeacher,
+            onToggleCamera: callController.toggleCamera,
+            onToggleMic: callController.toggleMic,
+            onToggleSpeaker: callController.toggleSpeaker,
+            onToggleWhiteboard: () {}, // always visible on wide layout
+            onToggleRaiseHand: presenceController.toggleRaiseHand,
+            onReaction: presenceController.sendReaction,
+            onEndSession: onLeave,
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            flex: 2,
+            child: Row(children: [
+              Expanded(flex: 3, child: WhiteboardPanel(sessionId: session.id, isTeacher: isTeacher)),
+              const SizedBox(width: 12),
+              Expanded(flex: 2, child: NotesPanel(sessionId: session.id, isStudent: !isTeacher)),
+            ]),
+          ),
+        ]),
+      ),
+      const SizedBox(width: 16),
+      SizedBox(
+        width: 320,
+        child: Column(children: [
+          Expanded(flex: 3, child: ChatPanel(sessionId: session.id, myUserId: me.id)),
+          const SizedBox(height: 12),
+          Expanded(flex: 2, child: FilesPanel(sessionId: session.id, isTeacher: isTeacher)),
         ]),
       ),
     ]);
   }
 }
 
-class _NarrowLayout extends StatelessWidget {
+class _NarrowBody extends StatelessWidget {
   final SessionModel session;
-  final SessionRoomState state;
-  final SessionRoomController controller;
+  final UserModel me;
   final bool isTeacher;
-  final Color accent;
-  const _NarrowLayout({
+  final VideoCallState callState;
+  final VideoCallController callController;
+  final PresenceState presenceState;
+  final PresenceController presenceController;
+  final _RoomTab tab;
+  final ValueChanged<_RoomTab> onTabChanged;
+  final VoidCallback onLeave;
+
+  const _NarrowBody({
     required this.session,
-    required this.state,
-    required this.controller,
+    required this.me,
     required this.isTeacher,
-    required this.accent,
+    required this.callState,
+    required this.callController,
+    required this.presenceState,
+    required this.presenceController,
+    required this.tab,
+    required this.onTabChanged,
+    required this.onLeave,
   });
 
   @override
   Widget build(BuildContext context) {
     return Column(children: [
       SizedBox(
-        height: 220,
-        child: VideoCallPanel(
-          session: session,
-          state: state,
-          controller: controller,
-          isTeacher: isTeacher,
-          compact: true,
-        ),
+        height: 170,
+        child: Row(children: [
+          Expanded(
+            child: VideoTile(
+              renderer: callController.localRenderer,
+              label: 'You',
+              micOn: callState.micOn,
+              hasStream: true,
+              mirror: true,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: VideoTile(
+              renderer: callController.remoteRenderer,
+              label: isTeacher
+                  ? (session.studentName ?? 'Student')
+                  : (session.teacherName ?? 'Teacher'),
+              micOn: true,
+              hasStream: callState.remoteConnected,
+              badgeColor: RoomColors.burgundy,
+            ),
+          ),
+        ]),
       ),
-      Container(height: 1, color: D.border),
-      _ToolTabs(
-          active: state.activeTool,
-          onChanged: controller.setActiveTool,
-          accent: accent),
+      const SizedBox(height: 12),
+      RoomControlBar(
+        cameraOn: callState.cameraOn,
+        micOn: callState.micOn,
+        speakerOn: callState.speakerOn,
+        whiteboardOpen: tab == _RoomTab.whiteboard,
+        handRaised: presenceState.myHandRaised,
+        isTeacher: isTeacher,
+        onToggleCamera: callController.toggleCamera,
+        onToggleMic: callController.toggleMic,
+        onToggleSpeaker: callController.toggleSpeaker,
+        onToggleWhiteboard: () => onTabChanged(_RoomTab.whiteboard),
+        onToggleRaiseHand: presenceController.toggleRaiseHand,
+        onReaction: presenceController.sendReaction,
+        onEndSession: onLeave,
+      ),
+      const SizedBox(height: 12),
+      _MobileTabBar(tab: tab, onTabChanged: onTabChanged),
+      const SizedBox(height: 12),
       Expanded(
-          child: _toolBody(state.activeTool, state, controller, isTeacher)),
+        child: switch (tab) {
+          _RoomTab.whiteboard => WhiteboardPanel(sessionId: session.id, isTeacher: isTeacher),
+          _RoomTab.notes => NotesPanel(sessionId: session.id, isStudent: !isTeacher),
+          _RoomTab.chat => ChatPanel(sessionId: session.id, myUserId: me.id),
+          _RoomTab.files => FilesPanel(sessionId: session.id, isTeacher: isTeacher),
+        },
+      ),
     ]);
+  }
+}
+
+class _MobileTabBar extends StatelessWidget {
+  final _RoomTab tab;
+  final ValueChanged<_RoomTab> onTabChanged;
+  const _MobileTabBar({required this.tab, required this.onTabChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      (_RoomTab.whiteboard, Icons.draw_outlined, 'Whiteboard'),
+      (_RoomTab.notes, Icons.edit_note_rounded, 'Notes'),
+      (_RoomTab.chat, Icons.chat_bubble_outline_rounded, 'Chat'),
+      (_RoomTab.files, Icons.folder_outlined, 'Files'),
+    ];
+    return Row(
+      children: items.map((item) {
+        final active = tab == item.$1;
+        return Expanded(
+          child: GestureDetector(
+            onTap: () => onTabChanged(item.$1),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: active
+                    ? RoomColors.magenta.withValues(alpha: 0.2)
+                    : RoomColors.surfaceRaised,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(item.$2,
+                    size: 16, color: active ? RoomColors.magenta : RoomColors.textSecondary),
+                const SizedBox(height: 2),
+                Text(item.$3,
+                    style: TextStyle(
+                        fontSize: 9.5,
+                        color: active ? RoomColors.magenta : RoomColors.textSecondary)),
+              ]),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _Sidebar extends StatelessWidget {
+  final SessionModel session;
+  const _Sidebar({required this.session});
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = session.formattedSchedule?.split(' · ') ?? const [];
+    return Container(
+      decoration: roomPanelDecoration(),
+      padding: const EdgeInsets.all(16),
+      child: SingleChildScrollView(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('SESSION DETAILS',
+              style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  color: RoomColors.textSecondary,
+                  letterSpacing: 0.6)),
+          const SizedBox(height: 14),
+          _detailRow('Date', parts.isNotEmpty ? parts.first : '-'),
+          _detailRow('Time', parts.length > 1 ? parts.last : '-'),
+          _detailRow('Duration', '${session.durationMins} Minutes'),
+          _detailRow('Subject', session.subject),
+          const SizedBox(height: 6),
+          Row(children: [
+            const Text('Status', style: TextStyle(fontSize: 11, color: RoomColors.textSecondary)),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: RoomColors.green.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: const Text('In Progress',
+                  style: TextStyle(
+                      fontSize: 10, color: RoomColors.green, fontWeight: FontWeight.w700)),
+            ),
+          ]),
+        ]),
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SizedBox(
+              width: 66,
+              child:
+                  Text(label, style: const TextStyle(fontSize: 11, color: RoomColors.textSecondary))),
+          Expanded(
+            child: Text(value,
+                style: const TextStyle(
+                    fontSize: 12, color: RoomColors.textPrimary, fontWeight: FontWeight.w600)),
+          ),
+        ]),
+      );
+}
+
+class _FooterBar extends StatelessWidget {
+  final SessionModel session;
+  const _FooterBar({required this.session});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: const BoxDecoration(border: Border(top: BorderSide(color: RoomColors.line))),
+      child: Wrap(
+        spacing: 24,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(
+            session.title?.trim().isNotEmpty == true ? session.title! : session.subject,
+            style: const TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w700, color: RoomColors.textPrimary),
+          ),
+          _footItem('Schedule', session.formattedSchedule ?? '-'),
+          _footItem('Duration', '${session.durationMins} Minutes'),
+        ],
+      ),
+    );
+  }
+
+  Widget _footItem(String label, String value) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 9.5, color: RoomColors.textSecondary)),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 11, color: RoomColors.textPrimary, fontWeight: FontWeight.w600)),
+        ],
+      );
+}
+
+class _SessionEndedView extends StatelessWidget {
+  final VoidCallback onDone;
+  const _SessionEndedView({required this.onDone});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.check_circle_rounded, size: 56, color: RoomColors.green),
+        const SizedBox(height: 16),
+        const Text('Session Completed',
+            style: TextStyle(
+                fontSize: 20, fontWeight: FontWeight.w800, color: RoomColors.textPrimary)),
+        const Text('课程已完成', style: TextStyle(fontSize: 12, color: RoomColors.textSecondary)),
+        const SizedBox(height: 24),
+        ElevatedButton(
+          onPressed: onDone,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: RoomColors.magenta,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+          child: const Text('Back to My Sessions'),
+        ),
+      ]),
+    );
   }
 }
