@@ -101,7 +101,8 @@ class FilesPanel extends StatelessWidget {
                           decoration: BoxDecoration(
                               color: color.withValues(alpha: 0.18),
                               borderRadius: BorderRadius.circular(9)),
-                          child: Icon(_iconFor(f.mimeType), color: color, size: 19),
+                          child: Icon(_iconFor(f.mimeType),
+                              color: color, size: 19),
                         ),
                         const SizedBox(width: 12),
                         Expanded(

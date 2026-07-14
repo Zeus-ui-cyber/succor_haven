@@ -64,19 +64,21 @@ class PaymentReceiptScreen extends StatelessWidget {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Text('Succor Haven',
-                  style:
-                      const pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+                  style: const pw.TextStyle(
+                      fontSize: 20, fontWeight: pw.FontWeight.bold)),
               pw.Text('Credit Top-Up Receipt',
                   style: const pw.TextStyle(fontSize: 11)),
               pw.SizedBox(height: 20),
               pw.Divider(),
               pw.SizedBox(height: 8),
-              _pdfRow('Reference', '#${payment.id.substring(0, 8).toUpperCase()}'),
+              _pdfRow(
+                  'Reference', '#${payment.id.substring(0, 8).toUpperCase()}'),
               _pdfRow('Date',
                   '${payment.createdAt.day}/${payment.createdAt.month}/${payment.createdAt.year}'),
               _pdfRow('Package', packageName),
               if (creditsAmount != null) _pdfRow('Credits', '$creditsAmount'),
-              _pdfRow('Payment Method', paymentMethodLabel(payment.paymentMethod)),
+              _pdfRow(
+                  'Payment Method', paymentMethodLabel(payment.paymentMethod)),
               pw.SizedBox(height: 8),
               pw.Divider(),
               pw.SizedBox(height: 8),
@@ -106,9 +108,11 @@ class PaymentReceiptScreen extends StatelessWidget {
           pw.Text(label,
               style: pw.TextStyle(
                   fontSize: bold ? 12 : 11,
-                  fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
+                  fontWeight:
+                      bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
           pw.Text(value,
-              style: pw.TextStyle(fontSize: bold ? 13 : 11, fontWeight: pw.FontWeight.bold)),
+              style: pw.TextStyle(
+                  fontSize: bold ? 13 : 11, fontWeight: pw.FontWeight.bold)),
         ],
       ),
     );
@@ -117,15 +121,16 @@ class PaymentReceiptScreen extends StatelessWidget {
   Future<void> _downloadPdf(BuildContext context, String packageName,
       int? creditsAmount, String statusLabel) async {
     try {
-      final bytes = await _buildPdfBytes(packageName, creditsAmount, statusLabel);
+      final bytes =
+          await _buildPdfBytes(packageName, creditsAmount, statusLabel);
       await Printing.sharePdf(
         bytes: bytes,
         filename: 'receipt_${payment.id.substring(0, 8)}.pdf',
       );
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Could not generate PDF: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not generate PDF: $e')));
       }
     }
   }
@@ -184,7 +189,8 @@ class PaymentReceiptScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(color: _C.line)),
               child: Column(children: [
-                _ReceiptRow('Reference', '#${payment.id.substring(0, 8).toUpperCase()}'),
+                _ReceiptRow('Reference',
+                    '#${payment.id.substring(0, 8).toUpperCase()}'),
                 const SizedBox(height: 10),
                 _ReceiptRow('Date',
                     '${payment.createdAt.day}/${payment.createdAt.month}/${payment.createdAt.year}'),
@@ -195,19 +201,21 @@ class PaymentReceiptScreen extends StatelessWidget {
                   _ReceiptRow('Credits', '$creditsAmount'),
                 ],
                 const SizedBox(height: 10),
-                _ReceiptRow('Payment Method', paymentMethodLabel(payment.paymentMethod)),
+                _ReceiptRow('Payment Method',
+                    paymentMethodLabel(payment.paymentMethod)),
                 const SizedBox(height: 12),
                 const Divider(color: _C.line, height: 1),
                 const SizedBox(height: 12),
-                _ReceiptRow('Amount', '₱${payment.amountDisplay.toStringAsFixed(2)}',
+                _ReceiptRow(
+                    'Amount', '₱${payment.amountDisplay.toStringAsFixed(2)}',
                     bold: true),
                 const SizedBox(height: 14),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(
                           color: pale, borderRadius: BorderRadius.circular(20)),
                       child: Text(label,
@@ -257,8 +265,8 @@ class PaymentReceiptScreen extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () => Navigator.of(context)
-                      .popUntil((route) => route.settings.name == '/buy-credits'),
+                  onPressed: () => Navigator.of(context).popUntil(
+                      (route) => route.settings.name == '/buy-credits'),
                   style: FilledButton.styleFrom(
                     backgroundColor: _C.magenta,
                     padding: const EdgeInsets.symmetric(vertical: 16),

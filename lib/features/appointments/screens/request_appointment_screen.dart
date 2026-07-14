@@ -121,18 +121,19 @@ class _RequestAppointmentScreenState
       return;
     }
 
-    final ok = await ref.read(appointmentActionsProvider.notifier).submitRequest(
-          teacherId: widget.teacher.id,
-          title: _titleCtrl.text.trim(),
-          purpose: _purposeCtrl.text.trim(),
-          subject: _subject!,
-          preferredDate: _preferredDate!,
-          preferredTime: _formatTime24(_preferredTime!),
-          durationMins: _durationMins,
-          description: _descriptionCtrl.text.trim().isEmpty
-              ? null
-              : _descriptionCtrl.text.trim(),
-        );
+    final ok =
+        await ref.read(appointmentActionsProvider.notifier).submitRequest(
+              teacherId: widget.teacher.id,
+              title: _titleCtrl.text.trim(),
+              purpose: _purposeCtrl.text.trim(),
+              subject: _subject!,
+              preferredDate: _preferredDate!,
+              preferredTime: _formatTime24(_preferredTime!),
+              durationMins: _durationMins,
+              description: _descriptionCtrl.text.trim().isEmpty
+                  ? null
+                  : _descriptionCtrl.text.trim(),
+            );
 
     if (!mounted) return;
 
@@ -239,7 +240,6 @@ class _RequestAppointmentScreenState
                     ),
                   ),
                   const SizedBox(height: 20),
-
                   _StaggerIn(
                     index: 2,
                     child: _SectionCard(
@@ -281,15 +281,12 @@ class _RequestAppointmentScreenState
                             : _PremiumDropdown(
                                 value: _subject,
                                 items: widget.teacher.subjects,
-                                onChanged: (v) =>
-                                    setState(() => _subject = v),
+                                onChanged: (v) => setState(() => _subject = v),
                               ),
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 16),
-
                   _StaggerIn(
                     index: 3,
                     child: _SectionCard(
@@ -325,9 +322,7 @@ class _RequestAppointmentScreenState
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 16),
-
                   _StaggerIn(
                     index: 4,
                     child: _SectionCard(
@@ -339,7 +334,8 @@ class _RequestAppointmentScreenState
                             'Description or Concern (optional)', '描述或问题（可选）'),
                         _PremiumTextField(
                           controller: _descriptionCtrl,
-                          hint: 'Any additional details the teacher should know...',
+                          hint:
+                              'Any additional details the teacher should know...',
                           icon: Icons.chat_bubble_outline_rounded,
                           maxLines: 4,
                         ),
@@ -357,9 +353,7 @@ class _RequestAppointmentScreenState
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 28),
-
                   _StaggerIn(
                     index: 5,
                     child: _SubmitButton(
@@ -491,7 +485,9 @@ class _ProgressLabel extends StatelessWidget {
     return Row(
       children: [
         Icon(
-          done ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+          done
+              ? Icons.check_circle_rounded
+              : Icons.radio_button_unchecked_rounded,
           size: 16,
           color: done ? SHColors.green : SHColors.inkSoft,
         ),
@@ -590,7 +586,8 @@ class _TeacherContextCard extends StatelessWidget {
                 color: SHColors.softPink,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.school_rounded, size: 16, color: SHColors.magenta),
+              child: const Icon(Icons.school_rounded,
+                  size: 16, color: SHColors.magenta),
             ),
           ]),
         ),
@@ -657,13 +654,15 @@ class _SectionCard extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         color: SHColors.ink)),
                 Text(titleZh,
-                    style: const TextStyle(fontSize: 11, color: SHColors.magenta)),
+                    style:
+                        const TextStyle(fontSize: 11, color: SHColors.magenta)),
               ],
             ),
           ]),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Divider(height: 1, color: SHColors.line.withValues(alpha: 0.7)),
+            child:
+                Divider(height: 1, color: SHColors.line.withValues(alpha: 0.7)),
           ),
           ...children,
         ],
@@ -684,7 +683,9 @@ class _FieldLabel extends StatelessWidget {
         child: Row(children: [
           Text(en,
               style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w700, color: SHColors.ink)),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: SHColors.ink)),
           const SizedBox(width: 5),
           Text('· $zh',
               style: const TextStyle(fontSize: 11, color: SHColors.magenta)),
@@ -769,12 +770,14 @@ class _PremiumDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
       initialValue: value,
-      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: SHColors.magenta),
+      icon: const Icon(Icons.keyboard_arrow_down_rounded,
+          color: SHColors.magenta),
       decoration: InputDecoration(
         hintText: 'Select a subject',
         prefixIcon: const Padding(
           padding: EdgeInsets.only(left: 4, right: 2),
-          child: Icon(Icons.menu_book_rounded, size: 18, color: SHColors.magenta),
+          child:
+              Icon(Icons.menu_book_rounded, size: 18, color: SHColors.magenta),
         ),
         filled: true,
         fillColor: SHColors.softPink.withValues(alpha: 0.5),
@@ -793,9 +796,8 @@ class _PremiumDropdown extends StatelessWidget {
           borderSide: const BorderSide(color: SHColors.magenta, width: 1.6),
         ),
       ),
-      items: items
-          .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-          .toList(),
+      items:
+          items.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
       onChanged: onChanged,
       validator: (v) => v == null ? 'Required' : null,
     );
@@ -906,15 +908,15 @@ class _DurationChips extends StatelessWidget {
             onTap: () => onChanged(mins),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 gradient: selected
                     ? const LinearGradient(
                         colors: [SHColors.softPink, SHColors.blushPink],
                       )
                     : null,
-                color: selected ? null : SHColors.softPink.withValues(alpha: 0.5),
+                color:
+                    selected ? null : SHColors.softPink.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: selected
@@ -1000,8 +1002,8 @@ class _DashedBorderPainter extends CustomPainter {
       ..color = color
       ..strokeWidth = 1.4
       ..style = PaintingStyle.stroke;
-    final rrect = RRect.fromRectAndRadius(
-        Offset.zero & size, const Radius.circular(14));
+    final rrect =
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(14));
     final path = Path()..addRRect(rrect);
     final metrics = path.computeMetrics();
     for (final metric in metrics) {
