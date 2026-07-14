@@ -272,8 +272,8 @@ class _TopBar extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
           decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                  colors: [D.red, Color(0xFFB93A63)]),
+              gradient:
+                  const LinearGradient(colors: [D.red, Color(0xFFB93A63)]),
               borderRadius: BorderRadius.circular(6),
               boxShadow: [
                 BoxShadow(
@@ -285,8 +285,8 @@ class _TopBar extends StatelessWidget {
             Container(
               width: 6,
               height: 6,
-              decoration:
-                  const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+              decoration: const BoxDecoration(
+                  color: Colors.white, shape: BoxShape.circle),
             ),
             const SizedBox(width: 5),
             const Text('LIVE',
@@ -298,7 +298,8 @@ class _TopBar extends StatelessWidget {
           ]),
         ),
         const SizedBox(width: 8),
-        Icon(Icons.shield_rounded, size: 14, color: D.green.withValues(alpha: 0.8)),
+        Icon(Icons.shield_rounded,
+            size: 14, color: D.green.withValues(alpha: 0.8)),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -349,16 +350,17 @@ class _TopBar extends StatelessWidget {
               decoration:
                   BoxDecoration(color: statusColor, shape: BoxShape.circle)),
           const SizedBox(width: 6),
-          Text(statusLabel,
-              style: TextStyle(fontSize: 11, color: statusColor)),
+          Text(statusLabel, style: TextStyle(fontSize: 11, color: statusColor)),
         ]),
         const SizedBox(width: 12),
         FilledButton.icon(
           onPressed: onLeave,
-          icon: Icon(isTeacher ? Icons.stop_circle_rounded : Icons.logout_rounded,
+          icon: Icon(
+              isTeacher ? Icons.stop_circle_rounded : Icons.logout_rounded,
               size: 16),
           label: Text(isTeacher ? 'End Session' : 'Leave',
-              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+              style:
+                  const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
           style: FilledButton.styleFrom(
             backgroundColor: D.magenta,
             foregroundColor: Colors.white,
@@ -419,10 +421,14 @@ class _ToolTabs extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 3),
                 padding: const EdgeInsets.symmetric(vertical: 9),
                 decoration: BoxDecoration(
-                  color: isActive ? accent.withValues(alpha: 0.16) : Colors.transparent,
+                  color: isActive
+                      ? accent.withValues(alpha: 0.16)
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                      color: isActive ? accent.withValues(alpha: 0.4) : Colors.transparent),
+                      color: isActive
+                          ? accent.withValues(alpha: 0.4)
+                          : Colors.transparent),
                 ),
                 child: Column(children: [
                   Icon(t.$2, size: 17, color: isActive ? accent : D.textSoft),
@@ -430,7 +436,8 @@ class _ToolTabs extends StatelessWidget {
                   Text(t.$3,
                       style: TextStyle(
                           fontSize: 10,
-                          fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                          fontWeight:
+                              isActive ? FontWeight.w700 : FontWeight.w500,
                           color: isActive ? accent : D.textSoft)),
                 ]),
               ),

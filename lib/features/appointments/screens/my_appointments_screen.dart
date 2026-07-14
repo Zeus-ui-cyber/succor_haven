@@ -60,8 +60,8 @@ class _MyAppointmentsScreenState extends ConsumerState<MyAppointmentsScreen> {
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
                     margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                     decoration: BoxDecoration(
                       color: active ? SHColors.magenta : SHColors.paper,
                       borderRadius: BorderRadius.circular(20),
@@ -100,8 +100,7 @@ class _MyAppointmentsScreenState extends ConsumerState<MyAppointmentsScreen> {
 
                 return RefreshIndicator(
                   color: SHColors.magenta,
-                  onRefresh: () async =>
-                      ref.invalidate(myAppointmentsProvider),
+                  onRefresh: () async => ref.invalidate(myAppointmentsProvider),
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
                     itemCount: filtered.length,
@@ -214,8 +213,7 @@ class _AppointmentCard extends ConsumerWidget {
                       color: SHColors.ink)),
             ),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: status.paleColor,
                 borderRadius: BorderRadius.circular(20),
@@ -302,8 +300,7 @@ class _AppointmentCard extends ConsumerWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () =>
-                            _respondReschedule(context, ref, true),
+                        onPressed: () => _respondReschedule(context, ref, true),
                         child: const Text('Accept'),
                       ),
                     ),

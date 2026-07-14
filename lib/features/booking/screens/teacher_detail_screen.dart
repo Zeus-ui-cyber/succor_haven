@@ -34,7 +34,8 @@ class TeacherDetailScreen extends ConsumerWidget {
                   child: CircularProgressIndicator(color: SHColors.magenta)),
               error: (e, _) => _ErrorState(
                 message: '$e',
-                onRetry: () => ref.invalidate(teacherDetailsProvider(teacherId)),
+                onRetry: () =>
+                    ref.invalidate(teacherDetailsProvider(teacherId)),
               ),
               data: (teacher) => _TeacherDetailBody(teacher: teacher),
             ),
@@ -60,7 +61,10 @@ class _Glow extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: RadialGradient(
-            colors: [color.withValues(alpha: opacity), color.withValues(alpha: 0)],
+            colors: [
+              color.withValues(alpha: opacity),
+              color.withValues(alpha: 0)
+            ],
           ),
         ),
       ),
@@ -266,10 +270,7 @@ class _HeroCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis),
                         const SizedBox(height: 3),
-                        Text(
-                            teacher.isNewTeacher
-                                ? 'New Teacher'
-                                : 'Teacher',
+                        Text(teacher.isNewTeacher ? 'New Teacher' : 'Teacher',
                             style: TextStyle(
                                 fontSize: 13.5,
                                 color: Colors.white.withValues(alpha: 0.85),
@@ -340,9 +341,8 @@ class _HeroCard extends StatelessWidget {
       ),
       _StatChip(
         icon: Icons.workspace_premium_rounded,
-        label: teacher.isNewTeacher
-            ? 'New'
-            : '${teacher.totalSessions} sessions',
+        label:
+            teacher.isNewTeacher ? 'New' : '${teacher.totalSessions} sessions',
       ),
     ];
     if (teacher.hasRating) {
@@ -371,7 +371,8 @@ class _Avatar extends StatelessWidget {
       height: diameter,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 2.5),
+        border:
+            Border.all(color: Colors.white.withValues(alpha: 0.5), width: 2.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.15),
@@ -557,13 +558,15 @@ class _SectionCard extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         color: SHColors.ink)),
                 Text('· $titleCn',
-                    style: const TextStyle(fontSize: 11, color: SHColors.magenta)),
+                    style:
+                        const TextStyle(fontSize: 11, color: SHColors.magenta)),
               ],
             ),
           ]),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Divider(height: 1, color: SHColors.line.withValues(alpha: 0.7)),
+            child:
+                Divider(height: 1, color: SHColors.line.withValues(alpha: 0.7)),
           ),
           child,
         ],
@@ -581,8 +584,10 @@ class _SubjectPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-            colors: [SHColors.blushPink, SHColors.softPink.withValues(alpha: 0.8)]),
+        gradient: LinearGradient(colors: [
+          SHColors.blushPink,
+          SHColors.softPink.withValues(alpha: 0.8)
+        ]),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: SHColors.magenta.withValues(alpha: 0.25)),
       ),
@@ -599,8 +604,8 @@ class _EmptyLine extends StatelessWidget {
   final String text;
   const _EmptyLine(this.text);
   @override
-  Widget build(BuildContext context) => Text(text,
-      style: const TextStyle(fontSize: 13, color: SHColors.inkSoft));
+  Widget build(BuildContext context) =>
+      Text(text, style: const TextStyle(fontSize: 13, color: SHColors.inkSoft));
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -653,7 +658,8 @@ class _RequestAppointmentButton extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.calendar_month_rounded, size: 18, color: Colors.white),
+                Icon(Icons.calendar_month_rounded,
+                    size: 18, color: Colors.white),
                 SizedBox(width: 8),
                 Text('Request Appointment · 预约咨询',
                     style: TextStyle(
