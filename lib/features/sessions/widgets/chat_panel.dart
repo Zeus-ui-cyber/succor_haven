@@ -99,7 +99,10 @@ class _ChatPanelState extends State<ChatPanel> {
                           : MainAxisAlignment.start,
                       children: [
                         if (!mine) ...[
-                          _Avatar(name: info.name, url: info.avatarUrl, color: info.color),
+                          _Avatar(
+                              name: info.name,
+                              url: info.avatarUrl,
+                              color: info.color),
                           const SizedBox(width: 8),
                         ],
                         Flexible(
@@ -109,7 +112,8 @@ class _ChatPanelState extends State<ChatPanel> {
                                 : CrossAxisAlignment.start,
                             children: [
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 4),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -117,7 +121,9 @@ class _ChatPanelState extends State<ChatPanel> {
                                         style: TextStyle(
                                             fontSize: 11,
                                             fontWeight: FontWeight.w700,
-                                            color: mine ? D.textSoft : info.color)),
+                                            color: mine
+                                                ? D.textSoft
+                                                : info.color)),
                                     const SizedBox(width: 5),
                                     Text(time,
                                         style: const TextStyle(
@@ -129,7 +135,8 @@ class _ChatPanelState extends State<ChatPanel> {
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 12, vertical: 9),
-                                constraints: const BoxConstraints(maxWidth: 230),
+                                constraints:
+                                    const BoxConstraints(maxWidth: 230),
                                 decoration: BoxDecoration(
                                   gradient: mine
                                       ? const LinearGradient(colors: [
@@ -141,10 +148,8 @@ class _ChatPanelState extends State<ChatPanel> {
                                   borderRadius: BorderRadius.only(
                                     topLeft: const Radius.circular(14),
                                     topRight: const Radius.circular(14),
-                                    bottomLeft:
-                                        Radius.circular(mine ? 14 : 3),
-                                    bottomRight:
-                                        Radius.circular(mine ? 3 : 14),
+                                    bottomLeft: Radius.circular(mine ? 14 : 3),
+                                    bottomRight: Radius.circular(mine ? 3 : 14),
                                   ),
                                 ),
                                 child: Text(msg.body,
@@ -202,10 +207,12 @@ class _ChatPanelState extends State<ChatPanel> {
           Container(
             decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: LinearGradient(colors: [D.magenta, Color(0xFFB93A63)])),
+                gradient:
+                    LinearGradient(colors: [D.magenta, Color(0xFFB93A63)])),
             child: IconButton(
               onPressed: _send,
-              icon: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+              icon:
+                  const Icon(Icons.send_rounded, color: Colors.white, size: 18),
             ),
           ),
         ]),

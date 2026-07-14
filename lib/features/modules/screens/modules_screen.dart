@@ -173,8 +173,7 @@ class _ModulesScreenState extends ConsumerState<ModulesScreen> {
                         module: modules[i],
                         canManage: _canManage(modules[i]),
                         onOpen: () => _openFile(modules[i]),
-                        onEdit: () =>
-                            _openUploadSheet(existing: modules[i]),
+                        onEdit: () => _openUploadSheet(existing: modules[i]),
                         onDelete: () => _confirmDelete(modules[i]),
                       ),
                     ),
@@ -261,8 +260,7 @@ class _ModuleCard extends StatelessWidget {
             ),
             if (module.isUploadedByAdmin)
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: SHColors.slateBlue.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
@@ -439,7 +437,8 @@ class _UploadSheetState extends ConsumerState<_UploadSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         decoration: const BoxDecoration(
@@ -478,8 +477,8 @@ class _UploadSheetState extends ConsumerState<_UploadSheet> {
                 borderRadius: BorderRadius.circular(14),
                 onTap: _pickFile,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
                     color: SHColors.softPink,
                     borderRadius: BorderRadius.circular(14),
@@ -495,8 +494,8 @@ class _UploadSheetState extends ConsumerState<_UploadSheet> {
                                 ? widget.existing!.fileName
                                 : 'Select a file (PDF, DOCX, PPTX)'),
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 13, color: SHColors.ink),
+                        style:
+                            const TextStyle(fontSize: 13, color: SHColors.ink),
                       ),
                     ),
                   ]),
@@ -514,7 +513,8 @@ class _UploadSheetState extends ConsumerState<_UploadSheet> {
                           child: CircularProgressIndicator(
                               strokeWidth: 2.5, color: Colors.white),
                         )
-                      : Text(widget.existing != null ? 'Save Changes' : 'Upload'),
+                      : Text(
+                          widget.existing != null ? 'Save Changes' : 'Upload'),
                 ),
               ),
             ],

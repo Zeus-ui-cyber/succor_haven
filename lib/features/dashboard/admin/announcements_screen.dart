@@ -104,7 +104,8 @@ class AnnouncementsTab extends ConsumerWidget {
     );
     if (confirmed != true) return;
 
-    final ok = await ref.read(announcementActionsProvider.notifier).delete(a.id);
+    final ok =
+        await ref.read(announcementActionsProvider.notifier).delete(a.id);
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok ? 'Announcement deleted' : 'Failed to delete'),
@@ -127,14 +128,17 @@ class AnnouncementsTab extends ConsumerWidget {
             const Expanded(
               child: Text('Information Center · 信息中心',
                   style: TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w800, color: _C.ink)),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: _C.ink)),
             ),
             GestureDetector(
               onTap: () => ref
                   .read(announcementIncludeArchivedProvider.notifier)
                   .update((v) => !v),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: includeArchived ? _C.slateBlue : _C.softPink,
                   borderRadius: BorderRadius.circular(16),
@@ -152,7 +156,8 @@ class AnnouncementsTab extends ConsumerWidget {
             GestureDetector(
               onTap: () => _openForm(context),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                 decoration: BoxDecoration(
                   color: _C.burgundy,
                   borderRadius: BorderRadius.circular(20),
@@ -172,8 +177,8 @@ class AnnouncementsTab extends ConsumerWidget {
         ),
         Expanded(
           child: async.when(
-            loading: () =>
-                const Center(child: CircularProgressIndicator(color: _C.burgundy)),
+            loading: () => const Center(
+                child: CircularProgressIndicator(color: _C.burgundy)),
             error: (e, _) => Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
@@ -181,7 +186,8 @@ class AnnouncementsTab extends ConsumerWidget {
                   Text('$e', textAlign: TextAlign.center),
                   const SizedBox(height: 12),
                   OutlinedButton(
-                    onPressed: () => ref.invalidate(adminAnnouncementsListProvider),
+                    onPressed: () =>
+                        ref.invalidate(adminAnnouncementsListProvider),
                     child: const Text('Retry'),
                   ),
                 ]),
@@ -190,21 +196,25 @@ class AnnouncementsTab extends ConsumerWidget {
             data: (items) {
               if (items.isEmpty) {
                 return const Center(
-                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(Icons.campaign_outlined, size: 48, color: _C.inkSoft),
-                    SizedBox(height: 12),
-                    Text('No announcements yet',
-                        style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: _C.ink)),
-                    Text('· 暂无公告', style: TextStyle(color: _C.inkSoft)),
-                  ]),
+                  child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.campaign_outlined,
+                            size: 48, color: _C.inkSoft),
+                        SizedBox(height: 12),
+                        Text('No announcements yet',
+                            style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: _C.ink)),
+                        Text('· 暂无公告', style: TextStyle(color: _C.inkSoft)),
+                      ]),
                 );
               }
               return RefreshIndicator(
                 color: _C.magenta,
-                onRefresh: () async => ref.invalidate(adminAnnouncementsListProvider),
+                onRefresh: () async =>
+                    ref.invalidate(adminAnnouncementsListProvider),
                 child: ListView.separated(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                   itemCount: items.length,
@@ -227,7 +237,8 @@ class AnnouncementsTab extends ConsumerWidget {
 class _AnnouncementCard extends ConsumerWidget {
   final AnnouncementModel a;
   final VoidCallback onEdit, onDelete;
-  const _AnnouncementCard({required this.a, required this.onEdit, required this.onDelete});
+  const _AnnouncementCard(
+      {required this.a, required this.onEdit, required this.onDelete});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -259,18 +270,25 @@ class _AnnouncementCard extends ConsumerWidget {
             ),
             child: Text(kPriorityLabels[a.priority] ?? a.priority,
                 style: TextStyle(
-                    fontSize: 10, color: priorityColor, fontWeight: FontWeight.w700)),
+                    fontSize: 10,
+                    color: priorityColor,
+                    fontWeight: FontWeight.w700)),
           ),
         ]),
         const SizedBox(height: 6),
         Text(a.description,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12.5, color: _C.inkSoft, height: 1.4)),
+            style: const TextStyle(
+                fontSize: 12.5, color: _C.inkSoft, height: 1.4)),
         const SizedBox(height: 10),
         Wrap(spacing: 6, runSpacing: 6, children: [
-          _Chip(label: kCategoryLabels[a.category] ?? a.category, color: _C.slateBlue),
-          _Chip(label: kVisibilityLabels[a.visibility] ?? a.visibility, color: _C.purple),
+          _Chip(
+              label: kCategoryLabels[a.category] ?? a.category,
+              color: _C.slateBlue),
+          _Chip(
+              label: kVisibilityLabels[a.visibility] ?? a.visibility,
+              color: _C.purple),
           if (a.isArchived) const _Chip(label: 'Archived', color: _C.inkSoft),
         ]),
         const SizedBox(height: 10),
@@ -343,7 +361,8 @@ class _Chip extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(label,
-          style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w700)),
+          style: TextStyle(
+              fontSize: 10, color: color, fontWeight: FontWeight.w700)),
     );
   }
 }
@@ -354,10 +373,12 @@ class _AnnouncementFormSheet extends ConsumerStatefulWidget {
   const _AnnouncementFormSheet({this.existing});
 
   @override
-  ConsumerState<_AnnouncementFormSheet> createState() => _AnnouncementFormSheetState();
+  ConsumerState<_AnnouncementFormSheet> createState() =>
+      _AnnouncementFormSheetState();
 }
 
-class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> {
+class _AnnouncementFormSheetState
+    extends ConsumerState<_AnnouncementFormSheet> {
   final _titleCtrl = TextEditingController();
   final _subtitleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
@@ -381,8 +402,12 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
   bool _uploadingAttachment = false;
   bool _saving = false;
 
-  bool get _needsTargetValue =>
-      ['year_level', 'section', 'subject', 'individual_teacher'].contains(_visibility);
+  bool get _needsTargetValue => [
+        'year_level',
+        'section',
+        'subject',
+        'individual_teacher'
+      ].contains(_visibility);
 
   @override
   void initState() {
@@ -421,7 +446,8 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
   }
 
   Future<void> _pickCoverImage() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
+    final picked = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (picked == null) return;
     final bytes = await picked.readAsBytes();
     setState(() => _uploadingCover = true);
@@ -525,7 +551,8 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
     }
     if (_needsTargetValue && _targetValueCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('A target value is required for "${kVisibilityLabels[_visibility]}"'),
+        content: Text(
+            'A target value is required for "${kVisibilityLabels[_visibility]}"'),
         backgroundColor: _C.red,
       ));
       return;
@@ -579,7 +606,9 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
     setState(() => _saving = false);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok
-          ? (widget.existing != null ? 'Announcement updated' : 'Announcement published')
+          ? (widget.existing != null
+              ? 'Announcement updated'
+              : 'Announcement published')
           : 'Failed to save'),
       backgroundColor: ok ? _C.green : _C.red,
       behavior: SnackBarBehavior.floating,
@@ -592,7 +621,8 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: DraggableScrollableSheet(
         initialChildSize: 0.9,
         maxChildSize: 0.95,
@@ -606,13 +636,20 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
             controller: scrollCtrl,
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
             children: [
-              Text(widget.existing != null ? 'Edit Announcement' : 'New Announcement',
+              Text(
+                  widget.existing != null
+                      ? 'Edit Announcement'
+                      : 'New Announcement',
                   style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w800, color: _C.ink)),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: _C.ink)),
               const SizedBox(height: 16),
               TextField(controller: _titleCtrl, decoration: _dec('Title')),
               const SizedBox(height: 12),
-              TextField(controller: _subtitleCtrl, decoration: _dec('Subtitle (optional)')),
+              TextField(
+                  controller: _subtitleCtrl,
+                  decoration: _dec('Subtitle (optional)')),
               const SizedBox(height: 12),
               TextField(
                 controller: _descCtrl,
@@ -626,9 +663,11 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
                     initialValue: _category,
                     decoration: _dec('Category'),
                     items: kCategoryLabels.entries
-                        .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                        .map((e) => DropdownMenuItem(
+                            value: e.key, child: Text(e.value)))
                         .toList(),
-                    onChanged: (v) => setState(() => _category = v ?? _category),
+                    onChanged: (v) =>
+                        setState(() => _category = v ?? _category),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -637,9 +676,11 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
                     initialValue: _priority,
                     decoration: _dec('Priority'),
                     items: kPriorityLabels.entries
-                        .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                        .map((e) => DropdownMenuItem(
+                            value: e.key, child: Text(e.value)))
                         .toList(),
-                    onChanged: (v) => setState(() => _priority = v ?? _priority),
+                    onChanged: (v) =>
+                        setState(() => _priority = v ?? _priority),
                   ),
                 ),
               ]),
@@ -648,9 +689,11 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
                 initialValue: _visibility,
                 decoration: _dec('Visible to'),
                 items: kVisibilityLabels.entries
-                    .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                    .map((e) =>
+                        DropdownMenuItem(value: e.key, child: Text(e.value)))
                     .toList(),
-                onChanged: (v) => setState(() => _visibility = v ?? _visibility),
+                onChanged: (v) =>
+                    setState(() => _visibility = v ?? _visibility),
               ),
               if (_needsTargetValue) ...[
                 const SizedBox(height: 12),
@@ -670,13 +713,16 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
               // ── Cover image ─────────────────────────────────────────────
               const Text('Cover image',
                   style: TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.w700, color: _C.inkSoft)),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: _C.inkSoft)),
               const SizedBox(height: 6),
               InkWell(
                 borderRadius: BorderRadius.circular(14),
                 onTap: _uploadingCover ? null : _pickCoverImage,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
                     color: _C.softPink,
                     borderRadius: BorderRadius.circular(14),
@@ -686,12 +732,16 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
                         ? const SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: _C.burgundy))
-                        : const Icon(Icons.image_outlined, color: _C.inkSoft, size: 20),
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: _C.burgundy))
+                        : const Icon(Icons.image_outlined,
+                            color: _C.inkSoft, size: 20),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        _coverImageUrl != null ? 'Image attached' : 'Select a cover image',
+                        _coverImageUrl != null
+                            ? 'Image attached'
+                            : 'Select a cover image',
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontSize: 13, color: _C.ink),
                       ),
@@ -710,23 +760,29 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
               Row(children: [
                 const Text('Gallery images',
                     style: TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w700, color: _C.inkSoft)),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _C.inkSoft)),
                 const Spacer(),
                 if (_uploadingGallery)
                   const SizedBox(
                     width: 14,
                     height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: _C.burgundy),
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: _C.burgundy),
                   )
                 else
                   GestureDetector(
                     onTap: _pickGalleryImages,
                     child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.add_photo_alternate_outlined, size: 15, color: _C.burgundy),
+                      Icon(Icons.add_photo_alternate_outlined,
+                          size: 15, color: _C.burgundy),
                       SizedBox(width: 4),
                       Text('Add',
                           style: TextStyle(
-                              fontSize: 12, color: _C.burgundy, fontWeight: FontWeight.w700)),
+                              fontSize: 12,
+                              color: _C.burgundy,
+                              fontWeight: FontWeight.w700)),
                     ]),
                   ),
               ]),
@@ -750,14 +806,19 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
                             width: 70,
                             height: 70,
                             fit: BoxFit.cover,
-                            loadingBuilder: (ctx, child, progress) => progress == null
-                                ? child
-                                : Container(width: 70, height: 70, color: _C.softPink),
+                            loadingBuilder: (ctx, child, progress) =>
+                                progress == null
+                                    ? child
+                                    : Container(
+                                        width: 70,
+                                        height: 70,
+                                        color: _C.softPink),
                             errorBuilder: (_, __, ___) => Container(
                               width: 70,
                               height: 70,
                               color: _C.softPink,
-                              child: const Icon(Icons.image_outlined, color: _C.inkSoft),
+                              child: const Icon(Icons.image_outlined,
+                                  color: _C.inkSoft),
                             ),
                           ),
                         ),
@@ -765,14 +826,16 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
                           top: 2,
                           right: 2,
                           child: GestureDetector(
-                            onTap: () => setState(() => _galleryUrls.removeAt(i)),
+                            onTap: () =>
+                                setState(() => _galleryUrls.removeAt(i)),
                             child: Container(
                               padding: const EdgeInsets.all(2),
                               decoration: const BoxDecoration(
                                 color: Colors.black54,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.close_rounded, size: 12, color: Colors.white),
+                              child: const Icon(Icons.close_rounded,
+                                  size: 12, color: Colors.white),
                             ),
                           ),
                         ),
@@ -785,13 +848,16 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
               // ── Attachment ──────────────────────────────────────────────
               const Text('Attachment',
                   style: TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.w700, color: _C.inkSoft)),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: _C.inkSoft)),
               const SizedBox(height: 6),
               InkWell(
                 borderRadius: BorderRadius.circular(14),
                 onTap: _uploadingAttachment ? null : _pickAttachment,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
                     color: _C.softPink,
                     borderRadius: BorderRadius.circular(14),
@@ -801,8 +867,10 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
                         ? const SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: _C.burgundy))
-                        : const Icon(Icons.attach_file_rounded, color: _C.inkSoft, size: 20),
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: _C.burgundy))
+                        : const Icon(Icons.attach_file_rounded,
+                            color: _C.inkSoft, size: 20),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -851,7 +919,9 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
                       final picked = await _pickDateTime(_expiresAt);
                       if (picked != null) setState(() => _expiresAt = picked);
                     },
-                    onClear: _expiresAt != null ? () => setState(() => _expiresAt = null) : null,
+                    onClear: _expiresAt != null
+                        ? () => setState(() => _expiresAt = null)
+                        : null,
                   ),
                 ),
               ]),
@@ -866,7 +936,8 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
               SwitchListTile(
                 value: _commentsEnabled,
                 onChanged: (v) => setState(() => _commentsEnabled = v),
-                title: const Text('Allow comments', style: TextStyle(fontSize: 13)),
+                title: const Text('Allow comments',
+                    style: TextStyle(fontSize: 13)),
                 activeThumbColor: _C.burgundy,
                 contentPadding: EdgeInsets.zero,
               ),
@@ -883,9 +954,11 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2.5, color: Colors.white),
                         )
-                      : Text(widget.existing != null ? 'Save Changes' : 'Publish',
+                      : Text(
+                          widget.existing != null ? 'Save Changes' : 'Publish',
                           style: const TextStyle(color: Colors.white)),
                 ),
               ),
@@ -902,7 +975,11 @@ class _DateField extends StatelessWidget {
   final String value;
   final VoidCallback onTap;
   final VoidCallback? onClear;
-  const _DateField({required this.label, required this.value, required this.onTap, this.onClear});
+  const _DateField(
+      {required this.label,
+      required this.value,
+      required this.onTap,
+      this.onClear});
 
   @override
   Widget build(BuildContext context) {
@@ -920,17 +997,21 @@ class _DateField extends StatelessWidget {
             Expanded(
               child: Text(label,
                   style: const TextStyle(
-                      fontSize: 10, color: _C.inkSoft, fontWeight: FontWeight.w700)),
+                      fontSize: 10,
+                      color: _C.inkSoft,
+                      fontWeight: FontWeight.w700)),
             ),
             if (onClear != null)
               GestureDetector(
                 onTap: onClear,
-                child: const Icon(Icons.close_rounded, size: 14, color: _C.inkSoft),
+                child: const Icon(Icons.close_rounded,
+                    size: 14, color: _C.inkSoft),
               ),
           ]),
           const SizedBox(height: 2),
           Text(value,
-              style: const TextStyle(fontSize: 12, color: _C.ink, fontWeight: FontWeight.w600)),
+              style: const TextStyle(
+                  fontSize: 12, color: _C.ink, fontWeight: FontWeight.w600)),
         ]),
       ),
     );
