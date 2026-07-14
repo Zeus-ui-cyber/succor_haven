@@ -312,11 +312,11 @@ class _OverviewTab extends ConsumerWidget {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(children: [
-                      const Icon(Icons.payments_rounded,
+                    const Row(children: [
+                      Icon(Icons.payments_rounded,
                           color: Colors.white70, size: 18),
-                      const SizedBox(width: 8),
-                      const Text('Total Revenue · 总收入',
+                      SizedBox(width: 8),
+                      Text('Total Revenue · 总收入',
                           style: TextStyle(
                               color: Colors.white70,
                               fontSize: 12,
@@ -483,12 +483,12 @@ class _OverviewTab extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        Column(
+                        const Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             _LegendDot(color: _C.magenta, label: 'Students'),
-                            const SizedBox(height: 10),
+                            SizedBox(height: 10),
                             _LegendDot(color: _C.slateBlue, label: 'Teachers'),
                           ],
                         ),

@@ -283,7 +283,7 @@ class _ModuleCard extends StatelessWidget {
           ],
           const SizedBox(height: 10),
           Row(children: [
-            Icon(Icons.person_outline_rounded,
+            const Icon(Icons.person_outline_rounded,
                 size: 13, color: SHColors.inkSoft),
             const SizedBox(width: 4),
             Text(module.uploadedByName ?? 'Unknown',

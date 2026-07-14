@@ -271,16 +271,16 @@ class _AnnouncementCard extends ConsumerWidget {
         Wrap(spacing: 6, runSpacing: 6, children: [
           _Chip(label: kCategoryLabels[a.category] ?? a.category, color: _C.slateBlue),
           _Chip(label: kVisibilityLabels[a.visibility] ?? a.visibility, color: _C.purple),
-          if (a.isArchived) _Chip(label: 'Archived', color: _C.inkSoft),
+          if (a.isArchived) const _Chip(label: 'Archived', color: _C.inkSoft),
         ]),
         const SizedBox(height: 10),
         Row(children: [
-          Icon(Icons.favorite_rounded, size: 13, color: _C.inkSoft),
+          const Icon(Icons.favorite_rounded, size: 13, color: _C.inkSoft),
           const SizedBox(width: 3),
           Text('${a.likeCount}',
               style: const TextStyle(fontSize: 11, color: _C.inkSoft)),
           const SizedBox(width: 12),
-          Icon(Icons.visibility_rounded, size: 13, color: _C.inkSoft),
+          const Icon(Icons.visibility_rounded, size: 13, color: _C.inkSoft),
           const SizedBox(width: 3),
           Text('${a.readCount}',
               style: const TextStyle(fontSize: 11, color: _C.inkSoft)),
@@ -668,7 +668,7 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
               const SizedBox(height: 16),
 
               // ── Cover image ─────────────────────────────────────────────
-              Text('Cover image',
+              const Text('Cover image',
                   style: TextStyle(
                       fontSize: 12, fontWeight: FontWeight.w700, color: _C.inkSoft)),
               const SizedBox(height: 6),
@@ -708,7 +708,7 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
 
               // ── Gallery images (multiple, optional) ───────────────────────
               Row(children: [
-                Text('Gallery images',
+                const Text('Gallery images',
                     style: TextStyle(
                         fontSize: 12, fontWeight: FontWeight.w700, color: _C.inkSoft)),
                 const Spacer(),
@@ -732,7 +732,7 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
               ]),
               const SizedBox(height: 8),
               if (_galleryUrls.isEmpty)
-                Text('No gallery images added',
+                const Text('No gallery images added',
                     style: TextStyle(fontSize: 11.5, color: _C.inkSoft))
               else
                 SizedBox(
@@ -783,7 +783,7 @@ class _AnnouncementFormSheetState extends ConsumerState<_AnnouncementFormSheet> 
               const SizedBox(height: 12),
 
               // ── Attachment ──────────────────────────────────────────────
-              Text('Attachment',
+              const Text('Attachment',
                   style: TextStyle(
                       fontSize: 12, fontWeight: FontWeight.w700, color: _C.inkSoft)),
               const SizedBox(height: 6),

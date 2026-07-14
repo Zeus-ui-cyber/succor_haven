@@ -65,7 +65,7 @@ class PaymentReceiptScreen extends StatelessWidget {
             children: [
               pw.Text('Succor Haven',
                   style:
-                      pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+                      const pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
               pw.Text('Credit Top-Up Receipt',
                   style: const pw.TextStyle(fontSize: 11)),
               pw.SizedBox(height: 20),

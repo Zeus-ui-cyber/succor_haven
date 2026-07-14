@@ -533,7 +533,7 @@ class _ReviewOrderScreenState extends ConsumerState<ReviewOrderScreen> {
               const SizedBox(height: 10),
               _SummaryRow('Credits', '${package.creditsAmount}'),
               const SizedBox(height: 10),
-              Divider(color: _C.line, height: 1),
+              const Divider(color: _C.line, height: 1),
               const SizedBox(height: 10),
               _SummaryRow('Total', '₱${package.priceDisplay.toStringAsFixed(2)}',
                   bold: true),

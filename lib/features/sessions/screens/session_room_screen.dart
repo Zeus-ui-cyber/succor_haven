@@ -264,7 +264,7 @@ class _TopBar extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
-          colors: [D.surface, D.surfaceRaised.withOpacity(0.6)],
+          colors: [D.surface, D.surfaceRaised.withValues(alpha: 0.6)],
         ),
         border: const Border(bottom: BorderSide(color: D.border)),
       ),
@@ -277,7 +277,7 @@ class _TopBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(6),
               boxShadow: [
                 BoxShadow(
-                    color: D.red.withOpacity(0.35),
+                    color: D.red.withValues(alpha: 0.35),
                     blurRadius: 8,
                     offset: const Offset(0, 2)),
               ]),
@@ -298,7 +298,7 @@ class _TopBar extends StatelessWidget {
           ]),
         ),
         const SizedBox(width: 8),
-        Icon(Icons.shield_rounded, size: 14, color: D.green.withOpacity(0.8)),
+        Icon(Icons.shield_rounded, size: 14, color: D.green.withValues(alpha: 0.8)),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -333,7 +333,7 @@ class _TopBar extends StatelessWidget {
         ]),
         const SizedBox(width: 8),
         _Pill(children: [
-          Icon(Icons.timer_outlined, size: 13, color: D.textSoft),
+          const Icon(Icons.timer_outlined, size: 13, color: D.textSoft),
           const SizedBox(width: 5),
           Text(remainingLabel,
               style: const TextStyle(
@@ -419,10 +419,10 @@ class _ToolTabs extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 3),
                 padding: const EdgeInsets.symmetric(vertical: 9),
                 decoration: BoxDecoration(
-                  color: isActive ? accent.withOpacity(0.16) : Colors.transparent,
+                  color: isActive ? accent.withValues(alpha: 0.16) : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                      color: isActive ? accent.withOpacity(0.4) : Colors.transparent),
+                      color: isActive ? accent.withValues(alpha: 0.4) : Colors.transparent),
                 ),
                 child: Column(children: [
                   Icon(t.$2, size: 17, color: isActive ? accent : D.textSoft),

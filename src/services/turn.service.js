@@ -7,6 +7,16 @@
 // base64(HMAC-SHA1(sharedSecret, username)). coturn is configured with
 // the matching `static-auth-secret` in turnserver.conf.
 // https://github.com/coturn/coturn/blob/master/docs/turn-rest-api.md
+//
+// FIXED: previously threw if TURN_SECRET/TURN_URL weren't set, which
+// killed the WebRTC call entirely (getTurnCredentials is the first thing
+// both createOffer and createAnswerForOffer await in
+// webrtc_room_service.dart) — including in local dev, where nobody has
+// coturn running. Now falls back to STUN-only in that case instead of
+// hard-failing. STUN alone is enough for two peers on the same
+// machine/LAN (which is exactly how this gets tested locally); it won't
+// traverse strict NATs/firewalls in production, so TURN_SECRET/TURN_URL
+// must still be set before a real deployment — see infra/coturn/README.md.
 
 const crypto = require("crypto");
 
@@ -18,9 +28,15 @@ function issueCredentials(userId) {
   const stunUrl = process.env.STUN_URL; // e.g. stun:turn.yourdomain.com:3478
 
   if (!secret || !turnUrl) {
-    throw new Error(
-      "TURN_SECRET / TURN_URL not configured — see infra/coturn/README.md",
+    console.warn(
+      "TURN_SECRET / TURN_URL not configured — falling back to public STUN " +
+        "only. This works for local/same-LAN testing but will NOT traverse " +
+        "strict NATs/firewalls in production. See infra/coturn/README.md.",
     );
+    return {
+      iceServers: [{ urls: stunUrl || "stun:stun.l.google.com:19302" }],
+      ttl: TTL_SECONDS,
+    };
   }
 
   const expiry = Math.floor(Date.now() / 1000) + TTL_SECONDS;

@@ -238,9 +238,9 @@ class _HomeTab extends ConsumerWidget {
           ),
 
           // ── School Updates · Announcements ─────────────────────────────────
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            sliver: const SliverToBoxAdapter(child: AnnouncementFeedSection()),
+          const SliverPadding(
+            padding: EdgeInsets.fromLTRB(20, 20, 20, 0),
+            sliver: SliverToBoxAdapter(child: AnnouncementFeedSection()),
           ),
 
           // ── Next session banner ───────────────────────────────────────────

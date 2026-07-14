@@ -161,8 +161,8 @@ class StudentDetailScreen extends ConsumerWidget {
         ),
       );
     } else {
-      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-        content: const Text('Failed to reset password'),
+      ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+        content: Text('Failed to reset password'),
         backgroundColor: _C.pink,
         behavior: SnackBarBehavior.floating,
       ));
@@ -418,7 +418,7 @@ class StudentDetailScreen extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _SectionTitle('Contact Information', '联系信息',
+                          const _SectionTitle('Contact Information', '联系信息',
                               icon: Icons.person_outline_rounded,
                               iconColor: _C.pink),
                           const SizedBox(height: 14),
@@ -436,7 +436,7 @@ class StudentDetailScreen extends ConsumerWidget {
                     const SizedBox(height: 20),
 
                     // ── Progress summary ─────────────────────────────────
-                    _SectionTitle('Progress Summary', '进度总览',
+                    const _SectionTitle('Progress Summary', '进度总览',
                         icon: Icons.insights_rounded, iconColor: _C.ink),
                     const SizedBox(height: 12),
                     Row(children: [
@@ -492,7 +492,7 @@ class StudentDetailScreen extends ConsumerWidget {
                     const SizedBox(height: 22),
 
                     // ── Taken subjects ────────────────────────────────────
-                    _SectionTitle('Taken Subjects', '已修科目',
+                    const _SectionTitle('Taken Subjects', '已修科目',
                         icon: Icons.auto_stories_rounded, iconColor: _C.ink),
                     const SizedBox(height: 12),
                     takenSubjects.isEmpty
@@ -508,7 +508,7 @@ class StudentDetailScreen extends ConsumerWidget {
                     const SizedBox(height: 22),
 
                     // ── Session history ───────────────────────────────────
-                    _SectionTitle('Session History', '课程记录',
+                    const _SectionTitle('Session History', '课程记录',
                         icon: Icons.history_rounded, iconColor: _C.ink),
                     const SizedBox(height: 12),
                     sessions.isEmpty
@@ -522,14 +522,14 @@ class StudentDetailScreen extends ConsumerWidget {
                     const SizedBox(height: 22),
 
                     // ── Activity timeline ─────────────────────────────────
-                    _SectionTitle('Activity Timeline', '活动记录',
+                    const _SectionTitle('Activity Timeline', '活动记录',
                         icon: Icons.timeline_rounded, iconColor: _C.ink),
                     const SizedBox(height: 14),
                     _Timeline(entries: timeline),
                     const SizedBox(height: 24),
 
                     // ── Manage account ────────────────────────────────────
-                    _SectionTitle('Manage Account', '管理账户',
+                    const _SectionTitle('Manage Account', '管理账户',
                         icon: Icons.settings_outlined, iconColor: _C.ink),
                     const SizedBox(height: 12),
                     Wrap(
@@ -821,9 +821,9 @@ class _BreathingAvatarState extends State<_BreathingAvatar>
           color: Colors.white,
         ),
         child: Container(
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             shape: BoxShape.circle,
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               colors: [_C.pink, Color(0xFFFF6FAE)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -1222,7 +1222,7 @@ class _SessionTile extends StatelessWidget {
               ),
               _GlowBadge(
                   label: status,
-                  colors: [statusColors[0] as Color, statusColors[1] as Color]),
+                  colors: [statusColors[0], statusColors[1]]),
             ]),
             const SizedBox(height: 10),
             if (dt != null)

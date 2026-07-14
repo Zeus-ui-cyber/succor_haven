@@ -31,7 +31,7 @@ class WhiteboardPanel extends StatefulWidget {
 class _WhiteboardPanelState extends State<WhiteboardPanel> {
   _Tool _tool = _Tool.pen;
   Color _color = Colors.white;
-  double _width = 3;
+  final double _width = 3;
   List<Offset> _liveDraft = [];
   Size _canvasSize = Size.zero;
 
@@ -80,7 +80,8 @@ class _WhiteboardPanelState extends State<WhiteboardPanel> {
         _Tool.rect => 'rect',
         _Tool.ellipse => 'ellipse',
       },
-      color: '#${_color.value.toRadixString(16).padLeft(8, '0').substring(2)}',
+      color:
+          '#${_color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}',
       width: _tool == _Tool.eraser ? _width * 3 : _width,
       points: _liveDraft.map((p) {
         final n = _normalize(p);
@@ -219,12 +220,14 @@ class _BoardPainter extends CustomPainter {
     if (points.isEmpty) return;
     switch (tool) {
       case 'line':
-        if (points.length >= 2)
+        if (points.length >= 2) {
           canvas.drawLine(points.first, points.last, paint);
+        }
         break;
       case 'rect':
-        if (points.length >= 2)
+        if (points.length >= 2) {
           canvas.drawRect(Rect.fromPoints(points.first, points.last), paint);
+        }
         break;
       case 'ellipse':
         if (points.length >= 2) {

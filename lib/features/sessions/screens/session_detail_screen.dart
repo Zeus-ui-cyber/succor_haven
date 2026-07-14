@@ -137,7 +137,7 @@ class _WaitingBody extends StatelessWidget {
           decoration: BoxDecoration(
               color: _P.ink, borderRadius: BorderRadius.circular(20)),
           alignment: Alignment.center,
-          child: Column(mainAxisSize: MainAxisSize.min, children: const [
+          child: const Column(mainAxisSize: MainAxisSize.min, children: [
             Icon(Icons.lock_clock_outlined, color: Colors.white70, size: 40),
             SizedBox(height: 12),
             Text(

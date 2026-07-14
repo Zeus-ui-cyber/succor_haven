@@ -76,31 +76,34 @@ function initSocketServer(httpServer) {
           (session.teacher_id !== socket.user.sub &&
             session.student_id !== socket.user.sub)
         ) {
-          console.warn(
-            `[session:join] REJECTED user=${socket.user?.sub} session=${sessionId} — not a participant`,
-          );
           return ack?.({ error: "Not authorized for this session." });
         }
         const room = `session:${sessionId}`;
 
-        // Snapshot who's already in the room BEFORE this socket joins —
-        // this is the piece that was missing: socket.to(room).emit(...)
-        // below only reaches sockets already present, so a late-joining
-        // client (e.g. the teacher joining after the student) never
-        // otherwise learns a peer is already waiting, and never fires the
-        // call-initiation path.
-        const existingSockets = await io.in(room).fetchSockets();
-        const peerAlreadyPresent = existingSockets.length > 0;
+        // FIXED: `socket.to(room).emit("session:peer-joined", ...)` below
+        // only reaches sockets ALREADY in the room at the moment this
+        // fires — it never tells the NEW joiner whether someone else was
+        // already there. Since the teacher's WebRTC offer is only ever
+        // triggered by receiving a "session:peer-joined" event, this
+        // meant: if the student joined first and the teacher joined
+        // second, the teacher would never receive that event (nobody
+        // was in the room to receive it when the teacher's own join
+        // fired the broadcast) — so no offer was ever sent, and the two
+        // sides never connected, regardless of how long either side
+        // waited. Checking room size BEFORE this socket joins and
+        // returning `peerAlreadyPresent` in the ack lets the client that
+        // joined SECOND immediately know the other side is already
+        // there, so it can trigger the call itself instead of waiting
+        // for an event that was never coming.
+        const roomSet = io.sockets.adapter.rooms.get(room);
+        const peerAlreadyPresent = !!roomSet && roomSet.size > 0;
 
         socket.join(room);
         socket.data.sessionId = sessionId;
-        console.log(
-          `[session:join] user=${socket.user.sub} role=${session.teacher_id === socket.user.sub ? "teacher" : "student"} session=${sessionId} room=${room} peerAlreadyPresent=${peerAlreadyPresent} roomSizeAfterJoin=${existingSockets.length + 1}`,
-        );
         socket
           .to(room)
           .emit("session:peer-joined", { userId: socket.user.sub });
-        ack?.({ ok: true, peerPresent: peerAlreadyPresent });
+        ack?.({ ok: true, peerAlreadyPresent });
       } catch (err) {
         console.error("session:join error:", err);
         ack?.({ error: "Failed to join session." });
@@ -110,9 +113,6 @@ function initSocketServer(httpServer) {
     socket.on("disconnect", () => {
       const sessionId = socket.data.sessionId;
       if (sessionId) {
-        console.log(
-          `[session:disconnect] user=${socket.user?.sub} session=${sessionId} room=session:${sessionId}`,
-        );
         socket.to(`session:${sessionId}`).emit("session:peer-left", {
           userId: socket.user.sub,
         });

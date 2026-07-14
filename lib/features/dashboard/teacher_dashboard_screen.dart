@@ -199,9 +199,9 @@ class _THomeTab extends ConsumerWidget {
         SliverToBoxAdapter(child: _buildHeader()),
 
         // Appointment requests entry point
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-          sliver: const SliverToBoxAdapter(child: _AppointmentsEntryCard()),
+        const SliverPadding(
+          padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
+          sliver: SliverToBoxAdapter(child: _AppointmentsEntryCard()),
         ),
 
         // Modules entry point
@@ -211,9 +211,9 @@ class _THomeTab extends ConsumerWidget {
         ),
 
         // ── Faculty Updates · Announcements ─────────────────────────────────
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-          sliver: const SliverToBoxAdapter(child: AnnouncementFeedSection()),
+        const SliverPadding(
+          padding: EdgeInsets.fromLTRB(20, 0, 20, 16),
+          sliver: SliverToBoxAdapter(child: AnnouncementFeedSection()),
         ),
 
         // Stats hero

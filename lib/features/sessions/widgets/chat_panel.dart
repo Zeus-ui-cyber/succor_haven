@@ -73,7 +73,7 @@ class _ChatPanelState extends State<ChatPanel> {
             ? Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.chat_bubble_outline_rounded,
-                      size: 28, color: D.textSoft.withOpacity(0.5)),
+                      size: 28, color: D.textSoft.withValues(alpha: 0.5)),
                   const SizedBox(height: 8),
                   const Text('No messages yet — say hello!',
                       style: TextStyle(color: D.textSoft, fontSize: 12)),
@@ -159,7 +159,7 @@ class _ChatPanelState extends State<ChatPanel> {
                         ),
                         if (mine) ...[
                           const SizedBox(width: 8),
-                          _Avatar(name: 'You', url: null, color: D.green),
+                          const _Avatar(name: 'You', url: null, color: D.green),
                         ],
                       ],
                     ),
@@ -224,7 +224,7 @@ class _Avatar extends StatelessWidget {
   Widget build(BuildContext context) {
     return CircleAvatar(
       radius: 14,
-      backgroundColor: color.withOpacity(0.25),
+      backgroundColor: color.withValues(alpha: 0.25),
       backgroundImage: url != null ? NetworkImage(url!) : null,
       child: url == null
           ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?',

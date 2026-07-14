@@ -357,22 +357,22 @@ class _EmptyState extends StatelessWidget {
   const _EmptyState();
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: EdgeInsets.all(32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.calendar_month_outlined,
+          Icon(Icons.calendar_month_outlined,
               size: 44, color: SHColors.inkSoft),
-          const SizedBox(height: 12),
-          const Text('No appointments yet',
+          SizedBox(height: 12),
+          Text('No appointments yet',
               style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                   color: SHColors.ink)),
-          const Text('· 暂无预约',
+          Text('· 暂无预约',
               style: TextStyle(fontSize: 12, color: SHColors.magenta)),
-          const SizedBox(height: 6),
-          const Text('Request an appointment from a teacher\'s profile.',
+          SizedBox(height: 6),
+          Text('Request an appointment from a teacher\'s profile.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12, color: SHColors.inkSoft)),
         ]),

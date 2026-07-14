@@ -127,7 +127,7 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(children: const [
+    return const Column(children: [
       Icon(Icons.video_camera_front_outlined, size: 48, color: _P.inkSoft),
       SizedBox(height: 12),
       Text('No sessions yet',

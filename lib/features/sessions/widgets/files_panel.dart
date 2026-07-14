@@ -99,7 +99,7 @@ class FilesPanel extends StatelessWidget {
                           width: 38,
                           height: 38,
                           decoration: BoxDecoration(
-                              color: color.withOpacity(0.18),
+                              color: color.withValues(alpha: 0.18),
                               borderRadius: BorderRadius.circular(9)),
                           child: Icon(_iconFor(f.mimeType), color: color, size: 19),
                         ),

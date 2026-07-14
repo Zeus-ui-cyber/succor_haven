@@ -105,8 +105,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
         final i = _payments.indexWhere((x) => x.id == p.id);
         if (i != -1) _payments[i] = updated;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Request cancelled.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Request cancelled.')));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -175,8 +175,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                                     onTap: () => Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (_) => PaymentReceiptScreen(
-                                            payment: p),
+                                        builder: (_) =>
+                                            PaymentReceiptScreen(payment: p),
                                       ),
                                     ),
                                     child: Row(
@@ -199,15 +199,13 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                                                 '${p.paymentMethod != null ? ' · ${p.paymentMethod}' : ''}',
                                                 style: TextStyle(
                                                     fontSize: 12,
-                                                    color:
-                                                        cs.onSurfaceVariant),
+                                                    color: cs.onSurfaceVariant),
                                               ),
                                               Text(
                                                 '${p.createdAt.day}/${p.createdAt.month}/${p.createdAt.year}',
                                                 style: TextStyle(
                                                     fontSize: 11,
-                                                    color:
-                                                        cs.onSurfaceVariant),
+                                                    color: cs.onSurfaceVariant),
                                               ),
                                             ],
                                           ),
@@ -226,8 +224,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                                             style: TextStyle(
                                               fontSize: 11,
                                               fontWeight: FontWeight.w700,
-                                              color:
-                                                  _statusColor(p.status, cs),
+                                              color: _statusColor(p.status, cs),
                                             ),
                                           ),
                                         ),
@@ -240,11 +237,12 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                                   ),
                                   if (p.refundRequestedAt != null) ...[
                                     const SizedBox(height: 8),
-                                    Text('Refund requested — awaiting review',
+                                    const Text(
+                                        'Refund requested — awaiting review',
                                         style: TextStyle(
                                             fontSize: 11,
                                             fontWeight: FontWeight.w700,
-                                            color: const Color(0xFFE0A800))),
+                                            color: Color(0xFFE0A800))),
                                   ],
                                   if (p.status == PaymentStatus.cancelled &&
                                       p.cancelReason != null) ...[
@@ -257,8 +255,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                                   if (canRequestRefund || canCancel) ...[
                                     const SizedBox(height: 8),
                                     Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.end,
+                                      mainAxisAlignment: MainAxisAlignment.end,
                                       children: [
                                         if (canCancel) ...[
                                           OutlinedButton(
@@ -278,15 +275,13 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                                                           10)),
                                             ),
                                             child: const Text('Cancel',
-                                                style:
-                                                    TextStyle(fontSize: 12)),
+                                                style: TextStyle(fontSize: 12)),
                                           ),
                                           const SizedBox(width: 8),
                                         ],
                                         if (canRequestRefund)
                                           OutlinedButton(
-                                            onPressed: () =>
-                                                _requestRefund(p),
+                                            onPressed: () => _requestRefund(p),
                                             style: OutlinedButton.styleFrom(
                                               padding:
                                                   const EdgeInsets.symmetric(
@@ -298,8 +293,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                                                           10)),
                                             ),
                                             child: const Text('Request Refund',
-                                                style:
-                                                    TextStyle(fontSize: 12)),
+                                                style: TextStyle(fontSize: 12)),
                                           ),
                                       ],
                                     ),
@@ -368,7 +362,8 @@ class _CancelReasonSheetState extends State<_CancelReasonSheet> {
           ),
           const SizedBox(height: 16),
           Text('Cancel ₱${p.amountDisplay.toStringAsFixed(2)} request?',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+              style:
+                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
           const SizedBox(height: 4),
           const Text("Let us know why — this helps us improve.",
               style: TextStyle(fontSize: 12.5)),

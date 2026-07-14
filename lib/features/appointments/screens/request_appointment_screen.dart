@@ -203,17 +203,17 @@ class _RequestAppointmentScreenState
       body: Stack(
         children: [
           // ── Ambient glow field ─────────────────────────────────────
-          Positioned(
+          const Positioned(
             top: -80,
             right: -60,
             child: _Glow(color: SHColors.magenta, size: 260, opacity: 0.16),
           ),
-          Positioned(
+          const Positioned(
             top: 220,
             left: -100,
             child: _Glow(color: SHColors.burgundy, size: 220, opacity: 0.10),
           ),
-          Positioned(
+          const Positioned(
             bottom: -60,
             right: -40,
             child: _Glow(color: SHColors.blushPink, size: 240, opacity: 0.20),
@@ -247,7 +247,7 @@ class _RequestAppointmentScreenState
                       titleEn: 'Appointment Details',
                       titleZh: '预约详情',
                       children: [
-                        _FieldLabel('Appointment Title', '预约标题'),
+                        const _FieldLabel('Appointment Title', '预约标题'),
                         _PremiumTextField(
                           controller: _titleCtrl,
                           hint: 'e.g. Thesis proposal review',
@@ -257,7 +257,7 @@ class _RequestAppointmentScreenState
                               : null,
                         ),
                         const SizedBox(height: 18),
-                        _FieldLabel('Purpose of Consultation', '咨询目的'),
+                        const _FieldLabel('Purpose of Consultation', '咨询目的'),
                         _PremiumTextField(
                           controller: _purposeCtrl,
                           hint: 'e.g. Academic Consultation, Exam Review',
@@ -267,7 +267,7 @@ class _RequestAppointmentScreenState
                               : null,
                         ),
                         const SizedBox(height: 18),
-                        _FieldLabel('Subject / Course', '科目 / 课程'),
+                        const _FieldLabel('Subject / Course', '科目 / 课程'),
                         widget.teacher.subjects.isEmpty
                             ? _PremiumTextField(
                                 hint: 'e.g. English, Mathematics',
@@ -297,7 +297,7 @@ class _RequestAppointmentScreenState
                       titleEn: 'Schedule',
                       titleZh: '日程安排',
                       children: [
-                        _FieldLabel('Preferred Date', '首选日期'),
+                        const _FieldLabel('Preferred Date', '首选日期'),
                         _PickerTile(
                           icon: Icons.calendar_today_rounded,
                           label: _preferredDate == null
@@ -307,7 +307,7 @@ class _RequestAppointmentScreenState
                           onTap: _pickDate,
                         ),
                         const SizedBox(height: 18),
-                        _FieldLabel('Preferred Time', '首选时间'),
+                        const _FieldLabel('Preferred Time', '首选时间'),
                         _PickerTile(
                           icon: Icons.access_time_rounded,
                           label: _preferredTime == null
@@ -317,7 +317,7 @@ class _RequestAppointmentScreenState
                           onTap: _pickTime,
                         ),
                         const SizedBox(height: 18),
-                        _FieldLabel('Estimated Duration', '预计时长'),
+                        const _FieldLabel('Estimated Duration', '预计时长'),
                         _DurationChips(
                           value: _durationMins,
                           onChanged: (v) => setState(() => _durationMins = v),
@@ -335,7 +335,7 @@ class _RequestAppointmentScreenState
                       titleEn: 'Additional Info',
                       titleZh: '附加信息',
                       children: [
-                        _FieldLabel(
+                        const _FieldLabel(
                             'Description or Concern (optional)', '描述或问题（可选）'),
                         _PremiumTextField(
                           controller: _descriptionCtrl,
@@ -344,7 +344,7 @@ class _RequestAppointmentScreenState
                           maxLines: 4,
                         ),
                         const SizedBox(height: 18),
-                        _FieldLabel('Attachment (optional)', '附件（可选）'),
+                        const _FieldLabel('Attachment (optional)', '附件（可选）'),
                         // ⚠️ NOT YET FUNCTIONAL: no file-upload endpoint exists
                         // on the backend yet (attachment_url is just accepted
                         // as a plain string with nothing to populate it — see
@@ -467,7 +467,7 @@ class _ProgressRibbon extends StatelessWidget {
             widthFactor: value,
             child: Container(
               height: 4,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   colors: [SHColors.burgundy, SHColors.magenta],
                 ),
@@ -543,7 +543,7 @@ class _TeacherContextCard extends StatelessWidget {
               padding: const EdgeInsets.all(3),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: LinearGradient(
+                gradient: const LinearGradient(
                   colors: [SHColors.magenta, SHColors.burgundy],
                 ),
                 boxShadow: [
@@ -569,7 +569,7 @@ class _TeacherContextCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('REQUESTING WITH · 预约老师',
+                  const Text('REQUESTING WITH · 预约老师',
                       style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
@@ -590,7 +590,7 @@ class _TeacherContextCard extends StatelessWidget {
                 color: SHColors.softPink,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(Icons.school_rounded, size: 16, color: SHColors.magenta),
+              child: const Icon(Icons.school_rounded, size: 16, color: SHColors.magenta),
             ),
           ]),
         ),
@@ -637,7 +637,7 @@ class _SectionCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
+                gradient: const LinearGradient(
                   colors: [
                     SHColors.blushPink,
                     SHColors.softPink,
@@ -657,7 +657,7 @@ class _SectionCard extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         color: SHColors.ink)),
                 Text(titleZh,
-                    style: TextStyle(fontSize: 11, color: SHColors.magenta)),
+                    style: const TextStyle(fontSize: 11, color: SHColors.magenta)),
               ],
             ),
           ]),
@@ -741,7 +741,7 @@ class _PremiumTextField extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: SHColors.magenta, width: 1.6),
+          borderSide: const BorderSide(color: SHColors.magenta, width: 1.6),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -769,11 +769,11 @@ class _PremiumDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
       initialValue: value,
-      icon: Icon(Icons.keyboard_arrow_down_rounded, color: SHColors.magenta),
+      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: SHColors.magenta),
       decoration: InputDecoration(
         hintText: 'Select a subject',
-        prefixIcon: Padding(
-          padding: const EdgeInsets.only(left: 4, right: 2),
+        prefixIcon: const Padding(
+          padding: EdgeInsets.only(left: 4, right: 2),
           child: Icon(Icons.menu_book_rounded, size: 18, color: SHColors.magenta),
         ),
         filled: true,
@@ -790,7 +790,7 @@ class _PremiumDropdown extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: SHColors.magenta, width: 1.6),
+          borderSide: const BorderSide(color: SHColors.magenta, width: 1.6),
         ),
       ),
       items: items
@@ -869,10 +869,10 @@ class _PickerTile extends StatelessWidget {
                       color: filled ? SHColors.ink : SHColors.inkSoft)),
             ),
             if (filled)
-              Icon(Icons.check_circle_rounded,
+              const Icon(Icons.check_circle_rounded,
                   size: 16, color: SHColors.magenta)
             else
-              Icon(Icons.chevron_right_rounded,
+              const Icon(Icons.chevron_right_rounded,
                   size: 16, color: SHColors.inkSoft),
           ]),
         ),
@@ -910,7 +910,7 @@ class _DurationChips extends StatelessWidget {
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 gradient: selected
-                    ? LinearGradient(
+                    ? const LinearGradient(
                         colors: [SHColors.softPink, SHColors.blushPink],
                       )
                     : null,
@@ -959,10 +959,10 @@ class _AttachmentPlaceholder extends StatelessWidget {
               color: SHColors.softPink.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Column(children: [
+            child: const Column(children: [
               Icon(Icons.cloud_upload_outlined,
                   color: SHColors.inkSoft, size: 22),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               Text('Attachments coming soon',
                   style: TextStyle(fontSize: 13, color: SHColors.inkSoft)),
               Text('附件功能即将推出',
@@ -1072,9 +1072,9 @@ class _SubmitButton extends StatelessWidget {
                       child: CircularProgressIndicator(
                           strokeWidth: 2.5, color: Colors.white),
                     )
-                  : Row(
+                  : const Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
+                      children: [
                         Icon(Icons.send_rounded, size: 18, color: Colors.white),
                         SizedBox(width: 8),
                         Text('Submit Request · 提交请求',

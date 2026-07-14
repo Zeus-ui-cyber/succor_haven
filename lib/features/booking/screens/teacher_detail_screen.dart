@@ -18,12 +18,12 @@ class TeacherDetailScreen extends ConsumerWidget {
       backgroundColor: SHColors.bg,
       body: Stack(
         children: [
-          Positioned(
+          const Positioned(
             top: -60,
             right: -60,
             child: _Glow(color: SHColors.magenta, size: 220, opacity: 0.14),
           ),
-          Positioned(
+          const Positioned(
             bottom: 40,
             left: -80,
             child: _Glow(color: SHColors.burgundy, size: 200, opacity: 0.10),
@@ -209,7 +209,7 @@ class _HeroCard extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [SHColors.burgundy, SHColors.magenta],
@@ -541,7 +541,7 @@ class _SectionCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
+                gradient: const LinearGradient(
                     colors: [SHColors.blushPink, SHColors.softPink]),
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -557,7 +557,7 @@ class _SectionCard extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         color: SHColors.ink)),
                 Text('· $titleCn',
-                    style: TextStyle(fontSize: 11, color: SHColors.magenta)),
+                    style: const TextStyle(fontSize: 11, color: SHColors.magenta)),
               ],
             ),
           ]),
@@ -616,7 +616,7 @@ class _RequestAppointmentButton extends StatelessWidget {
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           colors: [SHColors.burgundy, SHColors.magenta],
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,

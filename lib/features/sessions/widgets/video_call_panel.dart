@@ -73,7 +73,7 @@ class _RoleBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
-        color: D.bg.withOpacity(0.55),
+        color: D.bg.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color, width: 1.2),
       ),
@@ -94,7 +94,7 @@ class _NameTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: D.bg.withOpacity(0.6),
+        color: D.bg.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -156,16 +156,16 @@ class _RemoteTile extends StatelessWidget {
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Container(
                   padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                        colors: [D.slateBlue, D.magenta]),
+                    gradient: LinearGradient(colors: [D.slateBlue, D.magenta]),
                   ),
                   child: CircleAvatar(
                     radius: avatarRadius,
                     backgroundColor: D.surfaceRaised,
-                    backgroundImage:
-                        otherAvatarUrl != null ? NetworkImage(otherAvatarUrl!) : null,
+                    backgroundImage: otherAvatarUrl != null
+                        ? NetworkImage(otherAvatarUrl!)
+                        : null,
                     child: otherAvatarUrl == null
                         ? Text(
                             (otherName?.isNotEmpty ?? false)
@@ -181,13 +181,14 @@ class _RemoteTile extends StatelessWidget {
                 ),
                 if (!compact) ...[
                   const SizedBox(height: 14),
-                  Text('Waiting for ${otherName ?? "your $roleLabel".toLowerCase()}…',
+                  Text(
+                      'Waiting for ${otherName ?? "your $roleLabel".toLowerCase()}…',
                       style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: D.textPrimary)),
                   const SizedBox(height: 4),
-                  Text("They'll join any moment now",
+                  const Text("They'll join any moment now",
                       style: TextStyle(fontSize: 11, color: D.textSoft)),
                 ],
               ]),
@@ -203,8 +204,7 @@ class _RemoteTile extends StatelessWidget {
             Positioned(
               left: 10,
               bottom: 10,
-              child: _NameTag(
-                  label: otherName ?? roleLabel, micOn: true),
+              child: _NameTag(label: otherName ?? roleLabel, micOn: true),
             ),
           if (handRaised)
             const Positioned(
@@ -378,7 +378,7 @@ class _PillButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
           color: highlighted
-              ? activeColor!.withOpacity(0.18)
+              ? activeColor!.withValues(alpha: 0.18)
               : D.surfaceRaised,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
@@ -430,7 +430,9 @@ class _ReactionButton extends StatelessWidget {
           SizedBox(height: 4),
           Text('React',
               style: TextStyle(
-                  fontSize: 9.5, fontWeight: FontWeight.w600, color: D.textSoft)),
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w600,
+                  color: D.textSoft)),
         ]),
       ),
       onSelected: controller.sendReaction,

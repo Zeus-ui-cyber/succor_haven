@@ -7,10 +7,17 @@
 // Call/offer polarity: the teacher always initiates the offer once both
 // sides have joined (arbitrary but deterministic tie-break — otherwise
 // both sides could simultaneously send offers and glare). The student
-// only ever answers.
+// only ever answers. Since join order is unpredictable, "both sides
+// have joined" is detected two ways: (a) receiving a live
+// "session:peer-joined" broadcast (covers being first to join), or (b)
+// the join ack itself reporting peerAlreadyPresent (covers being
+// second to join) — see socket.server.js / socket_room_service.dart
+// fix notes.
 
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart' show RTCIceCandidate;
 import '../../../models/session.dart';
 import '../models/session_room_models.dart';
 import '../repositories/session_room_repository.dart';
@@ -22,6 +29,7 @@ enum ActiveTool { whiteboard, notes, files, chat }
 class SessionRoomState {
   final RoomConnectionStatus connectionStatus;
   final bool peerPresent;
+  final bool remoteStreamReady;
   final bool micOn;
   final bool camOn;
   final bool localHandRaised;
@@ -41,6 +49,7 @@ class SessionRoomState {
   const SessionRoomState({
     this.connectionStatus = RoomConnectionStatus.connecting,
     this.peerPresent = false,
+    this.remoteStreamReady = false,
     this.micOn = true,
     this.camOn = true,
     this.localHandRaised = false,
@@ -61,6 +70,7 @@ class SessionRoomState {
   SessionRoomState copyWith({
     RoomConnectionStatus? connectionStatus,
     bool? peerPresent,
+    bool? remoteStreamReady,
     bool? micOn,
     bool? camOn,
     bool? localHandRaised,
@@ -80,6 +90,7 @@ class SessionRoomState {
     return SessionRoomState(
       connectionStatus: connectionStatus ?? this.connectionStatus,
       peerPresent: peerPresent ?? this.peerPresent,
+      remoteStreamReady: remoteStreamReady ?? this.remoteStreamReady,
       micOn: micOn ?? this.micOn,
       camOn: camOn ?? this.camOn,
       localHandRaised: localHandRaised ?? this.localHandRaised,
@@ -109,6 +120,7 @@ class SessionRoomController extends StateNotifier<SessionRoomState> {
 
   final List<StreamSubscription> _subs = [];
   Timer? _notesDebounce;
+  bool _callStarted = false; // guards against double-offering
 
   SessionRoomController({
     required this.session,
@@ -156,28 +168,36 @@ class SessionRoomController extends StateNotifier<SessionRoomState> {
       _socket.connectionStatus.listen((s) {
         state = state.copyWith(connectionStatus: s);
       }),
+      // FIXED: covers being the SECOND person to join — the join ack
+      // itself reports whether a peer was already in the room, since
+      // that peer's own "session:peer-joined" broadcast (fired when
+      // THEY joined) happened before we were around to receive it.
+      _socket.onJoined.listen((peerAlreadyPresent) {
+        if (peerAlreadyPresent) {
+          state = state.copyWith(peerPresent: true);
+          if (isTeacher) _startCall();
+        }
+      }),
+      // Covers being the FIRST person to join — we receive this live
+      // broadcast when the second person joins after us.
       _socket.onPeerJoined.listen((_) {
-        // ignore: avoid_print
-        print('[SessionRoomController] peer present (isTeacher=$isTeacher) — '
-            '${isTeacher ? "initiating call" : "waiting for offer"}');
         state = state.copyWith(peerPresent: true);
-        // Deterministic offer initiator: teacher always calls. This fires
-        // both on a live "peer joined" broadcast AND on our own join ack
-        // when the peer was already in the room (see socket_room_service),
-        // so it's correct regardless of who joined first.
         if (isTeacher) _startCall();
       }),
       _socket.onPeerLeft.listen((_) {
-        // ignore: avoid_print
-        print('[SessionRoomController] peer left');
-        state = state.copyWith(peerPresent: false);
+        state = state.copyWith(peerPresent: false, remoteStreamReady: false);
+        // Allow a fresh offer if the peer reconnects later in the same
+        // session — otherwise _callStarted would permanently block any
+        // renegotiation after the first peer ever left once.
+        _callStarted = false;
       }),
       _socket.onChatMessage.listen((msg) {
         state = state.copyWith(messages: [...state.messages, msg]);
       }),
       _socket.onWebrtcOffer.listen((payload) async {
-        // ignore: avoid_print
-        print('[SessionRoomController] got offer, creating answer');
+        // Receiving an offer is itself proof the other side is present,
+        // regardless of which join-detection path fired (or didn't).
+        state = state.copyWith(peerPresent: true);
         final creds = await _repo.getTurnCredentials(session.id);
         final answer = await webrtc.createAnswerForOffer(
           creds: creds,
@@ -187,31 +207,24 @@ class SessionRoomController extends StateNotifier<SessionRoomState> {
             'sdpMid': c.sdpMid,
             'sdpMLineIndex': c.sdpMLineIndex,
           }),
-          onRemoteStreamReady: () {
-            // ignore: avoid_print
-            print('[SessionRoomController] remote stream attached (answerer side)');
-            state = state.copyWith();
-          },
+          onRemoteStreamReady: () => state =
+              state.copyWith(remoteStreamReady: true, peerPresent: true),
         );
-        // ignore: avoid_print
-        print('[SessionRoomController] sending answer');
         _socket.sendAnswer(answer);
       }),
       _socket.onWebrtcAnswer.listen((payload) async {
-        // ignore: avoid_print
-        print('[SessionRoomController] got answer, applying remote description');
+        state = state.copyWith(peerPresent: true);
         await webrtc
             .applyRemoteAnswer(Map<String, dynamic>.from(payload['sdp']));
       }),
       _socket.onWebrtcIceCandidate.listen((payload) async {
-        // ignore: avoid_print
-        print('[SessionRoomController] adding remote ICE candidate');
         await webrtc.addRemoteIceCandidate(
             Map<String, dynamic>.from(payload['candidate']));
       }),
       _socket.onWebrtcHangup.listen((_) async {
         await webrtc.hangup();
-        state = state.copyWith();
+        state = state.copyWith(remoteStreamReady: false);
+        _callStarted = false;
       }),
       _socket.onWhiteboardDraw.listen((stroke) {
         state = state.copyWith(strokes: [...state.strokes, stroke]);
@@ -248,8 +261,8 @@ class SessionRoomController extends StateNotifier<SessionRoomState> {
   }
 
   Future<void> _startCall() async {
-    // ignore: avoid_print
-    print('[SessionRoomController] _startCall: creating offer');
+    if (_callStarted) return; // guard against double-offering
+    _callStarted = true;
     final creds = await _repo.getTurnCredentials(session.id);
     final offer = await webrtc.createOffer(
       creds: creds,
@@ -258,14 +271,9 @@ class SessionRoomController extends StateNotifier<SessionRoomState> {
         'sdpMid': c.sdpMid,
         'sdpMLineIndex': c.sdpMLineIndex,
       }),
-      onRemoteStreamReady: () {
-        // ignore: avoid_print
-        print('[SessionRoomController] remote stream attached (offerer side)');
-        state = state.copyWith();
-      },
+      onRemoteStreamReady: () =>
+          state = state.copyWith(remoteStreamReady: true, peerPresent: true),
     );
-    // ignore: avoid_print
-    print('[SessionRoomController] sending offer');
     _socket.sendOffer(offer);
   }
 
