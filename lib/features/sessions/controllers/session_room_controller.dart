@@ -157,17 +157,27 @@ class SessionRoomController extends StateNotifier<SessionRoomState> {
         state = state.copyWith(connectionStatus: s);
       }),
       _socket.onPeerJoined.listen((_) {
+        // ignore: avoid_print
+        print('[SessionRoomController] peer present (isTeacher=$isTeacher) — '
+            '${isTeacher ? "initiating call" : "waiting for offer"}');
         state = state.copyWith(peerPresent: true);
-        // Deterministic offer initiator: teacher always calls.
+        // Deterministic offer initiator: teacher always calls. This fires
+        // both on a live "peer joined" broadcast AND on our own join ack
+        // when the peer was already in the room (see socket_room_service),
+        // so it's correct regardless of who joined first.
         if (isTeacher) _startCall();
       }),
       _socket.onPeerLeft.listen((_) {
+        // ignore: avoid_print
+        print('[SessionRoomController] peer left');
         state = state.copyWith(peerPresent: false);
       }),
       _socket.onChatMessage.listen((msg) {
         state = state.copyWith(messages: [...state.messages, msg]);
       }),
       _socket.onWebrtcOffer.listen((payload) async {
+        // ignore: avoid_print
+        print('[SessionRoomController] got offer, creating answer');
         final creds = await _repo.getTurnCredentials(session.id);
         final answer = await webrtc.createAnswerForOffer(
           creds: creds,
@@ -177,15 +187,25 @@ class SessionRoomController extends StateNotifier<SessionRoomState> {
             'sdpMid': c.sdpMid,
             'sdpMLineIndex': c.sdpMLineIndex,
           }),
-          onRemoteStreamReady: () => state = state.copyWith(),
+          onRemoteStreamReady: () {
+            // ignore: avoid_print
+            print('[SessionRoomController] remote stream attached (answerer side)');
+            state = state.copyWith();
+          },
         );
+        // ignore: avoid_print
+        print('[SessionRoomController] sending answer');
         _socket.sendAnswer(answer);
       }),
       _socket.onWebrtcAnswer.listen((payload) async {
+        // ignore: avoid_print
+        print('[SessionRoomController] got answer, applying remote description');
         await webrtc
             .applyRemoteAnswer(Map<String, dynamic>.from(payload['sdp']));
       }),
       _socket.onWebrtcIceCandidate.listen((payload) async {
+        // ignore: avoid_print
+        print('[SessionRoomController] adding remote ICE candidate');
         await webrtc.addRemoteIceCandidate(
             Map<String, dynamic>.from(payload['candidate']));
       }),
@@ -228,6 +248,8 @@ class SessionRoomController extends StateNotifier<SessionRoomState> {
   }
 
   Future<void> _startCall() async {
+    // ignore: avoid_print
+    print('[SessionRoomController] _startCall: creating offer');
     final creds = await _repo.getTurnCredentials(session.id);
     final offer = await webrtc.createOffer(
       creds: creds,
@@ -236,8 +258,14 @@ class SessionRoomController extends StateNotifier<SessionRoomState> {
         'sdpMid': c.sdpMid,
         'sdpMLineIndex': c.sdpMLineIndex,
       }),
-      onRemoteStreamReady: () => state = state.copyWith(),
+      onRemoteStreamReady: () {
+        // ignore: avoid_print
+        print('[SessionRoomController] remote stream attached (offerer side)');
+        state = state.copyWith();
+      },
     );
+    // ignore: avoid_print
+    print('[SessionRoomController] sending offer');
     _socket.sendOffer(offer);
   }
 

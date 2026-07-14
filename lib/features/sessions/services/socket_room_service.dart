@@ -94,26 +94,42 @@ class SocketRoomService {
       ..onConnectError(
           (_) => _connectionStatusCtrl.add(RoomConnectionStatus.error))
       ..onError((_) => _connectionStatusCtrl.add(RoomConnectionStatus.error))
-      ..on('session:peer-joined',
-          (data) => _peerJoinedCtrl.add(data?['userId']?.toString() ?? ''))
-      ..on('session:peer-left',
-          (data) => _peerLeftCtrl.add(data?['userId']?.toString() ?? ''))
+      ..on('session:peer-joined', (data) {
+        // ignore: avoid_print
+        print('[SocketRoomService] session:peer-joined userId=${data?['userId']}');
+        _peerJoinedCtrl.add(data?['userId']?.toString() ?? '');
+      })
+      ..on('session:peer-left', (data) {
+        // ignore: avoid_print
+        print('[SocketRoomService] session:peer-left userId=${data?['userId']}');
+        _peerLeftCtrl.add(data?['userId']?.toString() ?? '');
+      })
       ..on('chat:message', (data) {
         if (data is Map) {
           _chatCtrl
               .add(ChatMessageModel.fromJson(Map<String, dynamic>.from(data)));
         }
       })
-      ..on('webrtc:offer',
-          (data) => _webrtcOfferCtrl.add(Map<String, dynamic>.from(data)))
-      ..on('webrtc:answer',
-          (data) => _webrtcAnswerCtrl.add(Map<String, dynamic>.from(data)))
-      ..on('webrtc:ice-candidate',
-          (data) => _webrtcIceCtrl.add(Map<String, dynamic>.from(data)))
-      ..on(
-          'webrtc:hangup',
-          (data) =>
-              _webrtcHangupCtrl.add(data?['fromUserId']?.toString() ?? ''))
+      ..on('webrtc:offer', (data) {
+        // ignore: avoid_print
+        print('[SocketRoomService] received webrtc:offer from=${data?['fromUserId']}');
+        _webrtcOfferCtrl.add(Map<String, dynamic>.from(data));
+      })
+      ..on('webrtc:answer', (data) {
+        // ignore: avoid_print
+        print('[SocketRoomService] received webrtc:answer from=${data?['fromUserId']}');
+        _webrtcAnswerCtrl.add(Map<String, dynamic>.from(data));
+      })
+      ..on('webrtc:ice-candidate', (data) {
+        // ignore: avoid_print
+        print('[SocketRoomService] received webrtc:ice-candidate from=${data?['fromUserId']}');
+        _webrtcIceCtrl.add(Map<String, dynamic>.from(data));
+      })
+      ..on('webrtc:hangup', (data) {
+        // ignore: avoid_print
+        print('[SocketRoomService] received webrtc:hangup from=${data?['fromUserId']}');
+        _webrtcHangupCtrl.add(data?['fromUserId']?.toString() ?? '');
+      })
       ..on('whiteboard:draw', (data) {
         if (data is Map) {
           _whiteboardDrawCtrl
@@ -135,10 +151,29 @@ class SocketRoomService {
   }
 
   void _joinSession(String sessionId) {
+    // ignore: avoid_print
+    print('[SocketRoomService] emitting session:join session=$sessionId');
     _socket?.emitWithAck('session:join', sessionId, ack: (response) {
       if (response is Map && response['ok'] == true) {
+        // ignore: avoid_print
+        print(
+            '[SocketRoomService] session:join ack ok peerPresent=${response['peerPresent']}');
         _connectionStatusCtrl.add(RoomConnectionStatus.joined);
+        // The server only broadcasts "session:peer-joined" to sockets that
+        // were ALREADY in the room — a late joiner never receives that
+        // broadcast for themselves. Without this, whichever side joins
+        // second (most commonly the teacher, since only the teacher is
+        // allowed to initiate the WebRTC offer) never learns a peer is
+        // already there, so no offer is ever created and both sides sit
+        // "joined" but never actually connect. The join ack carries
+        // peerPresent so the late joiner can react the same way an
+        // already-present participant would on a live peer-joined event.
+        if (response['peerPresent'] == true) {
+          _peerJoinedCtrl.add('');
+        }
       } else {
+        // ignore: avoid_print
+        print('[SocketRoomService] session:join ack ERROR: ${response is Map ? response['error'] : response}');
         _connectionStatusCtrl.add(RoomConnectionStatus.error);
       }
     });

@@ -76,15 +76,31 @@ function initSocketServer(httpServer) {
           (session.teacher_id !== socket.user.sub &&
             session.student_id !== socket.user.sub)
         ) {
+          console.warn(
+            `[session:join] REJECTED user=${socket.user?.sub} session=${sessionId} — not a participant`,
+          );
           return ack?.({ error: "Not authorized for this session." });
         }
         const room = `session:${sessionId}`;
+
+        // Snapshot who's already in the room BEFORE this socket joins —
+        // this is the piece that was missing: socket.to(room).emit(...)
+        // below only reaches sockets already present, so a late-joining
+        // client (e.g. the teacher joining after the student) never
+        // otherwise learns a peer is already waiting, and never fires the
+        // call-initiation path.
+        const existingSockets = await io.in(room).fetchSockets();
+        const peerAlreadyPresent = existingSockets.length > 0;
+
         socket.join(room);
         socket.data.sessionId = sessionId;
+        console.log(
+          `[session:join] user=${socket.user.sub} role=${session.teacher_id === socket.user.sub ? "teacher" : "student"} session=${sessionId} room=${room} peerAlreadyPresent=${peerAlreadyPresent} roomSizeAfterJoin=${existingSockets.length + 1}`,
+        );
         socket
           .to(room)
           .emit("session:peer-joined", { userId: socket.user.sub });
-        ack?.({ ok: true });
+        ack?.({ ok: true, peerPresent: peerAlreadyPresent });
       } catch (err) {
         console.error("session:join error:", err);
         ack?.({ error: "Failed to join session." });
@@ -94,6 +110,9 @@ function initSocketServer(httpServer) {
     socket.on("disconnect", () => {
       const sessionId = socket.data.sessionId;
       if (sessionId) {
+        console.log(
+          `[session:disconnect] user=${socket.user?.sub} session=${sessionId} room=session:${sessionId}`,
+        );
         socket.to(`session:${sessionId}`).emit("session:peer-left", {
           userId: socket.user.sub,
         });

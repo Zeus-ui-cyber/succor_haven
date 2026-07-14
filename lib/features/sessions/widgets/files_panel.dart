@@ -40,6 +40,15 @@ class FilesPanel extends StatelessWidget {
     return Icons.insert_drive_file_outlined;
   }
 
+  Color _colorFor(String mime) {
+    if (mime.startsWith('image/')) return D.slateBlue;
+    if (mime == 'application/pdf') return D.red;
+    if (mime.contains('zip')) return D.amber;
+    if (mime.contains('word')) return D.slateBlue;
+    if (mime.contains('presentation')) return const Color(0xFFE0782E);
+    return D.textSoft;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(children: [
@@ -50,10 +59,15 @@ class FilesPanel extends StatelessWidget {
           child: FilledButton.icon(
             onPressed: () => _pickAndUpload(context),
             icon: const Icon(Icons.upload_file_rounded, size: 18),
-            label: const Text('Share a file'),
+            label: const Text('Share a file',
+                style: TextStyle(fontWeight: FontWeight.w700)),
             style: FilledButton.styleFrom(
-                backgroundColor: D.surfaceRaised,
-                foregroundColor: D.textPrimary),
+              backgroundColor: D.magenta,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
           ),
         ),
       ),
@@ -69,18 +83,27 @@ class FilesPanel extends StatelessWidget {
                 itemBuilder: (_, i) {
                   final f = state.files[i];
                   final url = '${ApiService.baseUrl}${f.filePath}';
+                  final color = _colorFor(f.mimeType);
                   return InkWell(
                     onTap: () => launchUrl(Uri.parse(url),
                         mode: LaunchMode.externalApplication),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(12),
                     child: Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                           color: D.surfaceRaised,
-                          borderRadius: BorderRadius.circular(10)),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: D.border)),
                       child: Row(children: [
-                        Icon(_iconFor(f.mimeType), color: D.textSoft, size: 20),
-                        const SizedBox(width: 10),
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                              color: color.withOpacity(0.18),
+                              borderRadius: BorderRadius.circular(9)),
+                          child: Icon(_iconFor(f.mimeType), color: color, size: 19),
+                        ),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -98,8 +121,7 @@ class FilesPanel extends StatelessWidget {
                             ],
                           ),
                         ),
-                        const Icon(Icons.download_rounded,
-                            size: 16, color: D.textSoft),
+                        Icon(Icons.download_rounded, size: 16, color: color),
                       ]),
                     ),
                   );

@@ -1,12 +1,14 @@
 // lib/features/sessions/widgets/video_call_panel.dart
 //
-// Local + remote video tiles. On wide layouts this fills the left 3/4
-// of the screen (remote large, local as a small PIP); on narrow layouts
-// it's a fixed-height strip with both tiles side by side.
+// Local + remote video tiles, shown side by side (teacher | student) so
+// both participants are always visually represented — even before the
+// peer connects, where the remote tile shows a waiting state instead of
+// disappearing.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../../models/session.dart';
+import '../../booking/utils/avatar_url.dart';
 import '../controllers/session_room_controller.dart';
 import '../screens/session_room_screen.dart' show D;
 
@@ -29,48 +31,84 @@ class VideoCallPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final otherName = isTeacher ? session.studentName : session.teacherName;
+    final otherAvatar = resolveAvatarUrl(
+        isTeacher ? session.studentAvatarUrl : session.teacherAvatarUrl);
+    final otherRole = isTeacher ? 'Student' : 'Teacher';
 
-    if (compact) {
-      return Container(
-        color: D.bg,
-        child: Row(children: [
-          Expanded(
-            child: _RemoteTile(
-              renderer: controller.webrtc.remoteRenderer,
-              peerPresent: state.peerPresent,
-              otherName: otherName,
-              handRaised: state.remoteHandRaised,
-            ),
-          ),
-          SizedBox(
-            width: 110,
-            child: _LocalTile(
-                renderer: controller.webrtc.localRenderer, camOn: state.camOn),
-          ),
-        ]),
-      );
-    }
+    final remote = _RemoteTile(
+      renderer: controller.webrtc.remoteRenderer,
+      peerPresent: state.peerPresent,
+      otherName: otherName,
+      otherAvatarUrl: otherAvatar,
+      roleLabel: otherRole,
+      handRaised: state.remoteHandRaised,
+      compact: compact,
+    );
+    final local = _LocalTile(
+      renderer: controller.webrtc.localRenderer,
+      camOn: state.camOn,
+      micOn: state.micOn,
+      compact: compact,
+    );
 
     return Container(
       color: D.bg,
-      padding: const EdgeInsets.all(16),
-      child: Stack(children: [
-        Positioned.fill(
-          child: _RemoteTile(
-            renderer: controller.webrtc.remoteRenderer,
-            peerPresent: state.peerPresent,
-            otherName: otherName,
-            handRaised: state.remoteHandRaised,
-            large: true,
-          ),
-        ),
-        Positioned(
-          right: 8,
-          bottom: 8,
-          width: 180,
-          height: 120,
-          child: _LocalTile(
-              renderer: controller.webrtc.localRenderer, camOn: state.camOn),
+      padding: EdgeInsets.all(compact ? 8 : 16),
+      child: Row(children: [
+        Expanded(child: remote),
+        SizedBox(width: compact ? 8 : 14),
+        Expanded(child: local),
+      ]),
+    );
+  }
+}
+
+class _RoleBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _RoleBadge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: D.bg.withOpacity(0.55),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color, width: 1.2),
+      ),
+      child: Text(label,
+          style: TextStyle(
+              fontSize: 10.5, fontWeight: FontWeight.w700, color: color)),
+    );
+  }
+}
+
+class _NameTag extends StatelessWidget {
+  final String label;
+  final bool micOn;
+  const _NameTag({required this.label, required this.micOn});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: D.bg.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(micOn ? Icons.mic_rounded : Icons.mic_off_rounded,
+            size: 13, color: micOn ? D.green : D.red),
+        const SizedBox(width: 5),
+        Flexible(
+          child: Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white)),
         ),
       ]),
     );
@@ -81,22 +119,34 @@ class _RemoteTile extends StatelessWidget {
   final RTCVideoRenderer renderer;
   final bool peerPresent;
   final String? otherName;
+  final String? otherAvatarUrl;
+  final String roleLabel;
   final bool handRaised;
-  final bool large;
+  final bool compact;
   const _RemoteTile({
     required this.renderer,
     required this.peerPresent,
     required this.otherName,
+    required this.otherAvatarUrl,
+    required this.roleLabel,
     required this.handRaised,
-    this.large = false,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final avatarRadius = compact ? 22.0 : 40.0;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(large ? 16 : 8),
+      borderRadius: BorderRadius.circular(compact ? 10 : 18),
       child: Container(
-        color: D.surface,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [D.surfaceRaised, D.surface],
+          ),
+          border: Border.all(color: D.border),
+        ),
         child: Stack(fit: StackFit.expand, children: [
           if (peerPresent)
             RTCVideoView(renderer,
@@ -104,26 +154,62 @@ class _RemoteTile extends StatelessWidget {
           else
             Center(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                CircleAvatar(
-                  radius: large ? 36 : 20,
-                  backgroundColor: D.surfaceRaised,
-                  child: Text(
-                    (otherName?.isNotEmpty ?? false)
-                        ? otherName![0].toUpperCase()
-                        : '?',
-                    style:
-                        TextStyle(fontSize: large ? 28 : 16, color: D.textSoft),
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                        colors: [D.slateBlue, D.magenta]),
+                  ),
+                  child: CircleAvatar(
+                    radius: avatarRadius,
+                    backgroundColor: D.surfaceRaised,
+                    backgroundImage:
+                        otherAvatarUrl != null ? NetworkImage(otherAvatarUrl!) : null,
+                    child: otherAvatarUrl == null
+                        ? Text(
+                            (otherName?.isNotEmpty ?? false)
+                                ? otherName![0].toUpperCase()
+                                : '?',
+                            style: TextStyle(
+                                fontSize: compact ? 16 : 28,
+                                fontWeight: FontWeight.w700,
+                                color: D.textPrimary),
+                          )
+                        : null,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text('Waiting for ${otherName ?? "the other participant"}…',
-                    style: const TextStyle(fontSize: 12, color: D.textSoft)),
+                if (!compact) ...[
+                  const SizedBox(height: 14),
+                  Text('Waiting for ${otherName ?? "your $roleLabel".toLowerCase()}…',
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: D.textPrimary)),
+                  const SizedBox(height: 4),
+                  Text("They'll join any moment now",
+                      style: TextStyle(fontSize: 11, color: D.textSoft)),
+                ],
               ]),
+            ),
+          Positioned(
+            top: 10,
+            left: 10,
+            child: _RoleBadge(
+                label: roleLabel,
+                color: roleLabel == 'Teacher' ? D.slateBlue : D.magenta),
+          ),
+          if (peerPresent)
+            Positioned(
+              left: 10,
+              bottom: 10,
+              child: _NameTag(
+                  label: otherName ?? roleLabel, micOn: true),
             ),
           if (handRaised)
             const Positioned(
               top: 10,
-              left: 10,
+              right: 10,
               child: _Badge(icon: Icons.back_hand_rounded, color: D.amber),
             ),
         ]),
@@ -132,33 +218,47 @@ class _RemoteTile extends StatelessWidget {
   }
 }
 
-// FIXED: Container previously set both `color:` and `decoration:`
-// simultaneously — Flutter forbids this (color is just shorthand for
-// decoration: BoxDecoration(color: color), so the two can't coexist).
-// This was throwing "Cannot provide both a color and a decoration" on
-// every build, crashing the local video tile. Fix: move the color into
-// the same BoxDecoration as the border.
 class _LocalTile extends StatelessWidget {
   final RTCVideoRenderer renderer;
   final bool camOn;
-  const _LocalTile({required this.renderer, required this.camOn});
+  final bool micOn;
+  final bool compact;
+  const _LocalTile({
+    required this.renderer,
+    required this.camOn,
+    required this.micOn,
+    this.compact = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(compact ? 10 : 18),
       child: Container(
         decoration: BoxDecoration(
           color: D.surfaceRaised,
           border: Border.all(color: D.border),
         ),
-        child: camOn
-            ? RTCVideoView(renderer,
-                mirror: true,
-                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
-            : const Center(
-                child: Icon(Icons.videocam_off_rounded,
-                    color: D.textSoft, size: 20)),
+        child: Stack(fit: StackFit.expand, children: [
+          camOn
+              ? RTCVideoView(renderer,
+                  mirror: true,
+                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
+              : Center(
+                  child: Icon(Icons.videocam_off_rounded,
+                      color: D.textSoft, size: compact ? 18 : 32),
+                ),
+          const Positioned(
+            top: 10,
+            left: 10,
+            child: _RoleBadge(label: 'You', color: D.green),
+          ),
+          Positioned(
+            left: 10,
+            bottom: 10,
+            child: _NameTag(label: 'You', micOn: micOn),
+          ),
+        ]),
       ),
     );
   }
@@ -182,12 +282,14 @@ class ControlBar extends StatelessWidget {
   final SessionRoomController controller;
   final bool isTeacher;
   final Color accent;
+  final VoidCallback onLeave;
   const ControlBar({
     super.key,
     required this.state,
     required this.controller,
     required this.isTeacher,
     required this.accent,
+    required this.onLeave,
   });
 
   @override
@@ -196,33 +298,37 @@ class ControlBar extends StatelessWidget {
       color: D.surface,
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
       child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        _CircleButton(
+        _PillButton(
           icon: state.micOn ? Icons.mic_rounded : Icons.mic_off_rounded,
+          label: state.micOn ? 'Mute' : 'Unmute',
           active: state.micOn,
           onTap: controller.toggleMic,
         ),
-        const SizedBox(width: 14),
-        _CircleButton(
+        const SizedBox(width: 12),
+        _PillButton(
           icon:
               state.camOn ? Icons.videocam_rounded : Icons.videocam_off_rounded,
+          label: 'Camera',
           active: state.camOn,
           onTap: controller.toggleCam,
         ),
-        const SizedBox(width: 14),
-        _CircleButton(
+        const SizedBox(width: 12),
+        _PillButton(
           icon: Icons.back_hand_rounded,
+          label: 'Raise Hand',
           active: state.localHandRaised,
           activeColor: D.amber,
           onTap: controller.toggleRaiseHand,
         ),
-        const SizedBox(width: 14),
+        const SizedBox(width: 12),
         _ReactionButton(controller: controller),
         if (isTeacher) ...[
-          const SizedBox(width: 14),
-          _CircleButton(
+          const SizedBox(width: 12),
+          _PillButton(
             icon: state.canDrawWhiteboard
                 ? Icons.edit_note_rounded
                 : Icons.edit_off_rounded,
+            label: 'Board Access',
             active: state.canDrawWhiteboard,
             activeColor: D.slateBlue,
             onTap: () =>
@@ -230,19 +336,31 @@ class ControlBar extends StatelessWidget {
             tooltip: 'Allow student to draw',
           ),
         ],
+        const SizedBox(width: 20),
+        Container(width: 1, height: 32, color: D.border),
+        const SizedBox(width: 20),
+        _PillButton(
+          icon: isTeacher ? Icons.stop_circle_rounded : Icons.call_end_rounded,
+          label: isTeacher ? 'End' : 'Leave',
+          active: true,
+          activeColor: D.red,
+          onTap: onLeave,
+        ),
       ]),
     );
   }
 }
 
-class _CircleButton extends StatelessWidget {
+class _PillButton extends StatelessWidget {
   final IconData icon;
+  final String label;
   final bool active;
   final Color? activeColor;
   final VoidCallback onTap;
   final String? tooltip;
-  const _CircleButton({
+  const _PillButton({
     required this.icon,
+    required this.label,
     required this.active,
     required this.onTap,
     this.activeColor,
@@ -251,22 +369,37 @@ class _CircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final highlighted = active && activeColor != null;
     final btn = InkWell(
       onTap: onTap,
-      customBorder: const CircleBorder(),
+      borderRadius: BorderRadius.circular(14),
       child: Container(
-        width: 44,
-        height: 44,
+        width: 66,
+        padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: active ? (activeColor ?? D.surfaceRaised) : D.surfaceRaised,
-          border: active && activeColor == null
-              ? Border.all(color: D.border)
-              : null,
+          color: highlighted
+              ? activeColor!.withOpacity(0.18)
+              : D.surfaceRaised,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+              color: highlighted ? activeColor! : D.border,
+              width: highlighted ? 1.3 : 1),
         ),
-        child: Icon(icon,
-            color: active && activeColor == null ? D.textPrimary : Colors.white,
-            size: 20),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon,
+              color: highlighted
+                  ? activeColor
+                  : (active ? D.textPrimary : D.textSoft),
+              size: 20),
+          const SizedBox(height: 4),
+          Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w600,
+                  color: highlighted ? activeColor : D.textSoft)),
+        ]),
       ),
     );
     return tooltip != null ? Tooltip(message: tooltip!, child: btn) : btn;
@@ -283,13 +416,22 @@ class _ReactionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return PopupMenuButton<String>(
       color: D.surfaceRaised,
+      tooltip: 'React',
       icon: Container(
-        width: 44,
-        height: 44,
-        decoration:
-            const BoxDecoration(shape: BoxShape.circle, color: D.surfaceRaised),
-        child: const Icon(Icons.emoji_emotions_outlined,
-            color: Colors.white, size: 20),
+        width: 66,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: D.surfaceRaised,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: D.border),
+        ),
+        child: const Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.emoji_emotions_outlined, color: D.textSoft, size: 20),
+          SizedBox(height: 4),
+          Text('React',
+              style: TextStyle(
+                  fontSize: 9.5, fontWeight: FontWeight.w600, color: D.textSoft)),
+        ]),
       ),
       onSelected: controller.sendReaction,
       itemBuilder: (_) => _emojis

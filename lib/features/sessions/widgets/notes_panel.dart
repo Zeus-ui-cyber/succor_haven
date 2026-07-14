@@ -49,16 +49,35 @@ class _NotesPanelState extends State<NotesPanel> {
     return Column(children: [
       Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         color: D.surface,
-        child: Text(
-          widget.state.notesSaving
-              ? 'Saving…'
-              : widget.state.notesSavedAt != null
-                  ? 'Saved ${_relativeTime(widget.state.notesSavedAt!)}'
-                  : 'Shared notes — autosaves as you type',
-          style: const TextStyle(fontSize: 11, color: D.textSoft),
-        ),
+        child: Row(children: [
+          const Icon(Icons.sticky_note_2_rounded, size: 15, color: D.amber),
+          const SizedBox(width: 7),
+          const Text('Notes',
+              style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: D.textPrimary)),
+          const Spacer(),
+          if (widget.state.notesSaving)
+            const SizedBox(
+                width: 10,
+                height: 10,
+                child: CircularProgressIndicator(
+                    strokeWidth: 1.6, color: D.textSoft))
+          else if (widget.state.notesSavedAt != null)
+            const Icon(Icons.check_circle_rounded, size: 13, color: D.green),
+          const SizedBox(width: 5),
+          Text(
+            widget.state.notesSaving
+                ? 'Saving…'
+                : widget.state.notesSavedAt != null
+                    ? 'Saved ${_relativeTime(widget.state.notesSavedAt!)}'
+                    : 'Autosaves as you type',
+            style: const TextStyle(fontSize: 10.5, color: D.textSoft),
+          ),
+        ]),
       ),
       Expanded(
         child: Padding(

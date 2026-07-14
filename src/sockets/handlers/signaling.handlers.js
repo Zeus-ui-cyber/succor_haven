@@ -32,7 +32,11 @@ function registerSignalingHandlers(io, socket) {
   // Caller creates an offer once both sides are present; relayed as-is.
   socket.on("webrtc:offer", (payload) => {
     const { sessionId } = socket.data;
-    if (!sessionId) return;
+    if (!sessionId) {
+      console.warn(`[webrtc:offer] DROPPED user=${userId} — not in a session room`);
+      return;
+    }
+    console.log(`[webrtc:offer] relay user=${userId} -> room=${roomFor(sessionId)}`);
     socket.to(roomFor(sessionId)).emit("webrtc:offer", {
       fromUserId: userId,
       sdp: payload?.sdp,
@@ -41,7 +45,11 @@ function registerSignalingHandlers(io, socket) {
 
   socket.on("webrtc:answer", (payload) => {
     const { sessionId } = socket.data;
-    if (!sessionId) return;
+    if (!sessionId) {
+      console.warn(`[webrtc:answer] DROPPED user=${userId} — not in a session room`);
+      return;
+    }
+    console.log(`[webrtc:answer] relay user=${userId} -> room=${roomFor(sessionId)}`);
     socket.to(roomFor(sessionId)).emit("webrtc:answer", {
       fromUserId: userId,
       sdp: payload?.sdp,
@@ -50,7 +58,11 @@ function registerSignalingHandlers(io, socket) {
 
   socket.on("webrtc:ice-candidate", (payload) => {
     const { sessionId } = socket.data;
-    if (!sessionId) return;
+    if (!sessionId) {
+      console.warn(`[webrtc:ice-candidate] DROPPED user=${userId} — not in a session room`);
+      return;
+    }
+    console.log(`[webrtc:ice-candidate] relay user=${userId} -> room=${roomFor(sessionId)}`);
     socket.to(roomFor(sessionId)).emit("webrtc:ice-candidate", {
       fromUserId: userId,
       candidate: payload?.candidate,
@@ -63,6 +75,7 @@ function registerSignalingHandlers(io, socket) {
   socket.on("webrtc:hangup", () => {
     const { sessionId } = socket.data;
     if (!sessionId) return;
+    console.log(`[webrtc:hangup] user=${userId} -> room=${roomFor(sessionId)}`);
     socket.to(roomFor(sessionId)).emit("webrtc:hangup", { fromUserId: userId });
   });
 }

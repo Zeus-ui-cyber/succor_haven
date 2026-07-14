@@ -117,6 +117,7 @@ class _SessionRoomScreenState extends ConsumerState<SessionRoomScreen> {
               connectionStatus: state.connectionStatus,
               remainingLabel: _fmt(_remaining),
               isTeacher: _isTeacher,
+              peerPresent: state.peerPresent,
               onLeave: () =>
                   _confirmLeave(context, controller, isTeacher: _isTeacher),
             ),
@@ -147,6 +148,8 @@ class _SessionRoomScreenState extends ConsumerState<SessionRoomScreen> {
               controller: controller,
               isTeacher: _isTeacher,
               accent: accent,
+              onLeave: () =>
+                  _confirmLeave(context, controller, isTeacher: _isTeacher),
             ),
           ]),
         ),
@@ -227,6 +230,7 @@ class _TopBar extends StatelessWidget {
   final RoomConnectionStatus connectionStatus;
   final String remainingLabel;
   final bool isTeacher;
+  final bool peerPresent;
   final VoidCallback onLeave;
 
   const _TopBar({
@@ -235,6 +239,7 @@ class _TopBar extends StatelessWidget {
     required this.connectionStatus,
     required this.remainingLabel,
     required this.isTeacher,
+    required this.peerPresent,
     required this.onLeave,
   });
 
@@ -254,61 +259,133 @@ class _TopBar extends StatelessWidget {
             : D.amber;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: const BoxDecoration(
-        color: D.surface,
-        border: Border(bottom: BorderSide(color: D.border)),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [D.surface, D.surfaceRaised.withOpacity(0.6)],
+        ),
+        border: const Border(bottom: BorderSide(color: D.border)),
       ),
       child: Row(children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
           decoration: BoxDecoration(
-              color: D.red, borderRadius: BorderRadius.circular(4)),
-          child: const Text('LIVE',
-              style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white)),
+              gradient: const LinearGradient(
+                  colors: [D.red, Color(0xFFB93A63)]),
+              borderRadius: BorderRadius.circular(6),
+              boxShadow: [
+                BoxShadow(
+                    color: D.red.withOpacity(0.35),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2)),
+              ]),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration:
+                  const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 5),
+            const Text('LIVE',
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
+                    color: Colors.white)),
+          ]),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 8),
+        Icon(Icons.shield_rounded, size: 14, color: D.green.withOpacity(0.8)),
+        const SizedBox(width: 12),
         Expanded(
-          child: Text(
-            session.title?.trim().isNotEmpty == true
-                ? session.title!
-                : session.subject,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: D.textPrimary),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                session.title?.trim().isNotEmpty == true
+                    ? session.title!
+                    : session.subject,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: D.textPrimary),
+              ),
+              const Text('1-on-1 Session',
+                  style: TextStyle(fontSize: 10.5, color: D.textSoft)),
+            ],
           ),
         ),
-        Icon(Icons.timer_outlined, size: 14, color: D.textSoft),
-        const SizedBox(width: 4),
-        Text(remainingLabel,
-            style: const TextStyle(
-                fontSize: 12, color: D.textSoft, fontWeight: FontWeight.w600)),
-        const SizedBox(width: 14),
-        Container(
-            width: 7,
-            height: 7,
-            decoration:
-                BoxDecoration(color: statusColor, shape: BoxShape.circle)),
-        const SizedBox(width: 5),
-        Text(statusLabel, style: TextStyle(fontSize: 11, color: statusColor)),
-        const SizedBox(width: 14),
-        OutlinedButton(
+        const SizedBox(width: 12),
+        _Pill(children: [
+          const Icon(Icons.people_alt_rounded, size: 13, color: D.textSoft),
+          const SizedBox(width: 5),
+          Text(peerPresent ? '2' : '1',
+              style: const TextStyle(
+                  fontSize: 11.5,
+                  color: D.textPrimary,
+                  fontWeight: FontWeight.w700)),
+        ]),
+        const SizedBox(width: 8),
+        _Pill(children: [
+          Icon(Icons.timer_outlined, size: 13, color: D.textSoft),
+          const SizedBox(width: 5),
+          Text(remainingLabel,
+              style: const TextStyle(
+                  fontSize: 11.5,
+                  color: D.textPrimary,
+                  fontWeight: FontWeight.w600)),
+        ]),
+        const SizedBox(width: 8),
+        _Pill(children: [
+          Container(
+              width: 7,
+              height: 7,
+              decoration:
+                  BoxDecoration(color: statusColor, shape: BoxShape.circle)),
+          const SizedBox(width: 6),
+          Text(statusLabel,
+              style: TextStyle(fontSize: 11, color: statusColor)),
+        ]),
+        const SizedBox(width: 12),
+        FilledButton.icon(
           onPressed: onLeave,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: D.red,
-            side: const BorderSide(color: D.red),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          icon: Icon(isTeacher ? Icons.stop_circle_rounded : Icons.logout_rounded,
+              size: 16),
+          label: Text(isTeacher ? 'End Session' : 'Leave',
+              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+          style: FilledButton.styleFrom(
+            backgroundColor: D.magenta,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
-          child: Text(isTeacher ? 'End Session' : 'Leave',
-              style: const TextStyle(fontSize: 12)),
         ),
       ]),
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  final List<Widget> children;
+  const _Pill({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: D.surfaceRaised,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: D.border),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: children),
     );
   }
 }
@@ -330,26 +407,31 @@ class _ToolTabs extends StatelessWidget {
     ];
     return Container(
       color: D.surface,
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
       child: Row(
         children: tabs.map((t) {
           final isActive = active == t.$1;
           return Expanded(
             child: InkWell(
+              borderRadius: BorderRadius.circular(10),
               onTap: () => onChanged(t.$1),
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                padding: const EdgeInsets.symmetric(vertical: 9),
                 decoration: BoxDecoration(
-                  border: Border(
-                      bottom: BorderSide(
-                          color: isActive ? accent : Colors.transparent,
-                          width: 2)),
+                  color: isActive ? accent.withOpacity(0.16) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                      color: isActive ? accent.withOpacity(0.4) : Colors.transparent),
                 ),
                 child: Column(children: [
-                  Icon(t.$2, size: 18, color: isActive ? accent : D.textSoft),
-                  const SizedBox(height: 2),
+                  Icon(t.$2, size: 17, color: isActive ? accent : D.textSoft),
+                  const SizedBox(height: 3),
                   Text(t.$3,
                       style: TextStyle(
-                          fontSize: 10, color: isActive ? accent : D.textSoft)),
+                          fontSize: 10,
+                          fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                          color: isActive ? accent : D.textSoft)),
                 ]),
               ),
             ),

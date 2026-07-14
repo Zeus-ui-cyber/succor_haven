@@ -1,5 +1,6 @@
 // lib/features/sessions/widgets/chat_panel.dart
 import 'package:flutter/material.dart';
+import '../../booking/utils/avatar_url.dart';
 import '../controllers/session_room_controller.dart';
 import '../screens/session_room_screen.dart' show D;
 
@@ -44,15 +45,40 @@ class _ChatPanelState extends State<ChatPanel> {
     _textCtrl.clear();
   }
 
+  ({String name, String role, String? avatarUrl, Color color}) _senderInfo(
+      String senderId) {
+    final session = widget.controller.session;
+    if (senderId == session.teacherId) {
+      return (
+        name: session.teacherName ?? 'Teacher',
+        role: 'Teacher',
+        avatarUrl: resolveAvatarUrl(session.teacherAvatarUrl),
+        color: D.slateBlue,
+      );
+    }
+    return (
+      name: session.studentName ?? 'Student',
+      role: 'Student',
+      avatarUrl: resolveAvatarUrl(session.studentAvatarUrl),
+      color: D.magenta,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final myId = widget.controller.currentUserId;
     return Column(children: [
       Expanded(
         child: widget.state.messages.isEmpty
-            ? const Center(
-                child: Text('No messages yet — say hello!',
-                    style: TextStyle(color: D.textSoft, fontSize: 12)))
+            ? Center(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.chat_bubble_outline_rounded,
+                      size: 28, color: D.textSoft.withOpacity(0.5)),
+                  const SizedBox(height: 8),
+                  const Text('No messages yet — say hello!',
+                      style: TextStyle(color: D.textSoft, fontSize: 12)),
+                ]),
+              )
             : ListView.builder(
                 controller: _scrollCtrl,
                 padding: const EdgeInsets.all(12),
@@ -60,34 +86,82 @@ class _ChatPanelState extends State<ChatPanel> {
                 itemBuilder: (_, i) {
                   final msg = widget.state.messages[i];
                   final mine = msg.senderId == myId;
-                  return Align(
-                    alignment:
-                        mine ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      constraints: const BoxConstraints(maxWidth: 260),
-                      decoration: BoxDecoration(
-                        color: mine ? D.magenta : D.surfaceRaised,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(msg.body,
-                              style: TextStyle(
-                                  fontSize: 13,
-                                  color: mine ? Colors.white : D.textPrimary)),
-                          const SizedBox(height: 3),
-                          Text(
-                            '${msg.createdAt.hour.toString().padLeft(2, '0')}:${msg.createdAt.minute.toString().padLeft(2, '0')}',
-                            style: TextStyle(
-                                fontSize: 9,
-                                color: mine ? Colors.white70 : D.textSoft),
-                          ),
+                  final info = _senderInfo(msg.senderId);
+                  final time =
+                      '${msg.createdAt.hour.toString().padLeft(2, '0')}:${msg.createdAt.minute.toString().padLeft(2, '0')}';
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: mine
+                          ? MainAxisAlignment.end
+                          : MainAxisAlignment.start,
+                      children: [
+                        if (!mine) ...[
+                          _Avatar(name: info.name, url: info.avatarUrl, color: info.color),
+                          const SizedBox(width: 8),
                         ],
-                      ),
+                        Flexible(
+                          child: Column(
+                            crossAxisAlignment: mine
+                                ? CrossAxisAlignment.end
+                                : CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(mine ? 'You' : info.name,
+                                        style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: mine ? D.textSoft : info.color)),
+                                    const SizedBox(width: 5),
+                                    Text(time,
+                                        style: const TextStyle(
+                                            fontSize: 9.5, color: D.textSoft)),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 9),
+                                constraints: const BoxConstraints(maxWidth: 230),
+                                decoration: BoxDecoration(
+                                  gradient: mine
+                                      ? const LinearGradient(colors: [
+                                          D.magenta,
+                                          Color(0xFFB93A63),
+                                        ])
+                                      : null,
+                                  color: mine ? null : D.surfaceRaised,
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: const Radius.circular(14),
+                                    topRight: const Radius.circular(14),
+                                    bottomLeft:
+                                        Radius.circular(mine ? 14 : 3),
+                                    bottomRight:
+                                        Radius.circular(mine ? 3 : 14),
+                                  ),
+                                ),
+                                child: Text(msg.body,
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        color: mine
+                                            ? Colors.white
+                                            : D.textPrimary)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (mine) ...[
+                          const SizedBox(width: 8),
+                          _Avatar(name: 'You', url: null, color: D.green),
+                        ],
+                      ],
                     ),
                   );
                 },
@@ -125,12 +199,38 @@ class _ChatPanelState extends State<ChatPanel> {
             ),
           ),
           const SizedBox(width: 8),
-          IconButton(
-            onPressed: _send,
-            icon: const Icon(Icons.send_rounded, color: D.magenta),
+          Container(
+            decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(colors: [D.magenta, Color(0xFFB93A63)])),
+            child: IconButton(
+              onPressed: _send,
+              icon: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+            ),
           ),
         ]),
       ),
     ]);
+  }
+}
+
+class _Avatar extends StatelessWidget {
+  final String name;
+  final String? url;
+  final Color color;
+  const _Avatar({required this.name, required this.url, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return CircleAvatar(
+      radius: 14,
+      backgroundColor: color.withOpacity(0.25),
+      backgroundImage: url != null ? NetworkImage(url!) : null,
+      child: url == null
+          ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+              style: TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w700, color: color))
+          : null,
+    );
   }
 }

@@ -66,6 +66,9 @@ class WebrtcRoomService {
           : creds.iceServers.map((s) => s.toIceServerMap()).toList(),
     };
 
+    // ignore: avoid_print
+    print('[WebrtcRoomService] creating RTCPeerConnection '
+        '(iceServers=${config['iceServers']})');
     _pc = await createPeerConnection(config);
 
     localStream?.getTracks().forEach((track) {
@@ -73,13 +76,33 @@ class WebrtcRoomService {
     });
 
     _pc!.onIceCandidate = (candidate) {
-      if (candidate.candidate != null) onIceCandidate(candidate);
+      if (candidate.candidate != null) {
+        // ignore: avoid_print
+        print('[WebrtcRoomService] local ICE candidate gathered: '
+            '${candidate.candidate?.substring(0, candidate.candidate!.length.clamp(0, 60))}...');
+        onIceCandidate(candidate);
+      }
+    };
+
+    _pc!.onIceConnectionState = (stateVal) {
+      // ignore: avoid_print
+      print('[WebrtcRoomService] ICE connection state: $stateVal');
+    };
+
+    _pc!.onConnectionState = (stateVal) {
+      // ignore: avoid_print
+      print('[WebrtcRoomService] peer connection state: $stateVal');
     };
 
     _pc!.onTrack = (event) {
+      // ignore: avoid_print
+      print('[WebrtcRoomService] onTrack fired: kind=${event.track.kind} '
+          'streams=${event.streams.length}');
       if (event.streams.isNotEmpty) {
         remoteStream = event.streams.first;
         remoteRenderer.srcObject = remoteStream;
+        // ignore: avoid_print
+        print('[WebrtcRoomService] remote stream attached to renderer');
         onRemoteStreamReady();
       }
     };
