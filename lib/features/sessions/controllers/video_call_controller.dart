@@ -6,6 +6,15 @@
 // signaling.handlers.js for why that's collision-free for a strictly
 // 2-participant room.
 //
+// Audio: neither renderer muted anything by default, which meant the
+// local preview played your own mic straight back through your speakers
+// (echo/feedback loop), AND — on Flutter Web specifically — remote audio
+// can get silently blocked by the browser's autoplay policy unless the
+// renderer is explicitly told it's allowed to play unmuted. Fixed below
+// by setting localRenderer.muted = true / remoteRenderer.muted = false
+// right after initialize(), and re-asserting the remote unmute the
+// moment the actual remote stream arrives in onTrack.
+//
 // ⚠️ Written to match documented flutter_webrtc / socket_io_client APIs
 // as closely as possible, but this environment has no Flutter SDK and no
 // two real devices to actually exercise a live connection — treat this
@@ -93,11 +102,19 @@ class VideoCallController extends StateNotifier<VideoCallState> {
 
   Future<void> start() async {
     try {
-      state = state.copyWith(connectionState: CallConnectionState.requestingPermissions);
+      state = state.copyWith(
+          connectionState: CallConnectionState.requestingPermissions);
       await _ensurePermissions();
 
       await localRenderer.initialize();
       await remoteRenderer.initialize();
+
+      // FIXED: mute the local preview so you never hear your own mic
+      // looped back through your speakers (echo/feedback), and
+      // explicitly unmute the remote renderer so the peer's audio isn't
+      // silently blocked by the browser's autoplay policy on web.
+      localRenderer.muted = true;
+      remoteRenderer.muted = false;
 
       _localStream = await navigator.mediaDevices.getUserMedia({
         'audio': true,
@@ -105,10 +122,12 @@ class VideoCallController extends StateNotifier<VideoCallState> {
       });
       localRenderer.srcObject = _localStream;
 
-      state = state.copyWith(connectionState: CallConnectionState.connectingSignaling);
+      state = state.copyWith(
+          connectionState: CallConnectionState.connectingSignaling);
       _listen();
       await signaling.connectAndJoin(sessionId);
-      state = state.copyWith(connectionState: CallConnectionState.waitingForPeer);
+      state =
+          state.copyWith(connectionState: CallConnectionState.waitingForPeer);
     } catch (e) {
       state = state.copyWith(
         connectionState: CallConnectionState.failed,
@@ -122,7 +141,8 @@ class VideoCallController extends StateNotifier<VideoCallState> {
     final camera = await Permission.camera.request();
     final mic = await Permission.microphone.request();
     if (!camera.isGranted || !mic.isGranted) {
-      throw Exception('Camera and microphone permissions are required to join.');
+      throw Exception(
+          'Camera and microphone permissions are required to join.');
     }
   }
 
@@ -169,6 +189,9 @@ class VideoCallController extends StateNotifier<VideoCallState> {
     pc.onTrack = (event) {
       if (event.streams.isNotEmpty) {
         remoteRenderer.srcObject = event.streams[0];
+        // Re-assert unmuted right when the real remote stream lands —
+        // some browsers reset renderer audio state when srcObject changes.
+        remoteRenderer.muted = false;
         state = state.copyWith(
           remoteConnected: true,
           connectionState: CallConnectionState.connected,
@@ -178,7 +201,8 @@ class VideoCallController extends StateNotifier<VideoCallState> {
 
     pc.onConnectionState = (rtcState) {
       if (rtcState == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
-          rtcState == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
+          rtcState ==
+              RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
         state = state.copyWith(connectionState: CallConnectionState.failed);
       }
     };
@@ -208,7 +232,8 @@ class VideoCallController extends StateNotifier<VideoCallState> {
       final pc = await _ensurePeerConnection();
       final sdpData = data['sdp'] as Map;
       await pc.setRemoteDescription(
-        RTCSessionDescription(sdpData['sdp'] as String, sdpData['type'] as String),
+        RTCSessionDescription(
+            sdpData['sdp'] as String, sdpData['type'] as String),
       );
       final answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
@@ -226,7 +251,8 @@ class VideoCallController extends StateNotifier<VideoCallState> {
       final pc = await _ensurePeerConnection();
       final sdpData = data['sdp'] as Map;
       await pc.setRemoteDescription(
-        RTCSessionDescription(sdpData['sdp'] as String, sdpData['type'] as String),
+        RTCSessionDescription(
+            sdpData['sdp'] as String, sdpData['type'] as String),
       );
     } catch (e) {
       state = state.copyWith(
