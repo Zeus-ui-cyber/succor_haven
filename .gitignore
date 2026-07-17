@@ -1,2 +1,10 @@
 ﻿node_modules/
 .env
+
+# Flutter
+.dart_tool/
+.flutter-plugins-dependencies
+build/
+
+# Runtime/session data
+uploads/session-files/
