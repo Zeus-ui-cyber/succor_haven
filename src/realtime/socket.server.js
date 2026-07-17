@@ -27,7 +27,13 @@ function initSocketServer(httpServer) {
     path: "/socket.io",
     cors: {
       origin: (origin, callback) => {
-        if (!origin || /^http:\/\/localhost(:\d+)?$/.test(origin)) {
+        // Same allow-list as app.js's REST CORS: localhost for local dev,
+        // plus the permanent Render deployment domain.
+        if (
+          !origin ||
+          /^http:\/\/localhost(:\d+)?$/.test(origin) ||
+          /^https:\/\/succor-haven\.onrender\.com$/.test(origin)
+        ) {
           return callback(null, true);
         }
         callback(new Error(`Socket.IO CORS blocked: ${origin}`));
@@ -73,7 +79,9 @@ function initSocketServer(httpServer) {
           socket.user.sub,
         );
 
-        socket.to(room).emit("session:peer-joined", { userId: socket.user.sub });
+        socket
+          .to(room)
+          .emit("session:peer-joined", { userId: socket.user.sub });
         ack?.({ ok: true });
       } catch (err) {
         console.error("session:join error:", err);

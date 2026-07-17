@@ -1,11 +1,11 @@
 // src/app.js
-require('dotenv').config();
-const path = require('path');
-const express = require('express');
-const cors    = require('cors');
-const helmet  = require('helmet');
-const routes  = require('./routes');
-const { initSocketServer } = require('./realtime/socket.server');
+require("dotenv").config();
+const path = require("path");
+const express = require("express");
+const cors = require("cors");
+const helmet = require("helmet");
+const routes = require("./routes");
+const { initSocketServer } = require("./realtime/socket.server");
 
 const app = express();
 
@@ -15,25 +15,47 @@ const app = express();
 // files served below would otherwise get silently blocked by the browser
 // even once express.static() is wired up. crossOriginResourcePolicy set
 // to "cross-origin" allows other origins to load files from /uploads.
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' },
-}));
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  }),
+);
 
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow any localhost port — all collaborators work without config changes
-    // Allow no-origin requests (mobile apps, curl, Postman)
-    if (!origin || /^http:\/\/localhost(:\d+)?$/.test(origin)) {
-      return callback(null, true);
-    }
-    // Add your production domain here when deployed:
-    // if (origin === 'https://your-app.com') return callback(null, true);
-    callback(new Error(`CORS blocked: ${origin}`));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow any localhost port — all collaborators work without config changes.
+      // Allow no-origin requests (mobile apps, curl, Postman).
+      // Allow the permanent Render deployment domain (replaces the earlier
+      // ngrok tunnel used for cross-network testing before this was deployed).
+      if (
+        !origin ||
+        /^http:\/\/localhost(:\d+)?$/.test(origin) ||
+        /^https:\/\/succor-haven\.onrender\.com$/.test(origin)
+      ) {
+        return callback(null, true);
+      }
+      // Add your production domain here when deployed:
+      // if (origin === 'https://your-app.com') return callback(null, true);
+      callback(new Error(`CORS blocked: ${origin}`));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    // FIXED: added 'ngrok-skip-browser-warning' — the Flutter client now
+    // sends this header on every request (see api_service.dart) to bypass
+    // ngrok's free-tier interstitial warning page, which was
+    // intermittently intercepting requests (including CORS preflights)
+    // and causing random login/session failures during cross-network
+    // testing. Without explicitly allowing it here, the browser's own
+    // CORS preflight would reject the header as disallowed before the
+    // request even reached ngrok's bypass logic.
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "ngrok-skip-browser-warning",
+    ],
+  }),
+);
 app.use(express.json());
 
 // ⚠️ ADDED: this was completely missing. routes/index.js's multer configs
@@ -47,21 +69,23 @@ app.use(express.json());
 // or middleware handles it. This single line covers every subfolder
 // under uploads/ (profile-pictures, modules, and any future ones) without
 // needing a separate express.static() call per feature.
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
-app.use('/api/v1', routes);
+app.use("/api/v1", routes);
 
 // Health check
-app.get('/health', (_, res) => res.json({ status: 'ok' }));
+app.get("/health", (_, res) => res.json({ status: "ok" }));
 
 // Global error handler
 app.use((err, req, res, next) => {
   console.error(err);
-  res.status(500).json({ error: 'Internal server error' });
+  res.status(500).json({ error: "Internal server error" });
 });
 
 const PORT = process.env.PORT || 3000;
-const server = app.listen(PORT, () => console.log(`Succor Haven API running on port ${PORT}`));
+const server = app.listen(PORT, () =>
+  console.log(`Succor Haven API running on port ${PORT}`),
+);
 
 // Socket.IO attaches to the same HTTP server/port rather than opening a
 // second listener — one process, one port, same as everything else here.
