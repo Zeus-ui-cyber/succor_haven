@@ -36,6 +36,8 @@ class SignalingRepository {
       StreamController<Map<String, dynamic>>.broadcast();
   final _reactionController =
       StreamController<Map<String, dynamic>>.broadcast();
+  final _screenShareStartedController = StreamController<String>.broadcast();
+  final _screenShareStoppedController = StreamController<String>.broadcast();
 
   Stream<String> get onPeerJoined => _peerJoinedController.stream;
   Stream<String> get onPeerLeft => _peerLeftController.stream;
@@ -51,6 +53,10 @@ class SignalingRepository {
       _whiteboardPermissionController.stream;
   Stream<Map<String, dynamic>> get onRaiseHand => _raiseHandController.stream;
   Stream<Map<String, dynamic>> get onReaction => _reactionController.stream;
+  Stream<String> get onScreenShareStarted =>
+      _screenShareStartedController.stream;
+  Stream<String> get onScreenShareStopped =>
+      _screenShareStoppedController.stream;
 
   /// Socket.IO server lives at the API's root, not under /api/v1 — same
   /// host-stripping trick as avatar_url.dart's resolveAvatarUrl().
@@ -112,6 +118,10 @@ class SignalingRepository {
         'presence:reaction',
         (data) =>
             _reactionController.add(Map<String, dynamic>.from(data as Map)));
+    socket.on('screenshare:started',
+        (data) => _screenShareStartedController.add((data as Map)['userId'] as String));
+    socket.on('screenshare:stopped',
+        (data) => _screenShareStoppedController.add((data as Map)['userId'] as String));
 
     socket.onConnect((_) {
       socket.emitWithAck('session:join', sessionId, ack: (response) {
@@ -152,6 +162,46 @@ class SignalingRepository {
   void sendReaction(String emoji) =>
       _socket?.emit('presence:reaction', {'emoji': emoji});
 
+  /// Asks the server for the "screen share slot" in this room — completes
+  /// once granted, or throws (e.g. the other participant is already
+  /// sharing) so the caller can surface that instead of silently capturing
+  /// the screen for nothing.
+  Future<void> startScreenShare() {
+    final completer = Completer<void>();
+    final socket = _socket;
+    if (socket == null) {
+      return Future.error(Exception('Not connected.'));
+    }
+    // Pass {} rather than null — an ack-based emit with a null/omitted data
+    // argument can end up sending ONLY the ack callback as the argument,
+    // which the server's (payload, ack) handler receives as `payload`
+    // (with `ack` itself undefined), so ack?.(...) silently no-ops and this
+    // call hangs forever with neither a result nor an error. session:join
+    // above never hit this because it always passes a real value (sessionId).
+    socket.emitWithAck('screenshare:start', {}, ack: (response) {
+      final map = response is Map ? response : {};
+      if (map['error'] != null) {
+        if (!completer.isCompleted) {
+          completer.completeError(Exception(map['error'] as String));
+        }
+      } else if (!completer.isCompleted) {
+        completer.complete();
+      }
+    });
+    // Belt-and-suspenders: if the ack never arrives for any reason, fail
+    // loudly after a few seconds instead of hanging forever — a hung
+    // Future here is indistinguishable from the button doing nothing.
+    Future.delayed(const Duration(seconds: 8), () {
+      if (!completer.isCompleted) {
+        completer.completeError(
+            Exception('Timed out starting screen share. Please try again.'));
+      }
+    });
+    return completer.future;
+  }
+
+  void stopScreenShare() => _socket?.emit('screenshare:stop');
+
   void dispose() {
     _socket?.dispose();
     _peerJoinedController.close();
@@ -165,5 +215,7 @@ class SignalingRepository {
     _whiteboardPermissionController.close();
     _raiseHandController.close();
     _reactionController.close();
+    _screenShareStartedController.close();
+    _screenShareStoppedController.close();
   }
 }

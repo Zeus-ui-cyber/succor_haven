@@ -45,6 +45,8 @@ class VideoCallState {
   final bool micOn;
   final bool speakerOn;
   final bool remoteConnected;
+  final bool sharingScreen;
+  final bool remoteSharingScreen;
   final String? errorMessage;
 
   const VideoCallState({
@@ -53,6 +55,8 @@ class VideoCallState {
     required this.micOn,
     required this.speakerOn,
     required this.remoteConnected,
+    this.sharingScreen = false,
+    this.remoteSharingScreen = false,
     this.errorMessage,
   });
 
@@ -70,6 +74,8 @@ class VideoCallState {
     bool? micOn,
     bool? speakerOn,
     bool? remoteConnected,
+    bool? sharingScreen,
+    bool? remoteSharingScreen,
     String? errorMessage,
   }) =>
       VideoCallState(
@@ -78,6 +84,8 @@ class VideoCallState {
         micOn: micOn ?? this.micOn,
         speakerOn: speakerOn ?? this.speakerOn,
         remoteConnected: remoteConnected ?? this.remoteConnected,
+        sharingScreen: sharingScreen ?? this.sharingScreen,
+        remoteSharingScreen: remoteSharingScreen ?? this.remoteSharingScreen,
         errorMessage: errorMessage ?? this.errorMessage,
       );
 }
@@ -89,13 +97,21 @@ class VideoCallController extends StateNotifier<VideoCallState> {
 
   final RTCVideoRenderer localRenderer = RTCVideoRenderer();
   final RTCVideoRenderer remoteRenderer = RTCVideoRenderer();
+  final RTCVideoRenderer screenShareRenderer = RTCVideoRenderer();
 
   MediaStream? _localStream;
+  MediaStream? _screenStream;
   RTCPeerConnection? _pc;
   Future<RTCPeerConnection>? _pcFuture;
   bool _remoteDescriptionSet = false;
   final List<RTCIceCandidate> _pendingRemoteCandidates = [];
   final List<StreamSubscription> _subs = [];
+
+  // The first remote MediaStream we ever see (from onTrack) is the peer's
+  // camera+mic — its id becomes the reference point for telling that apart
+  // from a screen-share track added later via renegotiation, since both
+  // arrive on the same peer connection with no other metadata to key off.
+  String? _remoteCameraStreamId;
 
   VideoCallController({
     required this.signaling,
@@ -111,6 +127,7 @@ class VideoCallController extends StateNotifier<VideoCallState> {
 
       await localRenderer.initialize();
       await remoteRenderer.initialize();
+      await screenShareRenderer.initialize();
 
       // FIXED: mute the local preview so you never hear your own mic
       // looped back through your speakers (echo/feedback), and
@@ -118,6 +135,7 @@ class VideoCallController extends StateNotifier<VideoCallState> {
       // silently blocked by the browser's autoplay policy on web.
       localRenderer.muted = true;
       remoteRenderer.muted = false;
+      screenShareRenderer.muted = true; // video-only track, no audio sent
 
       _localStream = await navigator.mediaDevices.getUserMedia({
         'audio': true,
@@ -156,10 +174,19 @@ class VideoCallController extends StateNotifier<VideoCallState> {
     _subs.add(signaling.onIceCandidate.listen(_handleRemoteIceCandidate));
     _subs.add(signaling.onPeerLeft.listen((_) {
       remoteRenderer.srcObject = null;
+      screenShareRenderer.srcObject = null;
       state = state.copyWith(
         remoteConnected: false,
+        remoteSharingScreen: false,
         connectionState: CallConnectionState.waitingForPeer,
       );
+    }));
+    _subs.add(signaling.onScreenShareStarted.listen((_) {
+      state = state.copyWith(remoteSharingScreen: true);
+    }));
+    _subs.add(signaling.onScreenShareStopped.listen((_) {
+      screenShareRenderer.srcObject = null;
+      state = state.copyWith(remoteSharingScreen: false);
     }));
   }
 
@@ -199,8 +226,17 @@ class VideoCallController extends StateNotifier<VideoCallState> {
     };
 
     pc.onTrack = (event) {
-      if (event.streams.isNotEmpty) {
-        remoteRenderer.srcObject = event.streams[0];
+      if (event.streams.isEmpty) return;
+      final stream = event.streams[0];
+
+      // The first stream we ever see from this peer is their camera+mic
+      // (added during the initial call setup, before any screen share is
+      // possible). Anything with a different stream id that shows up later
+      // is their screen share, added via renegotiation.
+      _remoteCameraStreamId ??= stream.id;
+
+      if (stream.id == _remoteCameraStreamId) {
+        remoteRenderer.srcObject = stream;
         // Re-assert unmuted right when the real remote stream lands —
         // some browsers reset renderer audio state when srcObject changes.
         remoteRenderer.muted = false;
@@ -208,6 +244,8 @@ class VideoCallController extends StateNotifier<VideoCallState> {
           remoteConnected: true,
           connectionState: CallConnectionState.connected,
         );
+      } else {
+        screenShareRenderer.srcObject = stream;
       }
     };
 
@@ -239,8 +277,15 @@ class VideoCallController extends StateNotifier<VideoCallState> {
   }
 
   Future<void> _handleOffer(Map<String, dynamic> data) async {
+    // An offer can arrive either as the initial call setup or as a
+    // renegotiation (e.g. the peer starting/stopping screen share). Only
+    // flip the UI to "negotiating" for the former — a renegotiation offer
+    // shouldn't make an already-connected call look like it dropped.
+    final isRenegotiation = state.remoteConnected;
     try {
-      state = state.copyWith(connectionState: CallConnectionState.negotiating);
+      if (!isRenegotiation) {
+        state = state.copyWith(connectionState: CallConnectionState.negotiating);
+      }
       final pc = await _ensurePeerConnection();
       final sdpData = data['sdp'] as Map;
       await pc.setRemoteDescription(
@@ -251,6 +296,9 @@ class VideoCallController extends StateNotifier<VideoCallState> {
       final answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       signaling.sendAnswer({'sdp': answer.sdp, 'type': answer.type});
+      if (isRenegotiation) {
+        state = state.copyWith(connectionState: CallConnectionState.connected);
+      }
     } catch (e) {
       state = state.copyWith(
         connectionState: CallConnectionState.failed,
@@ -342,6 +390,91 @@ class VideoCallController extends StateNotifier<VideoCallState> {
     state = state.copyWith(speakerOn: newValue);
   }
 
+  // ── Screen sharing ────────────────────────────────────────────────────
+  //
+  // Adds/removes a video-only track on the SAME peer connection used for
+  // camera/mic, rather than opening a second connection — so it renegotiates
+  // via a fresh createOffer()/setLocalDescription() sent through the same
+  // signaling.sendOffer() the initial call used (see the offer/answer relay
+  // comment in signaling.handlers.js). Safe from renegotiation glare because
+  // only one side can hold the "sharing" slot at a time (enforced server-side
+  // by screenshare:start's ack), so both sides never call createOffer() for
+  // a screen-share change at once.
+  // Throws on failure (instead of only recording state.errorMessage) so the
+  // button that triggers this can show the failure immediately — silently
+  // swallowing it here would make a real error (permission denied, browser
+  // doesn't support screen capture, peer not connected yet, ...) look
+  // exactly like the button doing nothing at all.
+  Future<void> startScreenShare() async {
+    if (state.sharingScreen) return;
+    if (!state.remoteConnected) {
+      throw Exception(
+          'Wait for the other participant to join before sharing your screen.');
+    }
+    try {
+      await signaling.startScreenShare();
+
+      final screenStream = await navigator.mediaDevices.getDisplayMedia({
+        'video': true,
+        'audio': false,
+      });
+      _screenStream = screenStream;
+      screenShareRenderer.srcObject = screenStream;
+
+      final pc = await _ensurePeerConnection();
+      for (final track in screenStream.getVideoTracks()) {
+        // Fires if the user stops sharing via the browser/OS's own native
+        // "Stop sharing" control instead of our in-app button.
+        track.onEnded = () => stopScreenShare();
+        await pc.addTrack(track, screenStream);
+      }
+      await _renegotiate(pc);
+      state = state.copyWith(sharingScreen: true);
+    } catch (e) {
+      final stream = _screenStream;
+      _screenStream = null;
+      screenShareRenderer.srcObject = null;
+      if (stream != null) {
+        for (final t in stream.getTracks()) {
+          await t.stop();
+        }
+        await stream.dispose();
+      }
+      state = state.copyWith(errorMessage: '$e');
+      rethrow;
+    }
+  }
+
+  Future<void> stopScreenShare() async {
+    if (!state.sharingScreen) return;
+    final stream = _screenStream;
+    _screenStream = null;
+    screenShareRenderer.srcObject = null;
+    state = state.copyWith(sharingScreen: false);
+    signaling.stopScreenShare();
+
+    final pc = _pc;
+    if (pc != null && stream != null) {
+      final senders = await pc.getSenders();
+      for (final track in stream.getTracks()) {
+        for (final sender in senders) {
+          if (sender.track?.id == track.id) {
+            await pc.removeTrack(sender);
+          }
+        }
+        await track.stop();
+      }
+      await stream.dispose();
+      await _renegotiate(pc);
+    }
+  }
+
+  Future<void> _renegotiate(RTCPeerConnection pc) async {
+    final offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    signaling.sendOffer({'sdp': offer.sdp, 'type': offer.type});
+  }
+
   Future<void> leave() async {
     for (final s in _subs) {
       await s.cancel();
@@ -351,6 +484,7 @@ class VideoCallController extends StateNotifier<VideoCallState> {
     _pc = null;
     _pcFuture = null;
     _remoteDescriptionSet = false;
+    _remoteCameraStreamId = null;
     _pendingRemoteCandidates.clear();
     final stream = _localStream;
     if (stream != null) {
@@ -360,6 +494,14 @@ class VideoCallController extends StateNotifier<VideoCallState> {
       await stream.dispose();
     }
     _localStream = null;
+    final screenStream = _screenStream;
+    if (screenStream != null) {
+      for (final t in screenStream.getTracks()) {
+        await t.stop();
+      }
+      await screenStream.dispose();
+    }
+    _screenStream = null;
     // Note: does NOT dispose `signaling` — it's a shared instance owned by
     // signalingRepositoryProvider (chat/whiteboard/presence controllers
     // may still be using it); that provider disposes it once nothing in
@@ -371,6 +513,7 @@ class VideoCallController extends StateNotifier<VideoCallState> {
     leave();
     localRenderer.dispose();
     remoteRenderer.dispose();
+    screenShareRenderer.dispose();
     super.dispose();
   }
 }
