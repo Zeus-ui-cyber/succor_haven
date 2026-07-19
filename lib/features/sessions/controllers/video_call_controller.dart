@@ -92,6 +92,9 @@ class VideoCallController extends StateNotifier<VideoCallState> {
 
   MediaStream? _localStream;
   RTCPeerConnection? _pc;
+  Future<RTCPeerConnection>? _pcFuture;
+  bool _remoteDescriptionSet = false;
+  final List<RTCIceCandidate> _pendingRemoteCandidates = [];
   final List<StreamSubscription> _subs = [];
 
   VideoCallController({
@@ -160,10 +163,19 @@ class VideoCallController extends StateNotifier<VideoCallState> {
     }));
   }
 
-  Future<RTCPeerConnection> _ensurePeerConnection() async {
+  // Memoized so concurrent callers (an incoming offer and an incoming ICE
+  // candidate can both land while we're still awaiting TURN credentials)
+  // await the SAME peer connection instead of each racing to create their
+  // own — otherwise negotiation lands on one RTCPeerConnection while
+  // remote candidates get added to a different, never-negotiated one, and
+  // the call never connects even though signaling itself is fine.
+  Future<RTCPeerConnection> _ensurePeerConnection() {
     final existing = _pc;
-    if (existing != null) return existing;
+    if (existing != null) return Future.value(existing);
+    return _pcFuture ??= _createPeerConnection();
+  }
 
+  Future<RTCPeerConnection> _createPeerConnection() async {
     final iceServers = await sessionsRepo.getTurnCredentials(sessionId);
     final pc = await createPeerConnection({
       'iceServers': iceServers,
@@ -235,6 +247,7 @@ class VideoCallController extends StateNotifier<VideoCallState> {
         RTCSessionDescription(
             sdpData['sdp'] as String, sdpData['type'] as String),
       );
+      await _onRemoteDescriptionSet(pc);
       final answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       signaling.sendAnswer({'sdp': answer.sdp, 'type': answer.type});
@@ -254,6 +267,7 @@ class VideoCallController extends StateNotifier<VideoCallState> {
         RTCSessionDescription(
             sdpData['sdp'] as String, sdpData['type'] as String),
       );
+      await _onRemoteDescriptionSet(pc);
     } catch (e) {
       state = state.copyWith(
         connectionState: CallConnectionState.failed,
@@ -262,19 +276,38 @@ class VideoCallController extends StateNotifier<VideoCallState> {
     }
   }
 
+  // Flushes any ICE candidates that arrived (and were buffered) before the
+  // remote description was set — addCandidate() throws if called earlier,
+  // so those can't just be applied immediately as they come in.
+  Future<void> _onRemoteDescriptionSet(RTCPeerConnection pc) async {
+    _remoteDescriptionSet = true;
+    final queued = List<RTCIceCandidate>.from(_pendingRemoteCandidates);
+    _pendingRemoteCandidates.clear();
+    for (final candidate in queued) {
+      await pc.addCandidate(candidate);
+    }
+  }
+
   Future<void> _handleRemoteIceCandidate(Map<String, dynamic> data) async {
     try {
       final pc = await _ensurePeerConnection();
       final c = data['candidate'] as Map;
-      await pc.addCandidate(RTCIceCandidate(
+      final candidate = RTCIceCandidate(
         c['candidate'] as String?,
         c['sdpMid'] as String?,
         c['sdpMLineIndex'] as int?,
-      ));
+      );
+      if (!_remoteDescriptionSet) {
+        // The remote description (offer/answer) hasn't landed yet — queue
+        // it rather than dropping it, since these are the candidates the
+        // connection actually needs to succeed, not spares.
+        _pendingRemoteCandidates.add(candidate);
+        return;
+      }
+      await pc.addCandidate(candidate);
     } catch (_) {
-      // Benign — a candidate can arrive just before the remote description
-      // is set in rare orderings; flutter_webrtc queues most of these
-      // internally, and a stray failure here isn't fatal to the call.
+      // A stray failure here (e.g. a duplicate/late candidate) isn't fatal
+      // to the call — plenty of other candidates are still in flight.
     }
   }
 
@@ -316,6 +349,9 @@ class VideoCallController extends StateNotifier<VideoCallState> {
     _subs.clear();
     await _pc?.close();
     _pc = null;
+    _pcFuture = null;
+    _remoteDescriptionSet = false;
+    _pendingRemoteCandidates.clear();
     final stream = _localStream;
     if (stream != null) {
       for (final t in stream.getTracks()) {
