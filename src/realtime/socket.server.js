@@ -17,7 +17,10 @@
 const { Server } = require("socket.io");
 const { verifyAccess } = require("../services/jwt.service");
 const sessionService = require("../services/session.service");
-const { registerSignalingHandlers } = require("./signaling.handlers");
+const {
+  registerSignalingHandlers,
+  stopScreenShareFor,
+} = require("./signaling.handlers");
 const { registerChatHandlers } = require("./chat.handlers");
 const { registerWhiteboardHandlers } = require("./whiteboard.handlers");
 const { registerPresenceHandlers } = require("./presence.handlers");
@@ -97,6 +100,10 @@ function initSocketServer(httpServer) {
     socket.on("disconnect", async () => {
       const sessionId = socket.data.sessionId;
       if (!sessionId) return;
+      // If this socket was mid-screen-share, release the "one sharer at a
+      // time" lock and tell the other side so their UI doesn't stay stuck
+      // showing a share that's no longer coming.
+      stopScreenShareFor(sessionId, socket.user.sub, socket);
       socket.to(`session:${sessionId}`).emit("session:peer-left", {
         userId: socket.user.sub,
       });

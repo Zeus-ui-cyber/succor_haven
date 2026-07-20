@@ -14,6 +14,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../controllers/auth_controller.dart';
+import '../../../models/user.dart';
 import '../../../models/user_role.dart';
 import 'otp_screen.dart';
 
@@ -175,11 +176,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         ),
       );
     } else if (authState.user != null) {
-      final route = _selectedRole.routeForTeacher(
-        authState.user!.teacherApproved,
-      );
-      Navigator.pushReplacementNamed(context, route);
+      _navigateForUser(authState.user!);
     }
+  }
+
+  // Routes by the account's ACTUAL role (as returned by the server), not by
+  // whichever tab happened to be selected on this screen — the tab is just
+  // UI state and login only checks email/password, so an account logged in
+  // with the wrong tab selected would otherwise land on the wrong
+  // dashboard and then get 403s from role-gated endpoints (e.g. a teacher
+  // account landing on the student dashboard and hitting POST /appointments,
+  // which requires the student role).
+  void _navigateForUser(UserModel user) {
+    final actualRole = UserRole.fromString(user.role);
+    if (actualRole != _selectedRole) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_zhMode
+              ? '此账户注册为${actualRole.labelCn}，已为您跳转到正确的主页。'
+              : 'This account is registered as ${actualRole.label}. Taking you to the right dashboard.'),
+          backgroundColor: actualRole.accent,
+        ),
+      );
+    }
+    final route = actualRole.routeForTeacher(user.teacherApproved);
+    Navigator.pushReplacementNamed(context, route);
   }
 
   void _goToOtp() {
@@ -203,10 +224,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             zhMode: _zhMode,
             onSuccess: () {
               final user = ref.read(authControllerProvider).user;
-              final route = _selectedRole.routeForTeacher(
-                user?.teacherApproved ?? false,
-              );
-              Navigator.pushReplacementNamed(context, route);
+              if (user == null) return;
+              _navigateForUser(user);
             },
           ),
         ),

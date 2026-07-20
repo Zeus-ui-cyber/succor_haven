@@ -26,6 +26,7 @@ import '../controllers/video_call_controller.dart';
 import '../controllers/presence_controller.dart';
 import '../widgets/room_theme.dart';
 import '../widgets/video_tile.dart';
+import '../widgets/screen_share_view.dart';
 import '../widgets/room_control_bar.dart';
 import '../widgets/whiteboard_panel.dart';
 import '../widgets/notes_panel.dart';
@@ -37,6 +38,30 @@ final _roomMeProvider =
     FutureProvider.autoDispose<UserModel>((ref) => ref.read(_roomAuthRepoProvider).getMe());
 
 enum _RoomTab { whiteboard, notes, chat, files }
+
+// Shared by both the wide and narrow layouts' RoomControlBar wiring.
+// startScreenShare()/stopScreenShare() throw on failure specifically so
+// this can catch it and surface it — without this, a failure (permission
+// denied, browser doesn't support screen capture, peer not connected yet)
+// would leave the button looking like it just does nothing when tapped.
+void _toggleScreenShare(
+  BuildContext context,
+  VideoCallState callState,
+  VideoCallController callController,
+) {
+  final future = callState.sharingScreen
+      ? callController.stopScreenShare()
+      : callController.startScreenShare();
+  future.catchError((Object e) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(e.toString().replaceFirst('Exception: ', '')),
+        backgroundColor: RoomColors.red,
+      ),
+    );
+  });
+}
 
 class SessionRoomScreen extends ConsumerStatefulWidget {
   final String sessionId;
@@ -50,6 +75,7 @@ class _SessionRoomScreenState extends ConsumerState<SessionRoomScreen> {
   _RoomTab _mobileTab = _RoomTab.chat;
   bool _sessionEnded = false;
   bool _autoEndFired = false;
+  bool _pinnedShare = false;
   Timer? _timer;
   Duration _remaining = Duration.zero;
 
@@ -135,6 +161,8 @@ class _SessionRoomScreenState extends ConsumerState<SessionRoomScreen> {
                   remaining: _remaining,
                   mobileTab: _mobileTab,
                   onMobileTabChanged: (t) => setState(() => _mobileTab = t),
+                  pinnedShare: _pinnedShare,
+                  onTogglePinnedShare: () => setState(() => _pinnedShare = !_pinnedShare),
                   onLeave: () => _leave(isTeacher),
                 );
               },
@@ -153,6 +181,8 @@ class _RoomBody extends ConsumerWidget {
   final Duration remaining;
   final _RoomTab mobileTab;
   final ValueChanged<_RoomTab> onMobileTabChanged;
+  final bool pinnedShare;
+  final VoidCallback onTogglePinnedShare;
   final VoidCallback onLeave;
 
   const _RoomBody({
@@ -162,6 +192,8 @@ class _RoomBody extends ConsumerWidget {
     required this.remaining,
     required this.mobileTab,
     required this.onMobileTabChanged,
+    required this.pinnedShare,
+    required this.onTogglePinnedShare,
     required this.onLeave,
   });
 
@@ -189,6 +221,8 @@ class _RoomBody extends ConsumerWidget {
                     callController: callController,
                     presenceState: presenceState,
                     presenceController: presenceController,
+                    pinnedShare: pinnedShare,
+                    onTogglePinnedShare: onTogglePinnedShare,
                     onLeave: onLeave,
                   )
                 : _NarrowBody(
@@ -201,6 +235,8 @@ class _RoomBody extends ConsumerWidget {
                     presenceController: presenceController,
                     tab: mobileTab,
                     onTabChanged: onMobileTabChanged,
+                    pinnedShare: pinnedShare,
+                    onTogglePinnedShare: onTogglePinnedShare,
                     onLeave: onLeave,
                   ),
           );
@@ -325,6 +361,8 @@ class _WideBody extends StatelessWidget {
   final VideoCallController callController;
   final PresenceState presenceState;
   final PresenceController presenceController;
+  final bool pinnedShare;
+  final VoidCallback onTogglePinnedShare;
   final VoidCallback onLeave;
 
   const _WideBody({
@@ -335,11 +373,16 @@ class _WideBody extends StatelessWidget {
     required this.callController,
     required this.presenceState,
     required this.presenceController,
+    required this.pinnedShare,
+    required this.onTogglePinnedShare,
     required this.onLeave,
   });
 
   @override
   Widget build(BuildContext context) {
+    final sharingActive = callState.sharingScreen || callState.remoteSharingScreen;
+    final isPinned = sharingActive && pinnedShare;
+
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       SizedBox(width: 230, child: _Sidebar(session: session)),
       const SizedBox(width: 16),
@@ -347,30 +390,16 @@ class _WideBody extends StatelessWidget {
         flex: 3,
         child: Column(children: [
           Expanded(
-            flex: 3,
-            child: Row(children: [
-              Expanded(
-                child: VideoTile(
-                  renderer: callController.localRenderer,
-                  label: 'You',
-                  micOn: callState.micOn,
-                  hasStream: true,
-                  mirror: true,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: VideoTile(
-                  renderer: callController.remoteRenderer,
-                  label: isTeacher
-                      ? (session.studentName ?? 'Student')
-                      : (session.teacherName ?? 'Teacher'),
-                  micOn: true,
-                  hasStream: callState.remoteConnected,
-                  badgeColor: RoomColors.burgundy,
-                ),
-              ),
-            ]),
+            flex: isPinned ? 5 : 3,
+            child: _VideoStage(
+              session: session,
+              isTeacher: isTeacher,
+              callState: callState,
+              callController: callController,
+              pinnedShare: pinnedShare,
+              onTogglePinnedShare: onTogglePinnedShare,
+              compactCameraTiles: isPinned,
+            ),
           ),
           const SizedBox(height: 12),
           RoomControlBar(
@@ -380,6 +409,8 @@ class _WideBody extends StatelessWidget {
             whiteboardOpen: true,
             handRaised: presenceState.myHandRaised,
             isTeacher: isTeacher,
+            sharingScreen: callState.sharingScreen,
+            remoteSharingScreen: callState.remoteSharingScreen,
             onToggleCamera: callController.toggleCamera,
             onToggleMic: callController.toggleMic,
             onToggleSpeaker: callController.toggleSpeaker,
@@ -387,16 +418,20 @@ class _WideBody extends StatelessWidget {
             onToggleRaiseHand: presenceController.toggleRaiseHand,
             onReaction: presenceController.sendReaction,
             onEndSession: onLeave,
+            onToggleScreenShare: () =>
+                _toggleScreenShare(context, callState, callController),
           ),
-          const SizedBox(height: 12),
-          Expanded(
-            flex: 2,
-            child: Row(children: [
-              Expanded(flex: 3, child: WhiteboardPanel(sessionId: session.id, isTeacher: isTeacher)),
-              const SizedBox(width: 12),
-              Expanded(flex: 2, child: NotesPanel(sessionId: session.id, isStudent: !isTeacher)),
-            ]),
-          ),
+          if (!isPinned) ...[
+            const SizedBox(height: 12),
+            Expanded(
+              flex: 2,
+              child: Row(children: [
+                Expanded(flex: 3, child: WhiteboardPanel(sessionId: session.id, isTeacher: isTeacher)),
+                const SizedBox(width: 12),
+                Expanded(flex: 2, child: NotesPanel(sessionId: session.id, isStudent: !isTeacher)),
+              ]),
+            ),
+          ],
         ]),
       ),
       const SizedBox(width: 16),
@@ -406,6 +441,101 @@ class _WideBody extends StatelessWidget {
           Expanded(flex: 3, child: ChatPanel(sessionId: session.id, myUserId: me.id)),
           const SizedBox(height: 12),
           Expanded(flex: 2, child: FilesPanel(sessionId: session.id, isTeacher: isTeacher)),
+        ]),
+      ),
+    ]);
+  }
+}
+
+// Camera tiles + (when active) the shared screen, in whichever arrangement
+// fits the current state: side-by-side cameras when nobody's sharing, a
+// large shared-screen + slim camera rail when someone is, or the shared
+// screen alone (with tiny camera thumbnails floating over it) when the
+// viewer has pinned it.
+class _VideoStage extends StatelessWidget {
+  final SessionModel session;
+  final bool isTeacher;
+  final VideoCallState callState;
+  final VideoCallController callController;
+  final bool pinnedShare;
+  final VoidCallback onTogglePinnedShare;
+  final bool compactCameraTiles;
+
+  const _VideoStage({
+    required this.session,
+    required this.isTeacher,
+    required this.callState,
+    required this.callController,
+    required this.pinnedShare,
+    required this.onTogglePinnedShare,
+    required this.compactCameraTiles,
+  });
+
+  String get _remoteName => isTeacher
+      ? (session.studentName ?? 'Student')
+      : (session.teacherName ?? 'Teacher');
+
+  Widget _localTile() => VideoTile(
+        renderer: callController.localRenderer,
+        label: 'You',
+        micOn: callState.micOn,
+        hasStream: true,
+        mirror: true,
+      );
+
+  Widget _remoteTile() => VideoTile(
+        renderer: callController.remoteRenderer,
+        label: _remoteName,
+        micOn: true,
+        hasStream: callState.remoteConnected,
+        badgeColor: RoomColors.burgundy,
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final sharingActive = callState.sharingScreen || callState.remoteSharingScreen;
+    if (!sharingActive) {
+      return Row(children: [
+        Expanded(child: _localTile()),
+        const SizedBox(width: 12),
+        Expanded(child: _remoteTile()),
+      ]);
+    }
+
+    final shareView = ScreenShareView(
+      renderer: callController.screenShareRenderer,
+      label: callState.sharingScreen ? "You're sharing" : "$_remoteName is sharing",
+      pinned: pinnedShare,
+      onTogglePin: onTogglePinnedShare,
+      isMine: callState.sharingScreen,
+    );
+
+    if (compactCameraTiles) {
+      // Pinned: shared screen fills the stage, camera tiles float as small
+      // thumbnails so nobody's face disappears entirely.
+      return Stack(children: [
+        Positioned.fill(child: shareView),
+        Positioned(
+          bottom: 12,
+          left: 12,
+          child: Row(children: [
+            SizedBox(width: 96, height: 72, child: _localTile()),
+            const SizedBox(width: 8),
+            SizedBox(width: 96, height: 72, child: _remoteTile()),
+          ]),
+        ),
+      ]);
+    }
+
+    return Row(children: [
+      Expanded(flex: 3, child: shareView),
+      const SizedBox(width: 12),
+      SizedBox(
+        width: 160,
+        child: Column(children: [
+          Expanded(child: _localTile()),
+          const SizedBox(height: 8),
+          Expanded(child: _remoteTile()),
         ]),
       ),
     ]);
@@ -422,6 +552,8 @@ class _NarrowBody extends StatelessWidget {
   final PresenceController presenceController;
   final _RoomTab tab;
   final ValueChanged<_RoomTab> onTabChanged;
+  final bool pinnedShare;
+  final VoidCallback onTogglePinnedShare;
   final VoidCallback onLeave;
 
   const _NarrowBody({
@@ -434,37 +566,28 @@ class _NarrowBody extends StatelessWidget {
     required this.presenceController,
     required this.tab,
     required this.onTabChanged,
+    required this.pinnedShare,
+    required this.onTogglePinnedShare,
     required this.onLeave,
   });
 
   @override
   Widget build(BuildContext context) {
+    final sharingActive = callState.sharingScreen || callState.remoteSharingScreen;
+    final isPinned = sharingActive && pinnedShare;
+
     return Column(children: [
       SizedBox(
-        height: 170,
-        child: Row(children: [
-          Expanded(
-            child: VideoTile(
-              renderer: callController.localRenderer,
-              label: 'You',
-              micOn: callState.micOn,
-              hasStream: true,
-              mirror: true,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: VideoTile(
-              renderer: callController.remoteRenderer,
-              label: isTeacher
-                  ? (session.studentName ?? 'Student')
-                  : (session.teacherName ?? 'Teacher'),
-              micOn: true,
-              hasStream: callState.remoteConnected,
-              badgeColor: RoomColors.burgundy,
-            ),
-          ),
-        ]),
+        height: isPinned ? 320 : (sharingActive ? 220 : 170),
+        child: _VideoStage(
+          session: session,
+          isTeacher: isTeacher,
+          callState: callState,
+          callController: callController,
+          pinnedShare: pinnedShare,
+          onTogglePinnedShare: onTogglePinnedShare,
+          compactCameraTiles: sharingActive,
+        ),
       ),
       const SizedBox(height: 12),
       RoomControlBar(
@@ -474,6 +597,8 @@ class _NarrowBody extends StatelessWidget {
         whiteboardOpen: tab == _RoomTab.whiteboard,
         handRaised: presenceState.myHandRaised,
         isTeacher: isTeacher,
+        sharingScreen: callState.sharingScreen,
+        remoteSharingScreen: callState.remoteSharingScreen,
         onToggleCamera: callController.toggleCamera,
         onToggleMic: callController.toggleMic,
         onToggleSpeaker: callController.toggleSpeaker,
@@ -481,6 +606,8 @@ class _NarrowBody extends StatelessWidget {
         onToggleRaiseHand: presenceController.toggleRaiseHand,
         onReaction: presenceController.sendReaction,
         onEndSession: onLeave,
+        onToggleScreenShare: () =>
+            _toggleScreenShare(context, callState, callController),
       ),
       const SizedBox(height: 12),
       _MobileTabBar(tab: tab, onTabChanged: onTabChanged),

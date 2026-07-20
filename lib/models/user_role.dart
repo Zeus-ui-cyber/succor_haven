@@ -1,6 +1,29 @@
 import 'package:flutter/material.dart';
 
-enum UserRole { student, teacher, admin }
+enum UserRole {
+  student,
+  teacher,
+  admin;
+
+  // ── From raw API string ────────────────────────────────────────────────── ✅ NEW
+  // Usage: UserRole.fromString(json['role'])
+  //
+  // Deliberately a static method on the enum itself, not on the UserRoleX
+  // extension below — static members of an extension belong to the
+  // extension (would need UserRoleX.fromString(...)), not to the type it
+  // extends, so this couldn't actually be called as UserRole.fromString(...)
+  // from there despite that being the documented usage.
+  static UserRole fromString(String value) {
+    switch (value.toLowerCase().trim()) {
+      case 'teacher':
+        return UserRole.teacher;
+      case 'admin':
+        return UserRole.admin;
+      default:
+        return UserRole.student;
+    }
+  }
+}
 
 extension UserRoleX on UserRole {
   // ── Display labels ─────────────────────────────────────────────────────────
@@ -89,19 +112,6 @@ extension UserRoleX on UserRole {
   // ── API string ─────────────────────────────────────────────────────────── ✅ NEW
   // .name already returns 'student'|'teacher'|'admin' — alias for clarity
   String get apiValue => name;
-
-  // ── From raw API string ────────────────────────────────────────────────── ✅ NEW
-  // Usage: UserRole.fromString(json['role'])
-  static UserRole fromString(String value) {
-    switch (value.toLowerCase().trim()) {
-      case 'teacher':
-        return UserRole.teacher;
-      case 'admin':
-        return UserRole.admin;
-      default:
-        return UserRole.student;
-    }
-  }
 
   // ── Permission checks ──────────────────────────────────────────────────── ✅ NEW
   bool get canManageUsers => this == UserRole.admin;

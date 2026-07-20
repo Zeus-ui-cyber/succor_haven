@@ -9,6 +9,8 @@ class RoomControlBar extends StatelessWidget {
   final bool whiteboardOpen;
   final bool handRaised;
   final bool isTeacher;
+  final bool sharingScreen;
+  final bool remoteSharingScreen;
   final VoidCallback onToggleCamera;
   final VoidCallback onToggleMic;
   final VoidCallback onToggleSpeaker;
@@ -16,6 +18,7 @@ class RoomControlBar extends StatelessWidget {
   final VoidCallback onToggleRaiseHand;
   final void Function(String emoji) onReaction;
   final VoidCallback onEndSession;
+  final VoidCallback onToggleScreenShare;
 
   const RoomControlBar({
     super.key,
@@ -25,6 +28,8 @@ class RoomControlBar extends StatelessWidget {
     required this.whiteboardOpen,
     required this.handRaised,
     required this.isTeacher,
+    required this.sharingScreen,
+    required this.remoteSharingScreen,
     required this.onToggleCamera,
     required this.onToggleMic,
     required this.onToggleSpeaker,
@@ -32,6 +37,7 @@ class RoomControlBar extends StatelessWidget {
     required this.onToggleRaiseHand,
     required this.onReaction,
     required this.onEndSession,
+    required this.onToggleScreenShare,
   });
 
   void _showReactionPicker(BuildContext context) {
@@ -97,13 +103,20 @@ class RoomControlBar extends StatelessWidget {
               onTap: onToggleSpeaker,
             ),
             _ControlButton(
-              icon: Icons.screen_share_outlined,
-              label: 'Screen Share',
-              active: false,
-              disabled: true,
-              onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Screen sharing is coming soon.')),
-              ),
+              icon: sharingScreen
+                  ? Icons.stop_screen_share_rounded
+                  : Icons.screen_share_outlined,
+              label: sharingScreen ? 'Stop Sharing' : 'Screen Share',
+              active: sharingScreen,
+              disabled: remoteSharingScreen && !sharingScreen,
+              onTap: remoteSharingScreen && !sharingScreen
+                  ? () => ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                              'The other participant is already sharing their screen.'),
+                        ),
+                      )
+                  : onToggleScreenShare,
             ),
             _ControlButton(
               icon: Icons.draw_rounded,
