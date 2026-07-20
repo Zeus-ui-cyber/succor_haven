@@ -421,27 +421,29 @@ router.patch(
 router.post("/settings/concerns", authenticate, settingsCtrl.submitConcern);
 
 // ── Appointments ──────────────────────────────────────────────────────────────
-// Student
+// Student (and teachers acting as students)
 router.post(
   "/appointments",
   authenticate,
-  requireRole("student"),
+  requireRole("student", "teacher"),
   appointmentsController.createAppointment,
 );
 router.get(
   "/appointments/mine",
   authenticate,
-  requireRole("student"),
+  requireRole("student", "teacher"),
   appointmentsController.getMyAppointments,
 );
 router.patch(
   "/appointments/:id/cancel",
   authenticate,
+  requireRole("student", "teacher"),
   appointmentsController.cancelAppointment,
 );
 router.patch(
   "/appointments/:id/respond-reschedule",
   authenticate,
+  requireRole("student", "teacher"),
   appointmentsController.respondToReschedule,
 );
 
