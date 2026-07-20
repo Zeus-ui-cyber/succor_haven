@@ -109,18 +109,18 @@ class VideoCallController extends StateNotifier<VideoCallState> {
       await localRenderer.initialize();
       await remoteRenderer.initialize();
 
+      _localStream = await navigator.mediaDevices.getUserMedia({
+        'audio': true,
+        'video': {'facingMode': 'user'},
+      });
+      localRenderer.srcObject = _localStream;
+
       // FIXED: mute the local preview so you never hear your own mic
       // looped back through your speakers (echo/feedback), and
       // explicitly unmute the remote renderer so the peer's audio isn't
       // silently blocked by the browser's autoplay policy on web.
       localRenderer.muted = true;
       remoteRenderer.muted = false;
-
-      _localStream = await navigator.mediaDevices.getUserMedia({
-        'audio': true,
-        'video': {'facingMode': 'user'},
-      });
-      localRenderer.srcObject = _localStream;
 
       state = state.copyWith(
           connectionState: CallConnectionState.connectingSignaling);

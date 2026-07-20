@@ -22,25 +22,18 @@ const { registerChatHandlers } = require("./chat.handlers");
 const { registerWhiteboardHandlers } = require("./whiteboard.handlers");
 const { registerPresenceHandlers } = require("./presence.handlers");
 
+let ioInstance = null;
+
 function initSocketServer(httpServer) {
   const io = new Server(httpServer, {
     path: "/socket.io",
     cors: {
-      origin: (origin, callback) => {
-        // Same allow-list as app.js's REST CORS: localhost for local dev,
-        // plus the permanent Render deployment domain.
-        if (
-          !origin ||
-          /^http:\/\/localhost(:\d+)?$/.test(origin) ||
-          /^https:\/\/succor-haven\.onrender\.com$/.test(origin)
-        ) {
-          return callback(null, true);
-        }
-        callback(new Error(`Socket.IO CORS blocked: ${origin}`));
-      },
+      origin: true,
       credentials: true,
     },
   });
+
+  ioInstance = io;
 
   // Same bearer-token convention as auth.middleware.js's authenticate(),
   // just read from the Socket.IO handshake instead of an HTTP header.
@@ -56,6 +49,13 @@ function initSocketServer(httpServer) {
   });
 
   io.on("connection", (socket) => {
+    // Join a user-specific room to allow targeted real-time updates (e.g. notifications,
+    // session updates, and appointment status changes).
+    const userId = socket.user.sub;
+    const userRoom = `user:${userId}`;
+    socket.join(userRoom);
+    console.log(`Socket client connected: user ${userId} joined room ${userRoom}`);
+
     socket.on("session:join", async (sessionId, ack) => {
       try {
         const session = await sessionService.getById(sessionId);
@@ -113,4 +113,18 @@ function initSocketServer(httpServer) {
   return io;
 }
 
-module.exports = { initSocketServer };
+/**
+ * Emit a Socket.IO event to a specific user.
+ * @param {string|number} userId
+ * @param {string} event
+ * @param {any} data
+ */
+function emitToUser(userId, event, data) {
+  if (ioInstance) {
+    ioInstance.to(`user:${userId}`).emit(event, data);
+  } else {
+    console.warn(`[Socket.server] ioInstance not ready. Cannot emit ${event} to user ${userId}`);
+  }
+}
+
+module.exports = { initSocketServer, emitToUser };

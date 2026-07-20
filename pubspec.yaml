@@ -35,7 +35,7 @@ dependencies:
   # File selection (Module Management → upload PDF/DOCX/PPTX materials)
   # Not a Google package — plain OS-level file dialogs, safe for
   # China-facing deployments.
-  file_picker: ^8.1.4
+  file_picker: ^11.0.2
 
   # PDF receipt generation (Buy Credits → download/share receipt)
   pdf: ^3.11.1
@@ -46,7 +46,7 @@ dependencies:
   # (infra/coturn/) — not Google's, so this stays usable in China. Not
   # yet wired into any screen (Phase 2 of the build-out); declared now so
   # `flutter pub get` picks it up ahead of that work.
-  flutter_webrtc: ^0.11.7
+  flutter_webrtc: ^1.5.2
 
   # Signaling/chat/whiteboard/presence transport, talking to this repo's
   # own Socket.IO server (src/realtime/socket.server.js) — no third-party

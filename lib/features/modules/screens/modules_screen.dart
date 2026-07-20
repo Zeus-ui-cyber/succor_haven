@@ -370,7 +370,7 @@ class _UploadSheetState extends ConsumerState<_UploadSheet> {
     // required on web where .path is unavailable (browsers don't expose
     // a filesystem path). Works the same way on native platforms too, so
     // there's no need to branch on platform here.
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'doc', 'docx', 'ppt', 'pptx'],
       withData: true,

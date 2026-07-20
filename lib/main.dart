@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'features/auth/repositories/auth_repository.dart' show AuthRepository;
+import 'core/providers/realtime_service.dart' show realtimeServiceProvider;
 
 // Auth screens
 import 'features/auth/screens/login_screen.dart' show LoginScreen;
@@ -250,13 +251,15 @@ class SHTheme {
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  String apiUrl;
-  if (kIsWeb) {
-    apiUrl = 'http://localhost:3000/api/v1';
-  } else if (defaultTargetPlatform == TargetPlatform.android) {
-    apiUrl = 'http://10.0.2.2:3000/api/v1';
-  } else {
-    apiUrl = 'http://localhost:3000/api/v1';
+  String apiUrl = const String.fromEnvironment('API_URL', defaultValue: '');
+  if (apiUrl.isEmpty) {
+    if (kIsWeb) {
+      apiUrl = 'http://localhost:3000/api/v1';
+    } else if (defaultTargetPlatform == TargetPlatform.android) {
+      apiUrl = 'https://c954-136-158-66-172.ngrok-free.app/api/v1';
+    } else {
+      apiUrl = 'http://localhost:3000/api/v1';
+    }
   }
   AuthRepository.configure(url: apiUrl);
 
@@ -273,11 +276,14 @@ void main() {
 }
 
 // ─── Root app ─────────────────────────────────────────────────────────────────
-class SuccorHavenApp extends StatelessWidget {
+class SuccorHavenApp extends ConsumerWidget {
   const SuccorHavenApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Watch to initialize the global realtime socket connection
+    ref.watch(realtimeServiceProvider);
+
     return MaterialApp(
       title: 'Succor Haven',
       debugShowCheckedModeBanner: false,

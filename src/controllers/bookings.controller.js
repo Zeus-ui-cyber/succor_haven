@@ -1,6 +1,7 @@
 // src/controllers/bookings.controller.js
 const pool = require("../db/pool");
 const sessionService = require("../services/session.service");
+const { emitToUser } = require("../realtime/socket.server");
 
 // ── GET /bookings — student sees their own, teacher sees theirs ───────────────
 // Uses first_name/last_name (the real users columns, confirmed live via
@@ -104,7 +105,11 @@ exports.create = async (req, res) => {
     // provisioned right here. Kept outside the transaction/after COMMIT
     // so a session-creation hiccup can never roll back a paid booking.
     try {
-      await sessionService.createFromBooking(rows[0]);
+      const session = await sessionService.createFromBooking(rows[0]);
+      if (session) {
+        emitToUser(session.student_id, "session:changed", { action: "create", session });
+        emitToUser(session.teacher_id, "session:changed", { action: "create", session });
+      }
     } catch (sessionErr) {
       console.error("createFromBooking error:", sessionErr);
     }
@@ -173,6 +178,10 @@ exports.complete = async (req, res) => {
     );
 
     await pool.query("COMMIT");
+
+    emitToUser(booking.student_id, "session:changed", { action: "complete", bookingId: id });
+    emitToUser(booking.teacher_id, "session:changed", { action: "complete", bookingId: id });
+
     res.json({ message: "Session completed", pointsEarned });
   } catch (err) {
     await pool.query("ROLLBACK");
@@ -213,6 +222,9 @@ exports.cancel = async (req, res) => {
       [b.student_id, b.credits_cost, `Refund for cancelled booking ${id}`],
     );
     await pool.query("COMMIT");
+
+    emitToUser(b.student_id, "session:changed", { action: "cancel", bookingId: id });
+    emitToUser(b.teacher_id, "session:changed", { action: "cancel", bookingId: id });
 
     res.json({ message: "Booking cancelled and credits refunded" });
   } catch (err) {

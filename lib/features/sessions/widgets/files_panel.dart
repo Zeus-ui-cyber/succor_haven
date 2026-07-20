@@ -14,7 +14,7 @@ class FilesPanel extends ConsumerWidget {
   const FilesPanel({super.key, required this.sessionId, required this.isTeacher});
 
   Future<void> _pickAndUpload(BuildContext context, WidgetRef ref) async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       withData: true,
       type: FileType.custom,
       allowedExtensions: [

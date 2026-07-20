@@ -18,31 +18,14 @@ const app = express();
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: false,
   }),
 );
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      // Allow any localhost port — all collaborators work without config changes.
-      // Allow no-origin requests (mobile apps, curl, Postman).
-      // Allow the permanent Render deployment domain (replaces the earlier
-      // ngrok tunnel used for cross-network testing before this was deployed).
-      if (
-        !origin ||
-        /^http:\/\/localhost(:\d+)?$/.test(origin) ||
-        /^https:\/\/succor-haven\.onrender\.com$/.test(origin)
-      ) {
-        return callback(null, true);
-      }
-      // Add your production domain here when deployed:
-      // if (origin === 'https://your-app.com') return callback(null, true);
-      callback(new Error(`CORS blocked: ${origin}`));
-    },
+    origin: true,
     credentials: true,
-    methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-    // FIXED: added 'ngrok-skip-browser-warning' — the Flutter client now
-    // sends this header on every request (see api_service.dart) to bypass
     // ngrok's free-tier interstitial warning page, which was
     // intermittently intercepting requests (including CORS preflights)
     // and causing random login/session failures during cross-network
@@ -71,7 +54,18 @@ app.use(express.json());
 // needing a separate express.static() call per feature.
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
+// API Routes
 app.use("/api/v1", routes);
+
+// Serve Flutter web build if it exists (allows testing frontend + API over a single ngrok tunnel)
+const flutterWebPath = path.join(__dirname, "../build/web");
+app.use(express.static(flutterWebPath));
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/api")) return next();
+  res.sendFile(path.join(flutterWebPath, "index.html"), (err) => {
+    if (err) next();
+  });
+});
 
 // Health check
 app.get("/health", (_, res) => res.json({ status: "ok" }));

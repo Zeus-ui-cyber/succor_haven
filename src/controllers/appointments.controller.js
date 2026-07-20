@@ -23,6 +23,7 @@
 
 const pool = require("../db/pool");
 const sessionService = require("../services/session.service");
+const { emitToUser } = require("../realtime/socket.server");
 
 const TEACHER_JOIN_SELECT = `
   a.*,
@@ -111,6 +112,9 @@ async function createAppointment(req, res) {
       ],
     );
 
+    emitToUser(studentId, "appointment:changed", { action: "create", appointment: rows[0] });
+    emitToUser(teacherId, "appointment:changed", { action: "create", appointment: rows[0] });
+
     return res.status(201).json(rows[0]);
   } catch (err) {
     console.error("createAppointment error:", err);
@@ -184,6 +188,9 @@ async function cancelAppointment(req, res) {
           "Appointment cannot be cancelled (not found, not yours, or already finalized).",
       });
     }
+    emitToUser(rows[0].student_id, "appointment:changed", { action: "cancel", appointment: rows[0] });
+    emitToUser(rows[0].teacher_id, "appointment:changed", { action: "cancel", appointment: rows[0] });
+
     return res.json(rows[0]);
   } catch (err) {
     console.error("cancelAppointment error:", err);
@@ -229,10 +236,17 @@ async function approveAppointment(req, res) {
     // dashboards per the product spec. Never let a session-creation
     // hiccup fail the approval itself; the approval already committed.
     try {
-      await sessionService.createFromAppointment(rows[0]);
+      const session = await sessionService.createFromAppointment(rows[0]);
+      if (session) {
+        emitToUser(session.student_id, "session:changed", { action: "create", session });
+        emitToUser(session.teacher_id, "session:changed", { action: "create", session });
+      }
     } catch (sessionErr) {
       console.error("createFromAppointment (approve) error:", sessionErr);
     }
+
+    emitToUser(rows[0].student_id, "appointment:changed", { action: "approve", appointment: rows[0] });
+    emitToUser(rows[0].teacher_id, "appointment:changed", { action: "approve", appointment: rows[0] });
 
     return res.json(rows[0]);
   } catch (err) {
@@ -257,6 +271,9 @@ async function declineAppointment(req, res) {
       return res
         .status(400)
         .json({ error: "Cannot decline this appointment." });
+    emitToUser(rows[0].student_id, "appointment:changed", { action: "decline", appointment: rows[0] });
+    emitToUser(rows[0].teacher_id, "appointment:changed", { action: "decline", appointment: rows[0] });
+
     return res.json(rows[0]);
   } catch (err) {
     console.error("declineAppointment error:", err);
@@ -286,6 +303,9 @@ async function proposeReschedule(req, res) {
       return res
         .status(400)
         .json({ error: "Cannot propose a new schedule for this appointment." });
+    emitToUser(rows[0].student_id, "appointment:changed", { action: "reschedule", appointment: rows[0] });
+    emitToUser(rows[0].teacher_id, "appointment:changed", { action: "reschedule", appointment: rows[0] });
+
     return res.json(rows[0]);
   } catch (err) {
     console.error("proposeReschedule error:", err);
@@ -314,10 +334,17 @@ async function respondToReschedule(req, res) {
           .json({ error: "Cannot accept this reschedule." });
 
       try {
-        await sessionService.createFromAppointment(rows[0]);
+        const session = await sessionService.createFromAppointment(rows[0]);
+        if (session) {
+          emitToUser(session.student_id, "session:changed", { action: "create", session });
+          emitToUser(session.teacher_id, "session:changed", { action: "create", session });
+        }
       } catch (sessionErr) {
         console.error("createFromAppointment (reschedule accept) error:", sessionErr);
       }
+
+      emitToUser(rows[0].student_id, "appointment:changed", { action: "approve", appointment: rows[0] });
+      emitToUser(rows[0].teacher_id, "appointment:changed", { action: "approve", appointment: rows[0] });
 
       return res.json(rows[0]);
     } else {
@@ -331,6 +358,10 @@ async function respondToReschedule(req, res) {
         return res
           .status(400)
           .json({ error: "Cannot decline this reschedule." });
+
+      emitToUser(rows[0].student_id, "appointment:changed", { action: "decline", appointment: rows[0] });
+      emitToUser(rows[0].teacher_id, "appointment:changed", { action: "decline", appointment: rows[0] });
+
       return res.json(rows[0]);
     }
   } catch (err) {
@@ -354,6 +385,9 @@ async function completeAppointment(req, res) {
       return res
         .status(400)
         .json({ error: "Cannot complete this appointment." });
+    emitToUser(rows[0].student_id, "appointment:changed", { action: "complete", appointment: rows[0] });
+    emitToUser(rows[0].teacher_id, "appointment:changed", { action: "complete", appointment: rows[0] });
+
     return res.json(rows[0]);
   } catch (err) {
     console.error("completeAppointment error:", err);

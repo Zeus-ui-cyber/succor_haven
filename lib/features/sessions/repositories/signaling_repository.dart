@@ -52,10 +52,10 @@ class SignalingRepository {
   Stream<Map<String, dynamic>> get onRaiseHand => _raiseHandController.stream;
   Stream<Map<String, dynamic>> get onReaction => _reactionController.stream;
 
-  /// Socket.IO server lives at the API's root, not under /api/v1 — same
-  /// host-stripping trick as avatar_url.dart's resolveAvatarUrl().
-  String get _socketBaseUrl =>
-      ApiService.baseUrl.replaceAll(RegExp(r'/api(/v\d+)?/?$'), '');
+  String get _socketBaseUrl {
+    final url = ApiService.baseUrl.replaceAll(RegExp(r'/api(/v\d+)?/?$'), '');
+    return url.isEmpty ? '/' : url;
+  }
 
   /// Connects and joins the given session's room. Completes once the
   /// server acks the join (or throws if unauthorized/not found).
@@ -70,6 +70,7 @@ class SignalingRepository {
           .setPath('/socket.io')
           .setAuth({'token': token})
           .disableAutoConnect()
+          .enableForceNew()
           .build(),
     );
     _socket = socket;

@@ -8,6 +8,7 @@
 const fs = require("fs");
 const sessionService = require("../services/session.service");
 const turnService = require("../services/turn.service");
+const { emitToUser } = require("../realtime/socket.server");
 
 // GET /sessions/mine
 async function getMySessions(req, res) {
@@ -92,6 +93,10 @@ async function endSession(req, res) {
     if (!session) {
       return res.status(400).json({ error: "Cannot end this session." });
     }
+    
+    emitToUser(session.student_id, "session:changed", { action: "end", session });
+    emitToUser(session.teacher_id, "session:changed", { action: "end", session });
+
     return res.json(session);
   } catch (err) {
     console.error("endSession error:", err);

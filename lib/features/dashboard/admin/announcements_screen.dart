@@ -490,7 +490,7 @@ class _AnnouncementFormSheetState
   }
 
   Future<void> _pickAttachment() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'webp'],
       withData: true,
