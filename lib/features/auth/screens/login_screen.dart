@@ -12,7 +12,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../controllers/auth_controller.dart';
 import '../../../models/user.dart';
 import '../../../models/user_role.dart';
@@ -233,17 +232,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
   }
 
-  Future<void> _launch(String url) async {
-    final uri = Uri.parse(url);
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open $url')),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
@@ -331,12 +319,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                         ],
 
                         const SizedBox(height: 28),
-                        _buildSocialBar(),
-                        const SizedBox(height: 12),
-
-                        // FIX 2 & 3: Contact footer with Flexible + overflow fix
-                        _buildContactFooter(),
-                        const SizedBox(height: 20),
 
                         Text(
                           _l.footer,
@@ -776,168 +758,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       child: Text(
         _l.newAccount,
         style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
-      ),
-    );
-  }
-
-  Widget _buildSocialBar() {
-    final socials = [
-      (
-        icon: 'assets/icons/facebook.png',
-        fallbackIcon: Icons.facebook,
-        label: 'Facebook',
-        url: 'https://www.facebook.com/profile.php?id=61570116839724',
-        color: const Color(0xFF1877F2),
-      ),
-      (
-        icon: 'assets/icons/instagram.png',
-        fallbackIcon: Icons.camera_alt_outlined,
-        label: 'Instagram',
-        url: 'https://www.instagram.com/succor_haven/',
-        color: const Color(0xFFE1306C),
-      ),
-      (
-        icon: 'assets/icons/youtube.png',
-        fallbackIcon: Icons.play_circle_outline,
-        label: 'YouTube',
-        url: 'https://www.youtube.com/@succorhaven',
-        color: const Color(0xFFFF0000),
-      ),
-      (
-        icon: 'assets/icons/tiktok.png',
-        fallbackIcon: Icons.music_note_outlined,
-        label: 'TikTok',
-        url: 'https://www.tiktok.com/@succorhaven',
-        color: const Color(0xFF010101),
-      ),
-      (
-        icon: 'assets/icons/x.png',
-        fallbackIcon: Icons.alternate_email,
-        label: 'X',
-        url: 'https://x.com/succorhaven',
-        color: const Color(0xFF000000),
-      ),
-    ];
-
-    return Column(
-      children: [
-        Text(
-          _zhMode ? '关注我们' : 'Follow us',
-          style: const TextStyle(
-              fontSize: 11.5,
-              color: _C.inkSoft,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.3),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: socials.map((s) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: GestureDetector(
-                onTap: () => _launch(s.url),
-                child: Tooltip(
-                  message: s.label,
-                  child: Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: _C.paper,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: _C.line, width: 1),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 12,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Icon(s.fallbackIcon, color: s.color, size: 20),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  // ─── FIX: Contact footer with Flexible chips ──────────────────────────────
-  Widget _buildContactFooter() {
-    return Column(
-      children: [
-        const Divider(color: _C.line, thickness: 1),
-        const SizedBox(height: 10),
-        Text(
-          _l.contactUs,
-          style: const TextStyle(
-              fontSize: 11,
-              color: _C.inkSoft,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.3),
-        ),
-        const SizedBox(height: 6),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Flexible(
-              child: _contactChip(
-                icon: Icons.phone_outlined,
-                label: '0992 283 7173',
-                onTap: () => _launch('tel:09922837173'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Flexible(
-              child: _contactChip(
-                icon: Icons.email_outlined,
-                label: 'succorhaven@gmail.com',
-                onTap: () => _launch('mailto:succorhaven@gmail.com'),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  // ─── FIX: contactChip with overflow ellipsis ──────────────────────────────
-  Widget _contactChip({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: _C.softPink,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _C.line),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 12, color: _accent),
-            const SizedBox(width: 5),
-            Flexible(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                    fontSize: 10.5,
-                    color: _accent,
-                    fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
