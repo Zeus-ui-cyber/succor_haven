@@ -252,11 +252,11 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
   String apiUrl = const String.fromEnvironment('API_URL', defaultValue: '');
-  if (apiUrl.isEmpty) {
+  if (apiUrl.isEmpty) { 
     if (kIsWeb) {
       apiUrl = 'http://localhost:3000/api/v1';
     } else if (defaultTargetPlatform == TargetPlatform.android) {
-      apiUrl = 'https://d9a7-136-158-66-172.ngrok-free.app/api/v1';
+      apiUrl = 'https://a0e6-136-158-66-172.ngrok-free.app/api/v1';
     } else {
       apiUrl = 'http://localhost:3000/api/v1';
     }

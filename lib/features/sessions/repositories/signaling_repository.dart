@@ -38,6 +38,7 @@ class SignalingRepository {
       StreamController<Map<String, dynamic>>.broadcast();
   final _screenShareStartedController = StreamController<String>.broadcast();
   final _screenShareStoppedController = StreamController<String>.broadcast();
+  final _mediaStateController = StreamController<Map<String, dynamic>>.broadcast();
 
   Stream<String> get onPeerJoined => _peerJoinedController.stream;
   Stream<String> get onPeerLeft => _peerLeftController.stream;
@@ -57,6 +58,7 @@ class SignalingRepository {
       _screenShareStartedController.stream;
   Stream<String> get onScreenShareStopped =>
       _screenShareStoppedController.stream;
+  Stream<Map<String, dynamic>> get onMediaState => _mediaStateController.stream;
 
   String get _socketBaseUrl {
     final url = ApiService.baseUrl.replaceAll(RegExp(r'/api(/v\d+)?/?$'), '');
@@ -123,6 +125,8 @@ class SignalingRepository {
         (data) => _screenShareStartedController.add((data as Map)['userId'] as String));
     socket.on('screenshare:stopped',
         (data) => _screenShareStoppedController.add((data as Map)['userId'] as String));
+    socket.on('media:state',
+        (data) => _mediaStateController.add(Map<String, dynamic>.from(data as Map)));
 
     socket.onConnect((_) {
       socket.emitWithAck('session:join', sessionId, ack: (response) {
@@ -147,6 +151,9 @@ class SignalingRepository {
       _socket?.emit('webrtc:answer', {'sdp': sdp});
   void sendIceCandidate(Map<String, dynamic> candidate) =>
       _socket?.emit('webrtc:ice-candidate', {'candidate': candidate});
+
+  void sendMediaState(bool cameraOn, bool micOn) =>
+      _socket?.emit('media:state', {'cameraOn': cameraOn, 'micOn': micOn});
 
   void sendChat(String body) => _socket?.emit('chat:send', {'body': body});
 
@@ -218,5 +225,6 @@ class SignalingRepository {
     _reactionController.close();
     _screenShareStartedController.close();
     _screenShareStoppedController.close();
+    _mediaStateController.close();
   }
 }

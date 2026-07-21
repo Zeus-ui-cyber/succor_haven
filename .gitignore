@@ -3,6 +3,7 @@
 
 # Flutter
 .dart_tool/
+readme_important.md
 .flutter-plugins-dependencies
 build/
 

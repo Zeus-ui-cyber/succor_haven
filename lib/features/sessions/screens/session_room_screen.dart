@@ -479,15 +479,15 @@ class _VideoStage extends StatelessWidget {
         renderer: callController.localRenderer,
         label: 'You',
         micOn: callState.micOn,
-        hasStream: true,
+        hasStream: callState.cameraOn,
         mirror: true,
       );
 
   Widget _remoteTile() => VideoTile(
         renderer: callController.remoteRenderer,
         label: _remoteName,
-        micOn: true,
-        hasStream: callState.remoteConnected,
+        micOn: callState.remoteMicOn,
+        hasStream: callState.remoteConnected && callState.remoteCameraOn,
         badgeColor: RoomColors.burgundy,
       );
 

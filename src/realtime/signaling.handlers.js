@@ -75,6 +75,12 @@ function registerSignalingHandlers(io, socket) {
     if (!room) return;
     stopScreenShareFor(room, socket.user.sub, socket);
   });
+
+  socket.on("media:state", (state) => {
+    const room = socket.data.sessionId;
+    if (!room) return;
+    socket.to(`session:${room}`).emit("media:state", state);
+  });
 }
 
 function stopScreenShareFor(sessionId, userId, socket) {

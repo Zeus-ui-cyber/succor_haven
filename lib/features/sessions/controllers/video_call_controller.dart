@@ -21,7 +21,7 @@
 // as needing real-device verification, not as pre-tested.
 
 import 'dart:async';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -45,6 +45,8 @@ class VideoCallState {
   final bool micOn;
   final bool speakerOn;
   final bool remoteConnected;
+  final bool remoteCameraOn;
+  final bool remoteMicOn;
   final bool sharingScreen;
   final bool remoteSharingScreen;
   final String? errorMessage;
@@ -55,6 +57,8 @@ class VideoCallState {
     required this.micOn,
     required this.speakerOn,
     required this.remoteConnected,
+    this.remoteCameraOn = true,
+    this.remoteMicOn = true,
     this.sharingScreen = false,
     this.remoteSharingScreen = false,
     this.errorMessage,
@@ -66,6 +70,8 @@ class VideoCallState {
         micOn: true,
         speakerOn: true,
         remoteConnected: false,
+        remoteCameraOn: true,
+        remoteMicOn: true,
       );
 
   VideoCallState copyWith({
@@ -74,6 +80,8 @@ class VideoCallState {
     bool? micOn,
     bool? speakerOn,
     bool? remoteConnected,
+    bool? remoteCameraOn,
+    bool? remoteMicOn,
     bool? sharingScreen,
     bool? remoteSharingScreen,
     String? errorMessage,
@@ -84,6 +92,8 @@ class VideoCallState {
         micOn: micOn ?? this.micOn,
         speakerOn: speakerOn ?? this.speakerOn,
         remoteConnected: remoteConnected ?? this.remoteConnected,
+        remoteCameraOn: remoteCameraOn ?? this.remoteCameraOn,
+        remoteMicOn: remoteMicOn ?? this.remoteMicOn,
         sharingScreen: sharingScreen ?? this.sharingScreen,
         remoteSharingScreen: remoteSharingScreen ?? this.remoteSharingScreen,
         errorMessage: errorMessage ?? this.errorMessage,
@@ -129,19 +139,22 @@ class VideoCallController extends StateNotifier<VideoCallState> {
       await remoteRenderer.initialize();
       await screenShareRenderer.initialize();
 
+      // FIXED: mute the local preview before setting srcObject so the browser's
+      // autoplay policy doesn't block the video from playing due to unmuted audio.
+      // This is wrapped in kIsWeb because on mobile, RTCVideoRenderer.muted
+      // modifies the actual track enabled state (muting the mic for the peer!)
+      // and throws if srcObject is null. Mobile handles playback automatically.
+      if (kIsWeb) {
+        localRenderer.muted = true;
+        remoteRenderer.muted = false;
+        screenShareRenderer.muted = true;
+      }
+
       _localStream = await navigator.mediaDevices.getUserMedia({
         'audio': true,
-        'video': {'facingMode': 'user'},
+        'video': kIsWeb ? true : {'facingMode': 'user'},
       });
       localRenderer.srcObject = _localStream;
-
-      // FIXED: mute the local preview so you never hear your own mic
-      // looped back through your speakers (echo/feedback), and
-      // explicitly unmute the remote renderer so the peer's audio isn't
-      // silently blocked by the browser's autoplay policy on web.
-      localRenderer.muted = true;
-      remoteRenderer.muted = false;
-      screenShareRenderer.muted = true; // video-only track, no audio sent
 
       state = state.copyWith(
           connectionState: CallConnectionState.connectingSignaling);
@@ -159,6 +172,11 @@ class VideoCallController extends StateNotifier<VideoCallState> {
 
   Future<void> _ensurePermissions() async {
     if (kIsWeb) return; // browser's own getUserMedia prompt handles this
+    // Standard desktop apps don't use runtime permission prompts like mobile
+    if (defaultTargetPlatform != TargetPlatform.android && 
+        defaultTargetPlatform != TargetPlatform.iOS) {
+      return;
+    }
     final camera = await Permission.camera.request();
     final mic = await Permission.microphone.request();
     if (!camera.isGranted || !mic.isGranted) {
@@ -168,17 +186,44 @@ class VideoCallController extends StateNotifier<VideoCallState> {
   }
 
   void _listen() {
-    _subs.add(signaling.onPeerJoined.listen((_) => _createOffer()));
-    _subs.add(signaling.onOffer.listen(_handleOffer));
+    _subs.add(signaling.onPeerJoined.listen((_) {
+      _createOffer();
+      signaling.sendMediaState(state.cameraOn, state.micOn);
+    }));
+    _subs.add(signaling.onOffer.listen((data) {
+      _handleOffer(data);
+      signaling.sendMediaState(state.cameraOn, state.micOn);
+    }));
     _subs.add(signaling.onAnswer.listen(_handleAnswer));
     _subs.add(signaling.onIceCandidate.listen(_handleRemoteIceCandidate));
-    _subs.add(signaling.onPeerLeft.listen((_) {
+    _subs.add(signaling.onMediaState.listen((data) {
+      state = state.copyWith(
+        remoteCameraOn: data['cameraOn'] as bool?,
+        remoteMicOn: data['micOn'] as bool?,
+      );
+    }));
+    _subs.add(signaling.onPeerLeft.listen((_) async {
       remoteRenderer.srcObject = null;
       screenShareRenderer.srcObject = null;
+      
+      // Clean up the dead peer connection entirely. When they rejoin,
+      // _ensurePeerConnection will create a fresh, clean one.
+      await _pc?.close();
+      _pc = null;
+      _pcFuture = null;
+      _remoteDescriptionSet = false;
+      _remoteCameraStreamId = null;
+      _pendingRemoteCandidates.clear();
+
+      // If a previous error put us in failed state, or if closing the PC
+      // caused an ongoing negotiation to throw, clear the error.
       state = state.copyWith(
         remoteConnected: false,
         remoteSharingScreen: false,
+        remoteCameraOn: true, // reset for next peer
+        remoteMicOn: true,
         connectionState: CallConnectionState.waitingForPeer,
+        errorMessage: null, // Clear any residual errors
       );
     }));
     _subs.add(signaling.onScreenShareStarted.listen((_) {
@@ -236,16 +281,46 @@ class VideoCallController extends StateNotifier<VideoCallState> {
       _remoteCameraStreamId ??= stream.id;
 
       if (stream.id == _remoteCameraStreamId) {
-        remoteRenderer.srcObject = stream;
+        if (remoteRenderer.srcObject != stream) {
+          remoteRenderer.srcObject = stream;
+        } else if (event.track.kind == 'video') {
+          // FIXED: flutter_webrtc native Android bug. If the audio track arrives first,
+          // the native renderer binds to a stream with no video. When the video track
+          // arrives milliseconds later, assigning the same stream object is ignored
+          // by the Dart setter, and the native renderer never updates. Forcing it to 
+          // null and back triggers the native re-bind so the video actually shows up.
+          remoteRenderer.srcObject = null;
+          remoteRenderer.srcObject = stream;
+        }
+
         // Re-assert unmuted right when the real remote stream lands —
         // some browsers reset renderer audio state when srcObject changes.
-        remoteRenderer.muted = false;
+        if (kIsWeb) {
+          remoteRenderer.muted = false;
+        }
         state = state.copyWith(
           remoteConnected: true,
           connectionState: CallConnectionState.connected,
         );
       } else {
-        screenShareRenderer.srcObject = stream;
+        if (screenShareRenderer.srcObject != stream) {
+          screenShareRenderer.srcObject = stream;
+        } else if (event.track.kind == 'video') {
+          screenShareRenderer.srcObject = null;
+          screenShareRenderer.srcObject = stream;
+        }
+      }
+    };
+
+    pc.onRemoveTrack = (stream, track) {
+      // Failsafe: clear the screen share UI if the WebRTC layer drops the track
+      // before the socket.io signaling packet arrives.
+      if (screenShareRenderer.srcObject != null) {
+        final currentTracks = screenShareRenderer.srcObject!.getVideoTracks();
+        if (currentTracks.any((t) => t.id == track.id)) {
+          screenShareRenderer.srcObject = null;
+          state = state.copyWith(remoteSharingScreen: false);
+        }
       }
     };
 
@@ -367,6 +442,7 @@ class VideoCallController extends StateNotifier<VideoCallState> {
       t.enabled = newValue;
     }
     state = state.copyWith(cameraOn: newValue);
+    signaling.sendMediaState(newValue, state.micOn);
   }
 
   void toggleMic() {
@@ -377,6 +453,7 @@ class VideoCallController extends StateNotifier<VideoCallState> {
       t.enabled = newValue;
     }
     state = state.copyWith(micOn: newValue);
+    signaling.sendMediaState(state.cameraOn, newValue);
   }
 
   Future<void> toggleSpeaker() async {
