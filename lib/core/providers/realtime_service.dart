@@ -6,6 +6,7 @@ import '../api/api_service.dart';
 import '../../features/auth/controllers/auth_controller.dart';
 import '../../features/appointments/controllers/appointment_controller.dart';
 import '../../features/sessions/controllers/session_list_controller.dart';
+import '../../features/notifications/controllers/notification_controller.dart';
 
 final realtimeServiceProvider = Provider<RealtimeService>((ref) {
   final service = RealtimeService(ref);
@@ -78,6 +79,12 @@ class RealtimeService {
     socket.on('session:changed', (data) {
       debugPrint('[RealtimeService] session:changed received: $data');
       _ref.invalidate(mySessionsProvider);
+    });
+
+    socket.on('notification:new', (data) {
+      debugPrint('[RealtimeService] notification:new received: $data');
+      _ref.invalidate(notificationsListProvider);
+      _ref.invalidate(unreadNotificationCountProvider);
     });
 
     socket.onDisconnect((_) {

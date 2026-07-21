@@ -23,6 +23,7 @@
 const fs = require("fs");
 const path = require("path");
 const pool = require("../db/pool");
+const { emitToUser } = require("../realtime/socket.server");
 
 const CATEGORIES = [
   "announcement", "event", "activity", "resource", "achievement",
@@ -161,11 +162,17 @@ async function notifyEligibleUsers(announcement) {
       return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5})`;
     });
 
-    await pool.query(
+    const { rows: insertedNotifications } = await pool.query(
       `INSERT INTO notifications (user_id, type, title, body, announcement_id)
-       VALUES ${values.join(", ")}`,
+       VALUES ${values.join(", ")}
+       RETURNING *`,
       params,
     );
+
+    // Emit real-time socket events so the UI updates instantly
+    for (const notif of insertedNotifications) {
+      emitToUser(notif.user_id, "notification:new", notif);
+    }
   } catch (err) {
     console.error("notifyEligibleUsers failed:", err);
   }
