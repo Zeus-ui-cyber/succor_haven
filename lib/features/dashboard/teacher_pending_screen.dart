@@ -14,6 +14,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../auth/repositories/auth_repository.dart';
+import '../../core/utils/logout_helper.dart';
 
 class TeacherPendingScreen extends ConsumerStatefulWidget {
   const TeacherPendingScreen({super.key});
@@ -72,9 +73,7 @@ class _TeacherPendingScreenState
   }
 
   Future<void> _logout() async {
-    await AuthRepository().logout();
-    if (!mounted) return;
-    Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+    await performLogoutWithLoading(context, ref: ref);
   }
 
   @override

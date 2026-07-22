@@ -521,6 +521,7 @@ router.delete("/admin/users/:id", ...admin, adminCtrl.deleteUser);
 router.patch("/admin/users/:id/credits", ...admin, adminCtrl.adjustCredits);
 router.patch("/admin/users/:id/points", ...admin, adminCtrl.adjustPoints);
 router.post("/admin/teachers", ...admin, adminCtrl.createTeacher);
+router.put("/admin/teachers/:id/subject_prices", ...admin, adminCtrl.updateTeacherSubjectPrices);
 router.get("/admin/teachers/:id/bookings", ...admin, adminCtrl.teacherSchedule);
 router.get("/admin/bookings", ...admin, adminCtrl.listBookings);
 router.patch("/admin/bookings/:id/cancel", ...admin, adminCtrl.cancelBooking);

@@ -5,7 +5,6 @@ import 'room_theme.dart';
 class RoomControlBar extends StatelessWidget {
   final bool cameraOn;
   final bool micOn;
-  final bool speakerOn;
   final bool whiteboardOpen;
   final bool handRaised;
   final bool isTeacher;
@@ -13,7 +12,6 @@ class RoomControlBar extends StatelessWidget {
   final bool remoteSharingScreen;
   final VoidCallback onToggleCamera;
   final VoidCallback onToggleMic;
-  final VoidCallback onToggleSpeaker;
   final VoidCallback onToggleWhiteboard;
   final VoidCallback onToggleRaiseHand;
   final void Function(String emoji) onReaction;
@@ -24,7 +22,6 @@ class RoomControlBar extends StatelessWidget {
     super.key,
     required this.cameraOn,
     required this.micOn,
-    required this.speakerOn,
     required this.whiteboardOpen,
     required this.handRaised,
     required this.isTeacher,
@@ -32,7 +29,6 @@ class RoomControlBar extends StatelessWidget {
     required this.remoteSharingScreen,
     required this.onToggleCamera,
     required this.onToggleMic,
-    required this.onToggleSpeaker,
     required this.onToggleWhiteboard,
     required this.onToggleRaiseHand,
     required this.onReaction,
@@ -72,85 +68,209 @@ class RoomControlBar extends StatelessWidget {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: roomPanelDecoration(radius: 20),
-      child: Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          Wrap(spacing: 6, runSpacing: 8, children: [
-            _ControlButton(
-              icon: cameraOn ? Icons.videocam_rounded : Icons.videocam_off_rounded,
-              label: 'Camera',
-              active: cameraOn,
-              onTap: onToggleCamera,
-            ),
-            _ControlButton(
-              icon: micOn ? Icons.mic_rounded : Icons.mic_off_rounded,
-              label: 'Mic',
-              active: micOn,
-              onTap: onToggleMic,
-            ),
-            _ControlButton(
-              icon: speakerOn ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-              label: 'Speaker',
-              active: speakerOn,
-              onTap: onToggleSpeaker,
-            ),
-            _ControlButton(
-              icon: sharingScreen
-                  ? Icons.stop_screen_share_rounded
-                  : Icons.screen_share_outlined,
-              label: sharingScreen ? 'Stop Sharing' : 'Screen Share',
-              active: sharingScreen,
-              disabled: remoteSharingScreen && !sharingScreen,
-              onTap: remoteSharingScreen && !sharingScreen
-                  ? () => ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                              'The other participant is already sharing their screen.'),
-                        ),
-                      )
-                  : onToggleScreenShare,
-            ),
-            _ControlButton(
-              icon: Icons.draw_rounded,
-              label: 'Whiteboard',
-              active: whiteboardOpen,
-              onTap: onToggleWhiteboard,
-            ),
-            _ControlButton(
-              icon: handRaised ? Icons.back_hand_rounded : Icons.back_hand_outlined,
-              label: 'Raise Hand',
-              active: handRaised,
-              onTap: onToggleRaiseHand,
-            ),
-            _ControlButton(
-              icon: Icons.emoji_emotions_outlined,
-              label: 'Reactions',
-              active: false,
-              onTap: () => _showReactionPicker(context),
-            ),
-          ]),
-          ElevatedButton.icon(
-            onPressed: onEndSession,
-            icon: const Icon(Icons.call_end_rounded, size: 18),
-            label: Text(isTeacher ? 'End Session' : 'Leave'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: RoomColors.red,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            ),
+  void _showMoreMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: RoomColors.surfaceRaised,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'More Controls',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: RoomColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _ControlButton(
+                    icon: sharingScreen
+                        ? Icons.stop_screen_share_rounded
+                        : Icons.screen_share_outlined,
+                    label: sharingScreen ? 'Stop Share' : 'Screen Share',
+                    active: sharingScreen,
+                    disabled: remoteSharingScreen && !sharingScreen,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      if (remoteSharingScreen && !sharingScreen) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'The other participant is already sharing their screen.'),
+                          ),
+                        );
+                      } else {
+                        onToggleScreenShare();
+                      }
+                    },
+                  ),
+                  _ControlButton(
+                    icon: Icons.draw_rounded,
+                    label: 'Whiteboard',
+                    active: whiteboardOpen,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      onToggleWhiteboard();
+                    },
+                  ),
+                  _ControlButton(
+                    icon: handRaised ? Icons.back_hand_rounded : Icons.back_hand_outlined,
+                    label: 'Raise Hand',
+                    active: handRaised,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      onToggleRaiseHand();
+                    },
+                  ),
+                  _ControlButton(
+                    icon: Icons.emoji_emotions_outlined,
+                    label: 'Reactions',
+                    active: false,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _showReactionPicker(context);
+                    },
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, constraints) {
+      final isCompact = constraints.maxWidth < 580;
+
+      if (isCompact) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: roomPanelDecoration(radius: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _ControlButton(
+                icon: cameraOn ? Icons.videocam_rounded : Icons.videocam_off_rounded,
+                label: 'Camera',
+                active: cameraOn,
+                onTap: onToggleCamera,
+              ),
+              _ControlButton(
+                icon: micOn ? Icons.mic_rounded : Icons.mic_off_rounded,
+                label: 'Mic',
+                active: micOn,
+                onTap: onToggleMic,
+              ),
+              _ControlButton(
+                icon: Icons.more_horiz_rounded,
+                label: 'More',
+                active: false,
+                onTap: () => _showMoreMenu(context),
+              ),
+              ElevatedButton.icon(
+                onPressed: onEndSession,
+                icon: const Icon(Icons.call_end_rounded, size: 16),
+                label: Text(isTeacher ? 'End' : 'Leave'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: RoomColors.red,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: roomPanelDecoration(radius: 20),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _ControlButton(
+                icon: cameraOn ? Icons.videocam_rounded : Icons.videocam_off_rounded,
+                label: 'Camera',
+                active: cameraOn,
+                onTap: onToggleCamera,
+              ),
+              const SizedBox(width: 6),
+              _ControlButton(
+                icon: micOn ? Icons.mic_rounded : Icons.mic_off_rounded,
+                label: 'Mic',
+                active: micOn,
+                onTap: onToggleMic,
+              ),
+              const SizedBox(width: 6),
+              _ControlButton(
+                icon: sharingScreen
+                    ? Icons.stop_screen_share_rounded
+                    : Icons.screen_share_outlined,
+                label: sharingScreen ? 'Stop Share' : 'Screen Share',
+                active: sharingScreen,
+                disabled: remoteSharingScreen && !sharingScreen,
+                onTap: remoteSharingScreen && !sharingScreen
+                    ? () => ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'The other participant is already sharing their screen.'),
+                          ),
+                        )
+                    : onToggleScreenShare,
+              ),
+              const SizedBox(width: 6),
+              _ControlButton(
+                icon: Icons.draw_rounded,
+                label: 'Whiteboard',
+                active: whiteboardOpen,
+                onTap: onToggleWhiteboard,
+              ),
+              const SizedBox(width: 6),
+              _ControlButton(
+                icon: handRaised ? Icons.back_hand_rounded : Icons.back_hand_outlined,
+                label: 'Raise Hand',
+                active: handRaised,
+                onTap: onToggleRaiseHand,
+              ),
+              const SizedBox(width: 6),
+              _ControlButton(
+                icon: Icons.emoji_emotions_outlined,
+                label: 'Reactions',
+                active: false,
+                onTap: () => _showReactionPicker(context),
+              ),
+              const SizedBox(width: 10),
+              ElevatedButton.icon(
+                onPressed: onEndSession,
+                icon: const Icon(Icons.call_end_rounded, size: 16),
+                label: Text(isTeacher ? 'End Session' : 'Leave'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: RoomColors.red,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    });
   }
 }
 

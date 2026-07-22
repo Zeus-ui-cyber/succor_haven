@@ -165,6 +165,18 @@ class ApiService {
     );
   }
 
+  Future<dynamic> put(String path,
+      {Map<String, dynamic>? data, bool authenticated = true}) {
+    return _handle(
+      () async => http.put(
+        _uri(path),
+        headers: await _headers(authenticated: authenticated),
+        body: jsonEncode(data ?? {}),
+      ),
+      authenticated: authenticated,
+    );
+  }
+
   // FIXED: delete() had no way to send a request body. Some DELETE
   // endpoints in this backend need one — e.g. teachers.controller.js's
   // removeSubject reads `subject` from req.body (subjects have no numeric

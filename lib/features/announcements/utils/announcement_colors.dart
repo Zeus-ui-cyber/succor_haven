@@ -1,3 +1,4 @@
+
 // lib/features/announcements/utils/announcement_colors.dart
 //
 // Single source of truth for the palette used across every

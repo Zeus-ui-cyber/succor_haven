@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../auth/controllers/auth_controller.dart';
 import '../auth/repositories/auth_repository.dart';
 import '../../core/api/api_service.dart';
+import '../../core/utils/logout_helper.dart';
 import '../../models/user.dart';
 import '../../models/appointment.dart';
 import '../settings/repositories/settings_repository.dart';
@@ -22,6 +23,7 @@ import '../announcements/controllers/announcement_controller.dart';
 import '../announcements/widgets/announcement_feed_section.dart';
 import '../notifications/widgets/notification_bell.dart';
 import '../sessions/screens/my_sessions_screen.dart';
+import '../sessions/screens/session_room_screen.dart';
 
 class _C {
   static const slateBlue = Color(0xFF3E678A);
@@ -61,7 +63,7 @@ final _tBookingsProvider = FutureProvider<List<dynamic>>((ref) async {
   final repo = ref.read(_tRepoProvider);
   final token = await repo.getAccessToken();
   final res = await http.get(
-    Uri.parse('${AuthRepository.baseUrl}/bookings'),
+    Uri.parse('${AuthRepository.baseUrl}/sessions/mine'),
     headers: {'Authorization': 'Bearer $token'},
   );
   if (res.statusCode != 200) return [];
@@ -174,8 +176,7 @@ class _TeacherDashboardState extends ConsumerState<TeacherDashboard> {
   }
 
   Future<void> _logout() async {
-    await ref.read(authControllerProvider.notifier).logout();
-    if (mounted) Navigator.pushReplacementNamed(context, '/login');
+    await performLogoutWithLoading(context, ref: ref);
   }
 }
 
@@ -236,7 +237,7 @@ class _THomeTab extends ConsumerWidget {
                 error: (_, __) => const SizedBox.shrink(),
                 data: (b) {
                   final next =
-                      b.where((x) => x['status'] == 'confirmed').toList();
+                      b.where((x) => (x['status'] == 'upcoming' || x['status'] == 'in_progress')).toList();
                   if (next.isEmpty) return const SizedBox.shrink();
                   return _TNextSessionBanner(booking: next.first);
                 },
@@ -258,7 +259,7 @@ class _THomeTab extends ConsumerWidget {
                 error: (e, _) => Text('$e'),
                 data: (b) {
                   final upcoming =
-                      b.where((x) => x['status'] == 'confirmed').toList();
+                      b.where((x) => (x['status'] == 'upcoming' || x['status'] == 'in_progress')).toList();
                   if (upcoming.isEmpty) {
                     return const _TEmpty(
                         'No upcoming sessions yet', '暂无即将上课的课程');
@@ -459,12 +460,20 @@ class _ModulesEntryCard extends StatelessWidget {
 }
 
 // ── SCHEDULE TAB ──────────────────────────────────────────────────────────────
-class _TScheduleTab extends ConsumerWidget {
+// ── SCHEDULE TAB ──────────────────────────────────────────────────────────────
+class _TScheduleTab extends ConsumerStatefulWidget {
   final UserModel user;
   const _TScheduleTab({required this.user});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_TScheduleTab> createState() => _TScheduleTabState();
+}
+
+class _TScheduleTabState extends ConsumerState<_TScheduleTab> {
+  DateTime? _selectedDay;
+
+  @override
+  Widget build(BuildContext context) {
     final bookingsAsync = ref.watch(_tBookingsProvider);
     final now = DateTime.now();
     // Build next 7 days
@@ -474,20 +483,30 @@ class _TScheduleTab extends ConsumerWidget {
 
     return Column(children: [
       // Header
-      const Padding(
-        padding: EdgeInsets.fromLTRB(20, 16, 20, 16),
-        child: Row(children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Schedule',
-                style: TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.w800, color: _C.ink)),
-            Text('日程安排',
-                style: TextStyle(
-                    fontSize: 12,
-                    color: _C.slateBlue,
-                    fontWeight: FontWeight.w600)),
-          ]),
-        ]),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Schedule',
+                  style: TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.w800, color: _C.ink)),
+              Text('日程安排',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: _C.slateBlue,
+                      fontWeight: FontWeight.w600)),
+            ]),
+            if (_selectedDay != null)
+              TextButton.icon(
+                onPressed: () => setState(() => _selectedDay = null),
+                icon: const Icon(Icons.clear, size: 14, color: _C.magenta),
+                label: const Text('Show All · 显示全部',
+                    style: TextStyle(fontSize: 12, color: _C.magenta, fontWeight: FontWeight.w700)),
+              ),
+          ],
+        ),
       ),
       // Week strip
       SizedBox(
@@ -499,39 +518,64 @@ class _TScheduleTab extends ConsumerWidget {
           itemBuilder: (_, i) {
             final day = days[i];
             final isToday = i == 0;
+            final isSelected = _selectedDay != null &&
+                _selectedDay!.year == day.year &&
+                _selectedDay!.month == day.month &&
+                _selectedDay!.day == day.day;
+
             return bookingsAsync.when(
               loading: () => _DayChip(
                   day: day,
                   dayName: dayNames[(day.weekday - 1) % 7],
                   isToday: isToday,
-                  hasSession: false),
+                  isSelected: isSelected,
+                  hasSession: false,
+                  onTap: () {}),
               error: (_, __) => _DayChip(
                   day: day,
                   dayName: dayNames[(day.weekday - 1) % 7],
                   isToday: isToday,
-                  hasSession: false),
+                  isSelected: isSelected,
+                  hasSession: false,
+                  onTap: () {}),
               data: (bookings) {
                 final hasSession = bookings.any((b) {
-                  final dt = DateTime.parse(b['scheduled_at']);
+                  if (b['scheduled_at'] == null && b['preferred_date'] == null) return false;
+                  final dt = DateTime.parse(b['scheduled_at'] ?? b['preferred_date']).toLocal();
                   return dt.year == day.year &&
                       dt.month == day.month &&
                       dt.day == day.day &&
-                      b['status'] == 'confirmed';
+                      (b['status'] == 'upcoming' || b['status'] == 'in_progress');
                 });
                 return _DayChip(
                     day: day,
                     dayName: dayNames[(day.weekday - 1) % 7],
                     isToday: isToday,
-                    hasSession: hasSession);
+                    isSelected: isSelected,
+                    hasSession: hasSession,
+                    onTap: () {
+                      setState(() {
+                        if (isSelected) {
+                          _selectedDay = null;
+                        } else {
+                          _selectedDay = day;
+                        }
+                      });
+                    });
               },
             );
           },
         ),
       ),
       const SizedBox(height: 16),
-      const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 20),
-        child: _TLabel('All Booked Sessions', '所有预约课程'),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: _TLabel(
+          _selectedDay != null
+              ? 'Sessions for ${_selectedDay!.month}/${_selectedDay!.day}'
+              : 'All Booked Sessions',
+          _selectedDay != null ? '指定日期课程' : '所有预约课程',
+        ),
       ),
       const SizedBox(height: 12),
       Expanded(
@@ -540,12 +584,26 @@ class _TScheduleTab extends ConsumerWidget {
               child: CircularProgressIndicator(color: _C.slateBlue)),
           error: (e, _) => Center(child: Text('$e')),
           data: (bookings) {
-            final scheduled = bookings
+            var scheduled = bookings
                 .where((b) =>
-                    b['status'] == 'confirmed' || b['status'] == 'pending')
-                .toList()
-              ..sort((a, b) => DateTime.parse(a['scheduled_at'])
-                  .compareTo(DateTime.parse(b['scheduled_at'])));
+                    b['status'] == 'upcoming' || b['status'] == 'in_progress' || b['status'] == 'pending')
+                .toList();
+
+            if (_selectedDay != null) {
+              scheduled = scheduled.where((b) {
+                if (b['scheduled_at'] == null && b['preferred_date'] == null) return false;
+                final dt = DateTime.parse(b['scheduled_at'] ?? b['preferred_date']).toLocal();
+                return dt.year == _selectedDay!.year &&
+                    dt.month == _selectedDay!.month &&
+                    dt.day == _selectedDay!.day;
+              }).toList();
+            }
+
+            scheduled.sort((a, b) {
+              final dtA = DateTime.parse(a['scheduled_at'] ?? a['preferred_date']).toLocal();
+              final dtB = DateTime.parse(b['scheduled_at'] ?? b['preferred_date']).toLocal();
+              return dtA.compareTo(dtB);
+            });
 
             if (scheduled.isEmpty) {
               return const Center(
@@ -899,7 +957,7 @@ class _StatsHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final total = bookings.length;
     final completed = bookings.where((b) => b['status'] == 'completed').length;
-    final upcoming = bookings.where((b) => b['status'] == 'confirmed').length;
+    final upcoming = bookings.where((b) => (b['status'] == 'upcoming' || b['status'] == 'in_progress')).length;
     final credits = bookings
         .where((b) => b['status'] == 'completed')
         .fold<int>(0, (s, b) => s + (b['credits_cost'] as int? ?? 0));
@@ -948,7 +1006,7 @@ class _TNextSessionBanner extends StatelessWidget {
   const _TNextSessionBanner({required this.booking});
   @override
   Widget build(BuildContext context) {
-    final dt = DateTime.parse(booking['scheduled_at']).toLocal();
+    final dt = DateTime.parse(booking['scheduled_at'] ?? booking['preferred_date']).toLocal();
     final name = (booking['student_name'] as String?) ?? 'Student';
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1018,7 +1076,7 @@ class _TBookingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = (booking['student_name'] as String?) ?? 'Student';
     final status = booking['status'] as String;
-    final dt = DateTime.parse(booking['scheduled_at']).toLocal();
+    final dt = DateTime.parse(booking['scheduled_at'] ?? booking['preferred_date']).toLocal();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -1053,7 +1111,7 @@ class _TBookingCard extends StatelessWidget {
                   color: _C.slateBlue,
                   fontWeight: FontWeight.w600)),
         ])),
-        if (showComplete && status == 'confirmed')
+        if (showComplete && (status == 'upcoming' || status == 'in_progress'))
           GestureDetector(
             onTap: () => _complete(context),
             child: Container(
@@ -1091,7 +1149,7 @@ class _TScheduleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final name = (booking['student_name'] as String?) ?? 'Student';
-    final dt = DateTime.parse(booking['scheduled_at']).toLocal();
+    final dt = DateTime.parse(booking['scheduled_at'] ?? booking['preferred_date']).toLocal();
     final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -1148,6 +1206,30 @@ class _TScheduleCard extends StatelessWidget {
                     fontWeight: FontWeight.w600)),
           ]),
         ])),
+        if ((booking['kind'] == 'session' || booking['kind'] == null) &&
+            (booking['status'] == 'upcoming' || booking['status'] == 'in_progress'))
+          Padding(
+            padding: const EdgeInsets.only(left: 8.0),
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SessionRoomScreen(sessionId: booking['id']),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.video_call_rounded, size: 16),
+              label: const Text('Join', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _C.slateBlue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
       ]),
     );
   }
@@ -1160,7 +1242,7 @@ class _EarningRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = (booking['student_name'] as String?) ?? 'Student';
     final credits = booking['credits_cost'] as int? ?? 0;
-    final dt = DateTime.parse(booking['scheduled_at']).toLocal();
+    final dt = DateTime.parse(booking['scheduled_at'] ?? booking['preferred_date']).toLocal();
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -1235,43 +1317,62 @@ class _EarningStat extends StatelessWidget {
 class _DayChip extends StatelessWidget {
   final DateTime day;
   final String dayName;
-  final bool isToday, hasSession;
-  const _DayChip(
-      {required this.day,
-      required this.dayName,
-      required this.isToday,
-      required this.hasSession});
+  final bool isToday, isSelected, hasSession;
+  final VoidCallback onTap;
+  const _DayChip({
+    required this.day,
+    required this.dayName,
+    required this.isToday,
+    required this.isSelected,
+    required this.hasSession,
+    required this.onTap,
+  });
+
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) {
+    final bg = isSelected
+        ? _C.magenta
+        : isToday
+            ? _C.slateBlue
+            : _C.paper;
+    final fg = (isSelected || isToday) ? Colors.white : _C.ink;
+    final subFg = (isSelected || isToday) ? Colors.white70 : _C.inkSoft;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
         width: 52,
         margin: const EdgeInsets.only(right: 10),
         decoration: BoxDecoration(
-          color: isToday ? _C.slateBlue : _C.paper,
+          color: bg,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: isToday ? _C.slateBlue : _C.line),
+          border: Border.all(color: isSelected ? _C.magenta : isToday ? _C.slateBlue : _C.line),
         ),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           Text(dayName,
               style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
-                  color: isToday ? Colors.white70 : _C.inkSoft)),
+                  color: subFg)),
           const SizedBox(height: 2),
           Text('${day.day}',
               style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
-                  color: isToday ? Colors.white : _C.ink)),
+                  color: fg)),
           if (hasSession)
             Container(
                 width: 6,
                 height: 6,
                 margin: const EdgeInsets.only(top: 2),
                 decoration: BoxDecoration(
-                    color: isToday ? Colors.white : _C.magenta,
+                    color: (isSelected || isToday) ? Colors.white : _C.magenta,
                     shape: BoxShape.circle)),
         ]),
-      );
+      ),
+    );
+  }
 }
 
 class _TLabel extends StatelessWidget {

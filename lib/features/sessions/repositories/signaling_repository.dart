@@ -155,7 +155,29 @@ class SignalingRepository {
   void sendMediaState(bool cameraOn, bool micOn) =>
       _socket?.emit('media:state', {'cameraOn': cameraOn, 'micOn': micOn});
 
-  void sendChat(String body) => _socket?.emit('chat:send', {'body': body});
+  Future<void> sendChat(String body) {
+    final completer = Completer<void>();
+    final socket = _socket;
+    if (socket == null) {
+      return Future.error(Exception('Not connected to session.'));
+    }
+    socket.emitWithAck('chat:send', {'body': body}, ack: (response) {
+      final map = response is Map ? response : {};
+      if (map['error'] != null) {
+        if (!completer.isCompleted) {
+          completer.completeError(Exception(map['error'] as String));
+        }
+      } else if (!completer.isCompleted) {
+        completer.complete();
+      }
+    });
+    Future.delayed(const Duration(seconds: 5), () {
+      if (!completer.isCompleted) {
+        completer.completeError(Exception('Message send timed out.'));
+      }
+    });
+    return completer.future;
+  }
 
   void sendStroke(Map<String, dynamic> stroke) =>
       _socket?.emit('whiteboard:stroke', stroke);

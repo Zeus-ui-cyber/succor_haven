@@ -64,10 +64,10 @@ class PaymentReceiptScreen extends StatelessWidget {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Text('Succor Haven',
-                  style: const pw.TextStyle(
+                  style: pw.TextStyle(
                       fontSize: 20, fontWeight: pw.FontWeight.bold)),
               pw.Text('Credit Top-Up Receipt',
-                  style: const pw.TextStyle(fontSize: 11)),
+                  style: pw.TextStyle(fontSize: 11)),
               pw.SizedBox(height: 20),
               pw.Divider(),
               pw.SizedBox(height: 8),

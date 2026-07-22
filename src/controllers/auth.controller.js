@@ -160,9 +160,13 @@ exports.login = async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      `SELECT u.*, tp.is_approved AS teacher_approved
+      `SELECT u.*,
+              COALESCE(sp.credits, 0)::int AS credits,
+              COALESCE(sp.points, 0)::int AS points,
+              tp.is_approved AS teacher_approved
        FROM users u
        LEFT JOIN teacher_profiles tp ON tp.user_id = u.id
+       LEFT JOIN student_profiles sp ON sp.user_id = u.id
        WHERE u.email = $1`,
       [email],
     );
@@ -251,9 +255,13 @@ exports.verifyOtp = async (req, res) => {
     const column = type === "sms" ? "phone" : "email";
 
     const { rows } = await pool.query(
-      `SELECT u.*, tp.is_approved AS teacher_approved
+      `SELECT u.*,
+              COALESCE(sp.credits, 0)::int AS credits,
+              COALESCE(sp.points, 0)::int AS points,
+              tp.is_approved AS teacher_approved
        FROM users u
        LEFT JOIN teacher_profiles tp ON tp.user_id = u.id
+       LEFT JOIN student_profiles sp ON sp.user_id = u.id
        WHERE u.${column} = $1`,
       [target],
     );

@@ -105,6 +105,8 @@ class TeacherProfileModel {
   final List<String> availability;
   final double rating;
   final int totalSessions;
+  final int? creditsPerSession;
+  final Map<String, int> subjectPrices;
   final DateTime? createdAt; // only present on getOne()
 
   const TeacherProfileModel({
@@ -116,6 +118,8 @@ class TeacherProfileModel {
     this.availability = const [],
     this.rating = 0,
     this.totalSessions = 0,
+    this.creditsPerSession,
+    this.subjectPrices = const {},
     this.createdAt,
   });
 
@@ -169,6 +173,10 @@ class TeacherProfileModel {
           ? double.tryParse(json['rating'] as String) ?? 0
           : (json['rating'] as num?)?.toDouble() ?? 0,
       totalSessions: (json['total_sessions'] as num?)?.toInt() ?? 0,
+      creditsPerSession: (json['credits_per_session'] as num?)?.toInt(),
+      subjectPrices: (json['subject_prices'] as Map<String, dynamic>?)?.map(
+            (k, v) => MapEntry(k, (v as num).toInt()),
+          ) ?? const {},
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'] as String)
           : null,
@@ -184,6 +192,8 @@ class TeacherProfileModel {
         'availability': availability,
         'rating': rating,
         'total_sessions': totalSessions,
+        'credits_per_session': creditsPerSession,
+        'subject_prices': subjectPrices,
         'created_at': createdAt?.toIso8601String(),
       };
 
@@ -196,6 +206,8 @@ class TeacherProfileModel {
     List<String>? availability,
     double? rating,
     int? totalSessions,
+    int? creditsPerSession,
+    Map<String, int>? subjectPrices,
     DateTime? createdAt,
   }) =>
       TeacherProfileModel(
@@ -207,6 +219,8 @@ class TeacherProfileModel {
         availability: availability ?? this.availability,
         rating: rating ?? this.rating,
         totalSessions: totalSessions ?? this.totalSessions,
+        creditsPerSession: creditsPerSession ?? this.creditsPerSession,
+        subjectPrices: subjectPrices ?? this.subjectPrices,
         createdAt: createdAt ?? this.createdAt,
       );
 }

@@ -117,11 +117,13 @@ class VideoCallController extends StateNotifier<VideoCallState> {
   final List<RTCIceCandidate> _pendingRemoteCandidates = [];
   final List<StreamSubscription> _subs = [];
 
-  // The first remote MediaStream we ever see (from onTrack) is the peer's
+  // The first remote MediaStream and video track we ever see (from onTrack) is the peer's
   // camera+mic — its id becomes the reference point for telling that apart
   // from a screen-share track added later via renegotiation, since both
   // arrive on the same peer connection with no other metadata to key off.
   String? _remoteCameraStreamId;
+  String? _remoteCameraVideoTrackId;
+  MediaStream? _remoteScreenStream;
 
   VideoCallController({
     required this.signaling,
@@ -228,8 +230,13 @@ class VideoCallController extends StateNotifier<VideoCallState> {
     }));
     _subs.add(signaling.onScreenShareStarted.listen((_) {
       state = state.copyWith(remoteSharingScreen: true);
+      if (_remoteScreenStream != null) {
+        screenShareRenderer.srcObject = null;
+        screenShareRenderer.srcObject = _remoteScreenStream;
+      }
     }));
     _subs.add(signaling.onScreenShareStopped.listen((_) {
+      _remoteScreenStream = null;
       screenShareRenderer.srcObject = null;
       state = state.copyWith(remoteSharingScreen: false);
     }));
@@ -274,13 +281,28 @@ class VideoCallController extends StateNotifier<VideoCallState> {
       if (event.streams.isEmpty) return;
       final stream = event.streams[0];
 
-      // The first stream we ever see from this peer is their camera+mic
-      // (added during the initial call setup, before any screen share is
-      // possible). Anything with a different stream id that shows up later
-      // is their screen share, added via renegotiation.
+      // The first stream and video track we see from this peer is their camera+mic.
       _remoteCameraStreamId ??= stream.id;
+      if (event.track.kind == 'video' &&
+          _remoteCameraVideoTrackId == null &&
+          !state.remoteSharingScreen) {
+        _remoteCameraVideoTrackId = event.track.id;
+      }
 
-      if (stream.id == _remoteCameraStreamId) {
+      // Check if this track is the screen share track (renegotiated mid-call,
+      // or arrived while remoteSharingScreen is active, or has a different track/stream ID).
+      final isScreenShareTrack = (state.remoteSharingScreen &&
+              event.track.kind == 'video' &&
+              event.track.id != _remoteCameraVideoTrackId) ||
+          (stream.id != _remoteCameraStreamId && _remoteCameraStreamId != null);
+
+      if (isScreenShareTrack) {
+        // Native Android WebRTC renderer fix: force null then re-bind stream
+        _remoteScreenStream = stream;
+        screenShareRenderer.srcObject = null;
+        screenShareRenderer.srcObject = stream;
+        state = state.copyWith(remoteSharingScreen: true);
+      } else {
         if (remoteRenderer.srcObject != stream) {
           remoteRenderer.srcObject = stream;
         } else if (event.track.kind == 'video') {
@@ -302,13 +324,6 @@ class VideoCallController extends StateNotifier<VideoCallState> {
           remoteConnected: true,
           connectionState: CallConnectionState.connected,
         );
-      } else {
-        if (screenShareRenderer.srcObject != stream) {
-          screenShareRenderer.srcObject = stream;
-        } else if (event.track.kind == 'video') {
-          screenShareRenderer.srcObject = null;
-          screenShareRenderer.srcObject = stream;
-        }
       }
     };
 
@@ -547,6 +562,14 @@ class VideoCallController extends StateNotifier<VideoCallState> {
   }
 
   Future<void> _renegotiate(RTCPeerConnection pc) async {
+    int retries = 0;
+    while (pc.signalingState != RTCSignalingState.RTCSignalingStateStable && retries < 10) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      retries++;
+    }
+    if (pc.signalingState != RTCSignalingState.RTCSignalingStateStable) {
+      return;
+    }
     final offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     signaling.sendOffer({'sdp': offer.sdp, 'type': offer.type});

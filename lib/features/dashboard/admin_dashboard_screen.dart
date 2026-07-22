@@ -12,6 +12,8 @@ import 'admin/students_list_screen.dart';
 import 'admin/announcements_screen.dart';
 import '../modules/screens/modules_screen.dart';
 import '../payments/screens/admin/manage_payments_screen.dart';
+import '../../core/api/api_service.dart';
+import '../../core/utils/logout_helper.dart';
 
 class _C {
   static const burgundy = Color(0xFF7D002B);
@@ -42,46 +44,32 @@ String _initials(String? fullName) {
 
 final _adminRepoProvider = Provider((_) => AuthRepository());
 
-Future<Map<String, String>> _adminHeaders(AuthRepository repo) async {
-  final token = await repo.getAccessToken();
-  return {
-    'Content-Type': 'application/json',
-    if (token != null) 'Authorization': 'Bearer $token',
-  };
-}
-
 final _dashboardProvider = FutureProvider<Map<String, dynamic>>((ref) async {
-  final repo = ref.read(_adminRepoProvider);
-  final res = await http.get(
-    Uri.parse('${AuthRepository.baseUrl}/admin/dashboard'),
-    headers: await _adminHeaders(repo),
-  );
-  if (res.statusCode != 200) {
-    throw Exception(
-        'Failed to load dashboard (${res.statusCode}): ${res.body}');
+  try {
+    final res = await ApiService.instance.get('/admin/dashboard');
+    return res as Map<String, dynamic>;
+  } catch (e) {
+    throw Exception('Failed to load dashboard: $e');
   }
-  return jsonDecode(res.body) as Map<String, dynamic>;
 });
 
 final _pendingTeachersProvider = FutureProvider<List<dynamic>>((ref) async {
-  final repo = ref.read(_adminRepoProvider);
-  final res = await http.get(
-    Uri.parse('${AuthRepository.baseUrl}/admin/users?role=teacher'),
-    headers: await _adminHeaders(repo),
-  );
-  if (res.statusCode != 200) return [];
-  final all = jsonDecode(res.body) as List;
-  return all.where((u) => u['teacher_approved'] == false).toList();
+  try {
+    final res = await ApiService.instance.get('/admin/users', query: {'role': 'teacher'});
+    final all = res as List;
+    return all.where((u) => u['teacher_approved'] == false).toList();
+  } catch (e) {
+    return [];
+  }
 });
 
 final _allUsersProvider = FutureProvider<List<dynamic>>((ref) async {
-  final repo = ref.read(_adminRepoProvider);
-  final res = await http.get(
-    Uri.parse('${AuthRepository.baseUrl}/admin/users'),
-    headers: await _adminHeaders(repo),
-  );
-  if (res.statusCode != 200) return [];
-  return jsonDecode(res.body) as List;
+  try {
+    final res = await ApiService.instance.get('/admin/users');
+    return res as List;
+  } catch (e) {
+    return [];
+  }
 });
 
 // Needed so ModulesScreen (shared with the teacher dashboard) has a
@@ -155,14 +143,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard>
                     builder: (_, ref, __) => IconButton(
                           icon: const Icon(Icons.logout_rounded,
                               color: _C.inkSoft),
-                          onPressed: () async {
-                            await ref
-                                .read(authControllerProvider.notifier)
-                                .logout();
-                            if (context.mounted) {
-                              Navigator.pushReplacementNamed(context, '/login');
-                            }
-                          },
+                          onPressed: () => performLogoutWithLoading(context, ref: ref),
                         )),
               ]),
             ),
@@ -595,17 +576,22 @@ class _TeachersTab extends ConsumerWidget {
   const _TeachersTab();
 
   Future<void> _approve(BuildContext ctx, WidgetRef ref, String userId) async {
-    final repo = ref.read(_adminRepoProvider);
-    final res = await http.patch(
-      Uri.parse('${AuthRepository.baseUrl}/admin/teachers/$userId/approve'),
-      headers: await _adminHeaders(repo),
-    );
-    if (ctx.mounted) {
-      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-        content: Text(res.statusCode == 200 ? 'Teacher approved ✓' : 'Failed'),
-        backgroundColor: res.statusCode == 200 ? _C.green : _C.burgundy,
-      ));
-      if (res.statusCode == 200) ref.invalidate(_pendingTeachersProvider);
+    try {
+      await ApiService.instance.patch('/admin/teachers/$userId/approve');
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+          content: Text('Teacher approved ✓'),
+          backgroundColor: _C.green,
+        ));
+        ref.invalidate(_pendingTeachersProvider);
+      }
+    } catch (e) {
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+          content: Text('Failed'),
+          backgroundColor: _C.burgundy,
+        ));
+      }
     }
   }
 
@@ -768,18 +754,92 @@ class _UsersTab extends ConsumerWidget {
   const _UsersTab();
 
   Future<void> _toggle(BuildContext ctx, WidgetRef ref, String userId) async {
-    final repo = ref.read(_adminRepoProvider);
-    final res = await http.patch(
-      Uri.parse('${AuthRepository.baseUrl}/admin/users/$userId/toggle'),
-      headers: await _adminHeaders(repo),
+    try {
+      final res = await ApiService.instance.patch('/admin/users/$userId/toggle');
+      if (ctx.mounted) {
+        final active = res['isActive'] as bool?;
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+          content: Text(active == true ? 'User activated' : 'User deactivated'),
+          backgroundColor: active == true ? _C.green : _C.burgundy,
+        ));
+        ref.invalidate(_allUsersProvider);
+      }
+    } catch (e) {
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+          content: Text('Failed to toggle user'),
+          backgroundColor: _C.burgundy,
+        ));
+      }
+    }
+  }
+
+  Future<void> _updateTeacherSubjectPrices(BuildContext ctx, WidgetRef ref, String userId, List<dynamic> subjects, Map<String, dynamic> subjectPrices) async {
+    final Map<String, TextEditingController> ctrls = {};
+    for (final sub in subjects) {
+      final s = sub.toString();
+      ctrls[s] = TextEditingController(text: subjectPrices[s]?.toString() ?? '6');
+    }
+
+    final newPrices = await showDialog<Map<String, int>>(
+      context: ctx,
+      builder: (c) => AlertDialog(
+        title: const Text('Manage Subject Prices (Credits/30m)'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: subjects.map((sub) {
+              final s = sub.toString();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: TextField(
+                  controller: ctrls[s],
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(labelText: s),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              final Map<String, int> result = {};
+              for (final sub in subjects) {
+                final s = sub.toString();
+                final val = int.tryParse(ctrls[s]?.text ?? '');
+                if (val != null) result[s] = val;
+              }
+              Navigator.pop(c, result);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
-    if (ctx.mounted) {
-      final active = jsonDecode(res.body)['isActive'] as bool?;
-      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-        content: Text(active == true ? 'User activated' : 'User deactivated'),
-        backgroundColor: active == true ? _C.green : _C.burgundy,
-      ));
-      ref.invalidate(_allUsersProvider);
+    if (newPrices == null) return;
+
+    try {
+      await ApiService.instance.put(
+        '/admin/teachers/$userId/subject_prices',
+        data: {'subjectPrices': newPrices},
+      );
+
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+          content: Text('Prices updated'),
+          backgroundColor: _C.green,
+        ));
+        ref.invalidate(_allUsersProvider);
+      }
+    } catch (e) {
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+          content: Text('Failed to update prices'),
+          backgroundColor: _C.burgundy,
+        ));
+      }
     }
   }
 
@@ -850,6 +910,30 @@ class _UsersTab extends ConsumerWidget {
                         fontWeight: FontWeight.w700)),
               ),
               const SizedBox(width: 8),
+              if (role == 'teacher')
+                GestureDetector(
+                  onTap: () => _updateTeacherSubjectPrices(
+                    context, 
+                    ref, 
+                    u['id'], 
+                    u['subjects'] ?? [],
+                    u['subject_prices'] ?? {},
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _C.slateBlue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text('Manage Prices',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: _C.slateBlue,
+                            fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              const SizedBox(width: 8),
+
               if (role != 'admin')
                 GestureDetector(
                   onTap: () => _toggle(context, ref, u['id']),

@@ -188,6 +188,14 @@ class AuthController extends StateNotifier<AuthState> {
     state = const AuthState();
   }
 
+  // ── Refresh user profile ───────────────────────────────────────────────────
+  Future<void> refreshUser() async {
+    try {
+      final user = await _repo.getMe();
+      state = state.copyWith(user: user);
+    } catch (_) {}
+  }
+
   // ── Clear error ────────────────────────────────────────────────────────────
   void clearError() => state = state.copyWith(error: null);
 

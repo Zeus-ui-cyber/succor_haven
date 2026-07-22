@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import '../auth/controllers/auth_controller.dart';
 import '../auth/repositories/auth_repository.dart';
+import '../../core/api/api_service.dart';
+import '../../core/utils/logout_helper.dart';
 import '../../models/user.dart';
 import '../../models/teacher_profile.dart';
 import '../booking/controllers/booking_controller.dart';
@@ -195,8 +197,7 @@ class _StudentDashboardState extends ConsumerState<StudentDashboard> {
   }
 
   Future<void> _logout() async {
-    await ref.read(authControllerProvider.notifier).logout();
-    if (mounted) Navigator.pushReplacementNamed(context, '/login');
+    await performLogoutWithLoading(context, ref: ref);
   }
 }
 

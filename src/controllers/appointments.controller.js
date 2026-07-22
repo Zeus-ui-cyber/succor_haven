@@ -92,10 +92,45 @@ async function createAppointment(req, res) {
       tzOffset = parsed;
     }
 
+    // ── Check Credits ────────────────────────────────────────────────────────
+    // Read teacher's price
+    // Fallback to credits_per_session if no specific subject price is set
+    const { rows: tp } = await pool.query(
+      `SELECT tp.credits_per_session, tsp.credits_per_half_hour 
+       FROM teacher_profiles tp 
+       LEFT JOIN teacher_subject_prices tsp 
+         ON tsp.teacher_id = tp.user_id AND tsp.subject = $2
+       WHERE tp.user_id = $1`,
+      [teacherId, subject]
+    );
+    if (!tp.length) {
+      return res.status(404).json({ error: "Teacher profile not found." });
+    }
+    
+    let creditsCost = 0;
+    if (tp[0].credits_per_half_hour != null) {
+      // Dynamic price based on duration
+      const intervals = Math.ceil(duration / 30);
+      creditsCost = tp[0].credits_per_half_hour * intervals;
+    } else {
+      // Fallback
+      creditsCost = tp[0].credits_per_session ?? 6;
+    }
+
+    // Check student's balance
+    const { rows: sp } = await pool.query(
+      `SELECT credits FROM student_profiles WHERE user_id = $1`,
+      [studentId]
+    );
+    if (!sp.length || sp[0].credits < creditsCost) {
+      return res.status(400).json({ error: "Insufficient credits to request this appointment." });
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     const { rows } = await pool.query(
       `INSERT INTO appointments
-        (student_id, teacher_id, title, purpose, subject, preferred_date, preferred_time, duration_mins, timezone_offset_minutes, description, attachment_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        (student_id, teacher_id, title, purpose, subject, preferred_date, preferred_time, duration_mins, timezone_offset_minutes, description, attachment_url, credits_cost)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
         studentId,
@@ -109,6 +144,7 @@ async function createAppointment(req, res) {
         tzOffset,
         description ?? null,
         attachmentUrl ?? null,
+        creditsCost,
       ],
     );
 
@@ -220,16 +256,55 @@ async function approveAppointment(req, res) {
   try {
     const { id } = req.params;
     const teacherId = req.user.sub;
+
+    await pool.query("BEGIN");
+
+    // Get appointment
+    const { rows: apptRows } = await pool.query(
+      `SELECT * FROM appointments WHERE id = $1 AND teacher_id = $2 AND status IN ('pending', 'rescheduled') FOR UPDATE`,
+      [id, teacherId]
+    );
+
+    if (apptRows.length === 0) {
+      await pool.query("ROLLBACK");
+      return res.status(400).json({ error: "Cannot approve this appointment." });
+    }
+
+    const appt = apptRows[0];
+    const creditsCost = appt.credits_cost ?? 0;
+
+    // Check student credits
+    const { rows: sp } = await pool.query(
+      `SELECT credits FROM student_profiles WHERE user_id = $1 FOR UPDATE`,
+      [appt.student_id]
+    );
+
+    if (!sp.length || sp[0].credits < creditsCost) {
+      await pool.query("ROLLBACK");
+      return res.status(400).json({ error: "Student does not have enough credits." });
+    }
+
+    // Deduct credits
+    if (creditsCost > 0) {
+      await pool.query(
+        `UPDATE student_profiles SET credits = credits - $1 WHERE user_id = $2`,
+        [creditsCost, appt.student_id]
+      );
+      await pool.query(
+        `INSERT INTO credits_ledger (user_id, amount, reason, currency)
+         VALUES ($1, $2, $3, 'credits')`,
+        [appt.student_id, -creditsCost, `Appointment approved with teacher ${teacherId}`]
+      );
+    }
+
+    // Update appointment
     const { rows } = await pool.query(
       `UPDATE appointments SET status = 'approved'
-       WHERE id = $1 AND teacher_id = $2 AND status IN ('pending', 'rescheduled')
-       RETURNING *`,
-      [id, teacherId],
+       WHERE id = $1 RETURNING *`,
+      [id]
     );
-    if (rows.length === 0)
-      return res
-        .status(400)
-        .json({ error: "Cannot approve this appointment." });
+
+    await pool.query("COMMIT");
 
     // Auto-provision the "My Sessions" video meeting the moment a teacher
     // approves — this is what makes it "automatically appear" on both
@@ -250,6 +325,7 @@ async function approveAppointment(req, res) {
 
     return res.json(rows[0]);
   } catch (err) {
+    await pool.query("ROLLBACK");
     console.error("approveAppointment error:", err);
     return res.status(500).json({ error: "Failed to approve appointment." });
   }

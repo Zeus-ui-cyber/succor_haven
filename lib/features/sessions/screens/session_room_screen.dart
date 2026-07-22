@@ -14,7 +14,6 @@
 // REST endpoints and doesn't depend on WebRTC actually connecting to work.
 
 import 'dart:async';
-import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/session.dart';
@@ -105,7 +104,7 @@ class _SessionRoomScreenState extends ConsumerState<SessionRoomScreen> {
     if (remaining <= Duration.zero && !_autoEndFired) {
       _autoEndFired = true;
       if (isTeacher) {
-        ref.read(sessionsRepositoryProvider).endSession(widget.sessionId).catchError((_) {});
+        ref.read(sessionsRepositoryProvider).endSession(widget.sessionId).catchError((_) => session);
       }
       setState(() => _sessionEnded = true);
     }
@@ -119,8 +118,10 @@ class _SessionRoomScreenState extends ConsumerState<SessionRoomScreen> {
         // Session still auto-completes later via the backend's own
         // reconcileStale() sweep even if this explicit call fails.
       }
+      if (mounted) setState(() => _sessionEnded = true);
+    } else {
+      if (mounted) Navigator.of(context).pop();
     }
-    if (mounted) Navigator.of(context).pop();
   }
 
   @override
@@ -129,10 +130,7 @@ class _SessionRoomScreenState extends ConsumerState<SessionRoomScreen> {
     final sessionAsync = ref.watch(sessionDetailProvider(widget.sessionId));
 
     return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) Navigator.of(context).pop();
-      },
+      canPop: true,
       child: Scaffold(
         backgroundColor: RoomColors.bg,
         body: SafeArea(
@@ -150,7 +148,7 @@ class _SessionRoomScreenState extends ConsumerState<SessionRoomScreen> {
                 final isTeacher = me.id == session.teacherId;
                 _ensureTimer(session, isTeacher);
 
-                if (_sessionEnded) {
+                if (_sessionEnded || session.status == SessionCardStatus.completed) {
                   return _SessionEndedView(onDone: () => Navigator.of(context).pop());
                 }
 
@@ -205,13 +203,13 @@ class _RoomBody extends ConsumerWidget {
     final presenceState = ref.watch(presenceControllerProvider(presenceArgs));
     final presenceController = ref.read(presenceControllerProvider(presenceArgs).notifier);
 
-    return Column(children: [
-      _TopBar(session: session, remaining: remaining, connectionState: callState.connectionState),
-      Expanded(
-        child: LayoutBuilder(builder: (context, constraints) {
-          final wide = constraints.maxWidth >= 900;
-          return Padding(
-            padding: const EdgeInsets.all(16),
+    return LayoutBuilder(builder: (context, constraints) {
+      final wide = constraints.maxWidth >= 900;
+      return Column(children: [
+        _TopBar(session: session, remaining: remaining, connectionState: callState.connectionState),
+        Expanded(
+          child: Padding(
+            padding: EdgeInsets.all(wide ? 16 : 8),
             child: wide
                 ? _WideBody(
                     session: session,
@@ -239,11 +237,11 @@ class _RoomBody extends ConsumerWidget {
                     onTogglePinnedShare: onTogglePinnedShare,
                     onLeave: onLeave,
                   ),
-          );
-        }),
-      ),
-      _FooterBar(session: session),
-    ]);
+          ),
+        ),
+        if (wide) _FooterBar(session: session),
+      ]);
+    });
   }
 }
 
@@ -405,7 +403,6 @@ class _WideBody extends StatelessWidget {
           RoomControlBar(
             cameraOn: callState.cameraOn,
             micOn: callState.micOn,
-            speakerOn: callState.speakerOn,
             whiteboardOpen: true,
             handRaised: presenceState.myHandRaised,
             isTeacher: isTeacher,
@@ -413,7 +410,6 @@ class _WideBody extends StatelessWidget {
             remoteSharingScreen: callState.remoteSharingScreen,
             onToggleCamera: callController.toggleCamera,
             onToggleMic: callController.toggleMic,
-            onToggleSpeaker: callController.toggleSpeaker,
             onToggleWhiteboard: () {}, // always visible on wide layout
             onToggleRaiseHand: presenceController.toggleRaiseHand,
             onReaction: presenceController.sendReaction,
@@ -511,18 +507,14 @@ class _VideoStage extends StatelessWidget {
     );
 
     if (compactCameraTiles) {
-      // Pinned: shared screen fills the stage, camera tiles float as small
-      // thumbnails so nobody's face disappears entirely.
+      // Shared screen fills the stage, and ONLY the local camera tile floats
+      // as a thumbnail (remote participant camera is hidden to avoid obstructing the share).
       return Stack(children: [
         Positioned.fill(child: shareView),
         Positioned(
           bottom: 12,
           left: 12,
-          child: Row(children: [
-            SizedBox(width: 96, height: 72, child: _localTile()),
-            const SizedBox(width: 8),
-            SizedBox(width: 96, height: 72, child: _remoteTile()),
-          ]),
+          child: SizedBox(width: 88, height: 66, child: _localTile()),
         ),
       ]);
     }
@@ -576,9 +568,15 @@ class _NarrowBody extends StatelessWidget {
     final sharingActive = callState.sharingScreen || callState.remoteSharingScreen;
     final isPinned = sharingActive && pinnedShare;
 
+    final stageHeight = isPinned
+        ? 300.0
+        : (sharingActive
+            ? (tab == _RoomTab.chat ? 160.0 : 220.0)
+            : (tab == _RoomTab.chat ? 130.0 : 170.0));
+
     return Column(children: [
       SizedBox(
-        height: isPinned ? 320 : (sharingActive ? 220 : 170),
+        height: stageHeight,
         child: _VideoStage(
           session: session,
           isTeacher: isTeacher,
@@ -589,11 +587,10 @@ class _NarrowBody extends StatelessWidget {
           compactCameraTiles: sharingActive,
         ),
       ),
-      const SizedBox(height: 12),
+      const SizedBox(height: 8),
       RoomControlBar(
         cameraOn: callState.cameraOn,
         micOn: callState.micOn,
-        speakerOn: callState.speakerOn,
         whiteboardOpen: tab == _RoomTab.whiteboard,
         handRaised: presenceState.myHandRaised,
         isTeacher: isTeacher,
@@ -601,7 +598,6 @@ class _NarrowBody extends StatelessWidget {
         remoteSharingScreen: callState.remoteSharingScreen,
         onToggleCamera: callController.toggleCamera,
         onToggleMic: callController.toggleMic,
-        onToggleSpeaker: callController.toggleSpeaker,
         onToggleWhiteboard: () => onTabChanged(_RoomTab.whiteboard),
         onToggleRaiseHand: presenceController.toggleRaiseHand,
         onReaction: presenceController.sendReaction,

@@ -26,41 +26,56 @@ class _ChatPanelState extends ConsumerState<ChatPanel> {
     super.dispose();
   }
 
-  void _send() {
-    final text = _inputController.text;
-    if (text.trim().isEmpty) return;
-    ref.read(chatControllerProvider(widget.sessionId).notifier).send(text);
+  Future<void> _send() async {
+    final text = _inputController.text.trim();
+    if (text.isEmpty) return;
     _inputController.clear();
+    try {
+      await ref.read(chatControllerProvider(widget.sessionId).notifier).send(text);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: RoomColors.red,
+        ),
+      );
+    }
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final messages = ref.watch(chatControllerProvider(widget.sessionId));
 
+    // Auto-scroll when messages state changes or loads
     ref.listen(chatControllerProvider(widget.sessionId), (_, __) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients) {
-          _scrollController.animateTo(
-            _scrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
-          );
-        }
-      });
+      _scrollToBottom();
     });
 
     return Container(
       decoration: roomPanelDecoration(),
       child: Column(children: [
         const Padding(
-          padding: EdgeInsets.all(14),
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(children: [
-            Icon(Icons.chat_bubble_outline_rounded, size: 18, color: RoomColors.magenta),
+            Icon(Icons.chat_bubble_outline_rounded, size: 16, color: RoomColors.magenta),
             SizedBox(width: 8),
             Text('Session Chat',
                 style: TextStyle(
                     fontWeight: FontWeight.w800,
-                    fontSize: 14,
+                    fontSize: 13.5,
                     color: RoomColors.textPrimary)),
           ]),
         ),
@@ -72,7 +87,7 @@ class _ChatPanelState extends ConsumerState<ChatPanel> {
                       style: TextStyle(color: RoomColors.textSecondary, fontSize: 12)))
               : ListView.builder(
                   controller: _scrollController,
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   itemCount: messages.length,
                   itemBuilder: (_, i) {
                     final m = messages[i];
@@ -81,7 +96,7 @@ class _ChatPanelState extends ConsumerState<ChatPanel> {
                 ),
         ),
         Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           child: Row(children: [
             Expanded(
               child: TextField(

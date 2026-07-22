@@ -49,7 +49,9 @@ exports.browse = async (req, res) => {
     const { rows } = await pool.query(
       `SELECT u.id, (u.first_name || ' ' || u.last_name) AS full_name, u.email, u.avatar_url,
               tp.bio, tp.subjects, tp.availability,
-              tp.credits_per_session, tp.rating::float8, tp.total_sessions
+              tp.credits_per_session, tp.rating::float8, tp.total_sessions,
+              (SELECT COALESCE(json_object_agg(tsp.subject, tsp.credits_per_half_hour), '{}'::json)
+               FROM teacher_subject_prices tsp WHERE tsp.teacher_id = tp.user_id) AS subject_prices
        FROM users u
        JOIN teacher_profiles tp ON tp.user_id = u.id
        WHERE u.role = 'teacher' AND ${where}
@@ -72,7 +74,9 @@ exports.getOne = async (req, res) => {
     const { rows } = await pool.query(
       `SELECT u.id, (u.first_name || ' ' || u.last_name) AS full_name, u.email, u.created_at, u.avatar_url,
               tp.bio, tp.subjects, tp.availability,
-              tp.credits_per_session, tp.rating::float8, tp.total_sessions
+              tp.credits_per_session, tp.rating::float8, tp.total_sessions,
+              (SELECT COALESCE(json_object_agg(tsp.subject, tsp.credits_per_half_hour), '{}'::json)
+               FROM teacher_subject_prices tsp WHERE tsp.teacher_id = tp.user_id) AS subject_prices
        FROM users u
        JOIN teacher_profiles tp ON tp.user_id = u.id
        WHERE u.id = $1 AND u.role = 'teacher' AND tp.is_approved = true`,

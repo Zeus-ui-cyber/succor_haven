@@ -35,10 +35,10 @@ class ChatController extends StateNotifier<List<SessionChatMessage>> {
     }
   }
 
-  void send(String body) {
+  Future<void> send(String body) async {
     final text = body.trim();
     if (text.isEmpty) return;
-    _signaling.sendChat(text);
+    await _signaling.sendChat(text);
   }
 
   @override

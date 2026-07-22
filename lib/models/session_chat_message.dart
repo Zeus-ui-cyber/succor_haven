@@ -18,14 +18,25 @@ class SessionChatMessage {
     required this.createdAt,
   });
 
-  factory SessionChatMessage.fromJson(Map<String, dynamic> json) =>
-      SessionChatMessage(
-        id: json['id'].toString(),
-        senderId: json['sender_id'].toString(),
-        senderName: json['sender_name'] as String? ?? 'Unknown',
-        senderAvatarUrl: json['sender_avatar_url'] as String?,
-        senderRole: json['sender_role'] as String? ?? 'student',
-        body: json['body'] as String,
-        createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
-      );
+  factory SessionChatMessage.fromJson(Map<String, dynamic> json) {
+    DateTime parsedDate;
+    final rawDate = json['created_at'];
+    if (rawDate is String) {
+      parsedDate = DateTime.tryParse(rawDate)?.toLocal() ?? DateTime.now();
+    } else if (rawDate is DateTime) {
+      parsedDate = rawDate.toLocal();
+    } else {
+      parsedDate = DateTime.now();
+    }
+
+    return SessionChatMessage(
+      id: (json['id'] ?? '').toString(),
+      senderId: (json['sender_id'] ?? '').toString(),
+      senderName: json['sender_name'] as String? ?? 'Unknown',
+      senderAvatarUrl: json['sender_avatar_url'] as String?,
+      senderRole: json['sender_role'] as String? ?? 'student',
+      body: (json['body'] ?? '').toString(),
+      createdAt: parsedDate,
+    );
+  }
 }

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../main.dart' show SHColors;
 import '../../../models/teacher_profile.dart';
 import '../controllers/appointment_controller.dart';
+import '../../auth/controllers/auth_controller.dart';
 
 class RequestAppointmentScreen extends ConsumerStatefulWidget {
   final TeacherProfileModel teacher;
@@ -30,6 +31,8 @@ class _RequestAppointmentScreenState
   @override
   void initState() {
     super.initState();
+    // Refresh user profile so credits/points in memory are up-to-date
+    Future.microtask(() => ref.read(authControllerProvider.notifier).refreshUser());
     // Drives the live completion indicator — purely presentational,
     // does not affect validation or submission logic.
     _titleCtrl.addListener(_onFieldChanged);
@@ -112,6 +115,15 @@ class _RequestAppointmentScreenState
     return n;
   }
 
+  int get _calculatedCost {
+    if (_subject != null && widget.teacher.subjectPrices.containsKey(_subject)) {
+      final baseRate = widget.teacher.subjectPrices[_subject!]!;
+      final intervals = (_durationMins / 30).ceil();
+      return baseRate * intervals;
+    }
+    return widget.teacher.creditsPerSession ?? 6;
+  }
+
   static const int _totalRequired = 5;
 
   Future<void> _submit() async {
@@ -126,6 +138,13 @@ class _RequestAppointmentScreenState
     }
     if (_preferredTime == null) {
       _showSnack('Please choose a preferred time.', error: true);
+      return;
+    }
+
+    final user = ref.read(authControllerProvider).user;
+    final cost = _calculatedCost;
+    if (user != null && (user.credits ?? 0) < cost) {
+      _showSnack('Insufficient credits. This appointment costs $cost credits.', error: true);
       return;
     }
 
@@ -241,6 +260,33 @@ class _RequestAppointmentScreenState
                   const SizedBox(height: 12),
                   _StaggerIn(
                     index: 1,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: SHColors.green.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: SHColors.green.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.stars_rounded, color: SHColors.green, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Price: $_calculatedCost credits',
+                              style: const TextStyle(
+                                color: SHColors.green,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _StaggerIn(
+                    index: 2,
                     child: _ProgressLabel(
                       completed: _completedCount,
                       total: _totalRequired,

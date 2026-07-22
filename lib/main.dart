@@ -256,7 +256,7 @@ void main() {
     if (kIsWeb) {
       apiUrl = 'http://localhost:3000/api/v1';
     } else if (defaultTargetPlatform == TargetPlatform.android) {
-      apiUrl = 'https://a0e6-136-158-66-172.ngrok-free.app/api/v1';
+      apiUrl = 'https://1adc-136-158-66-172.ngrok-free.app/api/v1';
     } else {
       apiUrl = 'http://localhost:3000/api/v1';
     }

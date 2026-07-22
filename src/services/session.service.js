@@ -20,7 +20,8 @@ const SESSION_JOIN_SELECT = `
   (t.first_name || ' ' || t.last_name) AS teacher_name,
   (st.first_name || ' ' || st.last_name) AS student_name,
   t.avatar_url AS teacher_avatar_url,
-  st.avatar_url AS student_avatar_url
+  st.avatar_url AS student_avatar_url,
+  COALESCE(a.credits_cost, b.credits_cost, 0) AS credits_cost
 `;
 
 // Read-time reconciliation: with no scheduler running yet (that's Phase 5
@@ -122,6 +123,8 @@ async function listMine(userId, role) {
      FROM sessions s
      JOIN users t  ON t.id = s.teacher_id
      JOIN users st ON st.id = s.student_id
+     LEFT JOIN appointments a ON s.appointment_id = a.id
+     LEFT JOIN bookings b ON s.booking_id = b.id
      WHERE ${sessionField} = $1
      ORDER BY s.scheduled_at DESC`,
     [userId],
@@ -131,7 +134,7 @@ async function listMine(userId, role) {
   const { rows: pendingRows } = await pool.query(
     `SELECT a.id, a.teacher_id, a.student_id, a.subject, a.title,
             a.preferred_date, a.preferred_time,
-            a.duration_mins, a.status,
+            a.duration_mins, a.status, a.credits_cost,
             (t.first_name || ' ' || t.last_name) AS teacher_name,
             (s.first_name || ' ' || s.last_name) AS student_name,
             t.avatar_url AS teacher_avatar_url,
@@ -159,6 +162,7 @@ async function listMine(userId, role) {
     preferred_time: r.preferred_time,
     duration_mins: r.duration_mins,
     status: r.status,
+    credits_cost: r.credits_cost,
     teacher_name: r.teacher_name,
     student_name: r.student_name,
     teacher_avatar_url: r.teacher_avatar_url,
@@ -175,6 +179,8 @@ async function getById(sessionId) {
      FROM sessions s
      JOIN users t  ON t.id = s.teacher_id
      JOIN users st ON st.id = s.student_id
+     LEFT JOIN appointments a ON s.appointment_id = a.id
+     LEFT JOIN bookings b ON s.booking_id = b.id
      WHERE s.id = $1`,
     [sessionId],
   );
@@ -200,14 +206,83 @@ async function markInProgress(sessionId) {
 // Deliberately allowed from 'upcoming' too (not just 'in_progress') so a
 // teacher can end a session even if the student never actually joined.
 async function endSession(sessionId, teacherId) {
-  const { rows } = await pool.query(
-    `UPDATE sessions
-     SET status = 'completed', ended_at = now()
-     WHERE id = $1 AND teacher_id = $2 AND status IN ('upcoming', 'in_progress')
-     RETURNING *`,
-    [sessionId, teacherId],
-  );
-  return rows[0] ?? null;
+  await pool.query("BEGIN");
+  try {
+    const { rows } = await pool.query(
+      `UPDATE sessions
+       SET status = 'completed', ended_at = now()
+       WHERE id = $1 AND teacher_id = $2 AND status IN ('upcoming', 'in_progress')
+       RETURNING *`,
+      [sessionId, teacherId],
+    );
+
+    const session = rows[0] ?? null;
+
+    if (session && (session.appointment_id || session.booking_id)) {
+      // Award credits to teacher and points to student
+      let cost = 0;
+      let mins = session.duration_mins || 0;
+
+      if (session.appointment_id) {
+        const { rows: apptRows } = await pool.query(
+          `SELECT credits_cost, duration_mins FROM appointments WHERE id = $1`,
+          [session.appointment_id]
+        );
+        if (apptRows.length > 0) {
+          cost = apptRows[0].credits_cost || 0;
+          if (apptRows[0].duration_mins) mins = apptRows[0].duration_mins;
+        }
+      } else if (session.booking_id) {
+        const { rows: bkRows } = await pool.query(
+          `SELECT credits_cost, duration_mins FROM bookings WHERE id = $1`,
+          [session.booking_id]
+        );
+        if (bkRows.length > 0) {
+          cost = bkRows[0].credits_cost || 0;
+          if (bkRows[0].duration_mins) mins = bkRows[0].duration_mins;
+        }
+      }
+
+      // 1. Award credits to teacher
+      if (cost > 0) {
+        await pool.query(
+          `UPDATE teacher_profiles SET credits = credits + $1 WHERE user_id = $2`,
+          [cost, teacherId]
+        );
+        await pool.query(
+          `INSERT INTO credits_ledger (user_id, amount, reason, currency)
+           VALUES ($1, $2, $3, 'credits')`,
+          [teacherId, cost, `Earned from session with student ${session.student_id}`]
+        );
+      }
+
+      // 2. Award points to student based on duration
+      let points = 0;
+      if (mins === 30) points = 2;
+      else if (mins === 60) points = 5;
+      else if (mins === 90) points = 7;
+      else if (mins >= 120) points = 10;
+      else points = Math.max(1, Math.floor(mins / 15)); // fallback
+
+      if (points > 0) {
+        await pool.query(
+          `UPDATE student_profiles SET points = points + $1 WHERE user_id = $2`,
+          [points, session.student_id]
+        );
+        await pool.query(
+          `INSERT INTO points_ledger (user_id, booking_id, points, reason)
+           VALUES ($1, $2, $3, $4)`,
+          [session.student_id, session.booking_id || null, points, `Session completed (${mins} mins)`]
+        );
+      }
+    }
+
+    await pool.query("COMMIT");
+    return session;
+  } catch (err) {
+    await pool.query("ROLLBACK");
+    throw err;
+  }
 }
 
 // ── Attendance ───────────────────────────────────────────────────────────

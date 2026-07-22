@@ -79,6 +79,12 @@ class RealtimeService {
     socket.on('session:changed', (data) {
       debugPrint('[RealtimeService] session:changed received: $data');
       _ref.invalidate(mySessionsProvider);
+      if (data is Map<String, dynamic> && data['session'] is Map) {
+        final sessionId = data['session']['id'];
+        if (sessionId != null) {
+          _ref.invalidate(sessionDetailProvider(sessionId));
+        }
+      }
     });
 
     socket.on('notification:new', (data) {

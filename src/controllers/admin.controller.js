@@ -75,6 +75,9 @@ exports.listUsers = async (req, res) => {
               (u.first_name || ' ' || u.last_name) AS full_name,
               u.role, u.is_active, u.created_at,
               tp.is_approved AS teacher_approved,
+              tp.subjects,
+              (SELECT COALESCE(json_object_agg(tsp.subject, tsp.credits_per_half_hour), '{}'::json)
+               FROM teacher_subject_prices tsp WHERE tsp.teacher_id = tp.user_id) AS subject_prices,
               COALESCE((
                 SELECT SUM(amount) FROM credits_ledger cl
                 WHERE cl.user_id = u.id AND cl.currency = 'credits'
@@ -168,6 +171,42 @@ exports.createTeacher = async (req, res) => {
     }
 
     res.status(500).json({ error: "Failed to create teacher account" });
+  }
+};
+
+// ── PUT /admin/teachers/:id/subject_prices — Admin sets per-subject prices ─────────────────
+exports.updateTeacherSubjectPrices = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { subjectPrices } = req.body;
+    
+    if (!subjectPrices || typeof subjectPrices !== 'object') {
+      return res.status(400).json({ error: "Invalid subjectPrices object" });
+    }
+
+    await pool.query("BEGIN");
+    
+    // Clear old prices for this teacher
+    await pool.query(`DELETE FROM teacher_subject_prices WHERE teacher_id = $1`, [id]);
+
+    // Insert new prices
+    const entries = Object.entries(subjectPrices);
+    for (const [subject, price] of entries) {
+      if (typeof price === 'number') {
+        await pool.query(
+          `INSERT INTO teacher_subject_prices (teacher_id, subject, credits_per_half_hour)
+           VALUES ($1, $2, $3)`,
+          [id, subject, price]
+        );
+      }
+    }
+    
+    await pool.query("COMMIT");
+    res.json({ message: "Prices updated successfully" });
+  } catch (err) {
+    await pool.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ error: "Failed to update teacher prices" });
   }
 };
 
